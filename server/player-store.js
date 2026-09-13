@@ -87,6 +87,8 @@ export class PlayerStore {
     const initialPlayer = new Player({
       peerId,
       nickname,
+      position: playerDefinition.position,
+      rotation: playerDefinition.rotation,
       ...(playerDefinition.status ?? {}),
       inventory: playerDefinition.inventory,
     });
@@ -111,6 +113,8 @@ export class PlayerStore {
       peerId,
       ...(result.rows[0]?.state ?? {}),
       nickname,
+      position: result.rows[0]?.state?.position ?? playerDefinition.position,
+      rotation: result.rows[0]?.state?.rotation ?? playerDefinition.rotation,
       ...(!result.rows[0] ? playerDefinition.status : {}),
       inventory: result.rows[0]?.state?.inventory ?? playerDefinition.inventory,
     });

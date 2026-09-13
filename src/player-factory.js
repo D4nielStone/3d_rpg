@@ -89,7 +89,6 @@ export async function loadPlayer(world, textureManager, definition = {}, assetDe
     rotation: definition.rotation,
     scale: normalizePlayerScale(definition.scale),
   }));
-  world.addComponent(entity, new AnimationPlayer());
   world.addComponent(entity, new PlayerController({ speed: definition.speed }));
   world.addComponent(entity, new MoveTarget());
   world.addComponent(entity, asset.mesh ?? asset);

@@ -6,6 +6,7 @@ import {
   rotationY,
   translation,
 } from './math.js';
+import * as THREE from 'three';
 
 export class Camera {
   constructor({
@@ -25,6 +26,11 @@ export class Camera {
     this.pitch = pitch;
     this.yaw = yaw;
     this.orbit = null;
+    this.renderCamera = null;
+  }
+
+  setRenderCamera(renderCamera) {
+    this.renderCamera = renderCamera;
   }
 
   setAspect(aspect) {
@@ -36,6 +42,19 @@ export class Camera {
   }
 
     screenToGround(clientX, clientY, canvas, groundY = 0) {
+      if (this.renderCamera) {
+        const bounds = canvas.getBoundingClientRect();
+        const normalizedX = ((clientX - bounds.left) / bounds.width) * 2 - 1;
+        const normalizedY = 1 - ((clientY - bounds.top) / bounds.height) * 2;
+        const raycaster = new THREE.Raycaster();
+        raycaster.setFromCamera(new THREE.Vector2(normalizedX, normalizedY), this.renderCamera);
+        const distance = (groundY - raycaster.ray.origin.y) / raycaster.ray.direction.y;
+        if (Number.isFinite(distance) && distance > 0) {
+          return raycaster.ray.origin.clone().addScaledVector(raycaster.ray.direction, distance).toArray();
+        }
+        return null;
+      }
+
     this.updatePosition();
     const bounds = canvas.getBoundingClientRect();
     const normalizedX = ((clientX - bounds.left) / bounds.width) * 2 - 1;
@@ -81,6 +100,30 @@ export class Camera {
       groundY,
       this.position[2] + direction[2] * distance,
     ];
+  }
+
+  worldToScreen(position, canvas) {
+    const bounds = canvas.getBoundingClientRect();
+    if (this.renderCamera) {
+      const projected = new THREE.Vector3(...position).project(this.renderCamera);
+      return {
+        visible: projected.z >= -1 && projected.z <= 1,
+        x: bounds.left + (projected.x * 0.5 + 0.5) * bounds.width,
+        y: bounds.top + (-projected.y * 0.5 + 0.5) * bounds.height,
+      };
+    }
+
+    const viewProjection = multiplyMatrices(this.getProjectionMatrix(), this.getViewMatrix());
+    const [x, y, z] = position;
+    const clipX = viewProjection[0] * x + viewProjection[4] * y + viewProjection[8] * z + viewProjection[12];
+    const clipY = viewProjection[1] * x + viewProjection[5] * y + viewProjection[9] * z + viewProjection[13];
+    const clipZ = viewProjection[2] * x + viewProjection[6] * y + viewProjection[10] * z + viewProjection[14];
+    const clipW = viewProjection[3] * x + viewProjection[7] * y + viewProjection[11] * z + viewProjection[15];
+    return {
+      visible: clipW > 0 && clipZ > -clipW && clipZ < clipW,
+      x: bounds.left + (clipX / clipW * 0.5 + 0.5) * bounds.width,
+      y: bounds.top + (-clipY / clipW * 0.5 + 0.5) * bounds.height,
+    };
   }
 
   updatePosition() {

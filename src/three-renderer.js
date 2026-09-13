@@ -46,6 +46,7 @@ export class ThreeRenderSystem {
     this.canvas = canvas;
     this.sourceCamera = camera;
     this.camera = new THREE.PerspectiveCamera(45, 1, 0.1, 1000);
+    camera.setRenderCamera(this.camera);
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.shadowMap.enabled = true;
@@ -61,11 +62,23 @@ export class ThreeRenderSystem {
     this.scene.add(new THREE.AmbientLight(colorFrom(ambient), Number(lighting.ambientIntensity ?? 1)));
     const directional = lighting.directional ?? {};
     const directionalLight = new THREE.DirectionalLight(colorFrom(directional.color, [1, 0.95, 0.85]), Number(directional.intensity ?? 0.8));
-    directionalLight.position.set(...(directional.direction ?? [-0.45, 0.85, 0.35])).multiplyScalar(-45);
+    const direction = new THREE.Vector3(...(directional.direction ?? [-0.45, 0.85, 0.35]));
+    if (direction.lengthSq() === 0) direction.set(-0.45, 0.85, 0.35);
+    direction.normalize();
+    directionalLight.position.copy(direction).multiplyScalar(-45);
+    directionalLight.target.position.set(0, 0, 0);
+    this.scene.add(directionalLight.target);
     directionalLight.castShadow = true;
     directionalLight.shadow.mapSize.set(1024, 1024);
-    directionalLight.shadow.camera.near = 0.1;
-    directionalLight.shadow.camera.far = 160;
+    directionalLight.shadow.camera.left = -80;
+    directionalLight.shadow.camera.right = 80;
+    directionalLight.shadow.camera.top = 80;
+    directionalLight.shadow.camera.bottom = -80;
+    directionalLight.shadow.camera.near = 1;
+    directionalLight.shadow.camera.far = 180;
+    directionalLight.shadow.bias = -0.0005;
+    directionalLight.shadow.normalBias = 0.02;
+    directionalLight.shadow.camera.updateProjectionMatrix();
     this.scene.add(directionalLight);
     for (const point of lighting.pointLights ?? []) {
       const light = new THREE.PointLight(colorFrom(point.color, [1, 0.72, 0.45]), point.intensity ?? 2, point.distance ?? 18);
@@ -83,6 +96,7 @@ export class ThreeRenderSystem {
     this.renderer.setSize(width, height, false);
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
+    this.sourceCamera.setAspect(this.camera.aspect);
   }
 
   syncCamera() {
@@ -123,6 +137,21 @@ export class ThreeRenderSystem {
       this.root.add(object);
       this.entityObjects.set(entity, object);
     }
+    renderer.meshes.forEach((mesh, index) => {
+      if (!mesh.dirty) return;
+      const meshObject = object.children[index];
+      if (!meshObject) return;
+      const position = meshObject.geometry.getAttribute('position');
+      const normal = meshObject.geometry.getAttribute('normal');
+      position.copyArray(mesh.vertices);
+      position.needsUpdate = true;
+      if (normal && mesh.normals?.length) {
+        normal.copyArray(mesh.normals);
+        normal.needsUpdate = true;
+      }
+      meshObject.geometry.computeBoundingSphere();
+      mesh.dirty = false;
+    });
     object.position.set(...transform.position);
     object.rotation.set(transform.rotation[0], transform.rotation[1], transform.rotation[2]);
     object.scale.set(...transform.scale);

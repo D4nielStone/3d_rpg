@@ -50,7 +50,7 @@ function createPrimitiveMesh(type) {
   if (type === 'box') addBox();
   else if (type === 'plane') {
     const first = [[-0.5, 0, -0.5], [0.5, 0, -0.5], [0.5, 0, 0.5], [-0.5, 0, 0.5]].map((corner, index) => addVertex(corner, [0, 1, 0], [index === 1 || index === 2 ? 1 : 0, index >= 2 ? 1 : 0]));
-    addQuad(...first);
+    indices.push(first[0], first[2], first[1], first[0], first[3], first[2]);
   } else {
     const isCone = type === 'cone';
     const isCapsule = type === 'capsule';
@@ -118,7 +118,7 @@ function createTerrain(world, terrain) {
         x, level, z + 1,
       );
       colors.push(...color, ...color, ...color, ...color);
-      indices.push(first, first + 1, first + 2, first, first + 2, first + 3);
+      indices.push(first, first + 2, first + 1, first, first + 3, first + 2);
     }
   }
 

@@ -68,6 +68,16 @@ const ambientIntensityInput = document.querySelector('#ambient-intensity');
 const ambientIntensityValue = document.querySelector('#ambient-intensity-value');
 const directionalIntensityInput = document.querySelector('#directional-intensity');
 const directionalIntensityValue = document.querySelector('#directional-intensity-value');
+const directionalInputs = [
+  document.querySelector('#directional-x'),
+  document.querySelector('#directional-y'),
+  document.querySelector('#directional-z'),
+];
+const directionalValues = [
+  document.querySelector('#directional-x-value'),
+  document.querySelector('#directional-y-value'),
+  document.querySelector('#directional-z-value'),
+];
 const pointLightInspector = document.querySelector('#point-light-inspector');
 const entityLightColorInput = document.querySelector('#entity-light-color');
 const entityLightIntensityInput = document.querySelector('#entity-light-intensity');
@@ -219,7 +229,12 @@ const updateSkyColor = () => updateSceneAtmosphere();
 function updateSceneAmbientLight() {
   ambientLight.color.setRGB(...lighting.ambientColor);
   ambientLight.intensity = lighting.ambientIntensity;
-  directionalLight.position.set(...lighting.directional.direction).multiplyScalar(-20);
+  const direction = new THREE.Vector3(...lighting.directional.direction);
+  if (direction.lengthSq() === 0) direction.set(-0.45, 0.85, 0.35);
+  direction.normalize();
+  directionalLight.position.copy(direction).multiplyScalar(-45);
+  directionalLight.target.position.set(0, 0, 0);
+  directionalLight.target.updateMatrixWorld();
   directionalLight.color.setRGB(...lighting.directional.color);
   directionalLight.intensity = lighting.directional.intensity;
 }
@@ -227,6 +242,10 @@ function updateLightingInspector() {
   ambientColorInput.value = `#${lighting.ambientColor.map((channel) => Math.round(channel * 255).toString(16).padStart(2, '0')).join('')}`;
   ambientIntensityInput.value = lighting.ambientIntensity;
   ambientIntensityValue.textContent = lighting.ambientIntensity.toFixed(2);
+  directionalInputs.forEach((input, index) => {
+    input.value = lighting.directional.direction[index];
+    directionalValues[index].textContent = Number(lighting.directional.direction[index]).toFixed(2);
+  });
   directionalIntensityInput.value = lighting.directional.intensity;
   directionalIntensityValue.textContent = lighting.directional.intensity.toFixed(2);
   updateSceneAmbientLight();
@@ -239,6 +258,8 @@ async function redo() { const state = future.pop(); if (!state) return; history.
 
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 const editorGl = renderer.getContext();
 editorGl.enable(editorGl.CULL_FACE);
 editorGl.cullFace(editorGl.BACK);
@@ -252,9 +273,20 @@ const orbit = new OrbitControls(camera, canvas);
 orbit.target.set(0, 0, 0); orbit.enableDamping = true; orbit.maxPolarAngle = Math.PI / 2.05; orbit.minDistance = 4; orbit.maxDistance = 900;
 const ambientLight = new THREE.AmbientLight(0xffffff, lighting.ambientIntensity);
 const directionalLight = new THREE.DirectionalLight(0xffffff, lighting.directional.intensity);
-scene.add(ambientLight, directionalLight);
+directionalLight.castShadow = true;
+directionalLight.shadow.mapSize.set(1024, 1024);
+directionalLight.shadow.camera.left = -80;
+directionalLight.shadow.camera.right = 80;
+directionalLight.shadow.camera.top = 80;
+directionalLight.shadow.camera.bottom = -80;
+directionalLight.shadow.camera.near = 1;
+directionalLight.shadow.camera.far = 180;
+directionalLight.shadow.bias = -0.0005;
+directionalLight.shadow.normalBias = 0.02;
+scene.add(ambientLight, directionalLight, directionalLight.target);
 const worldGroup = new THREE.Group(); scene.add(worldGroup);
 const ground = new THREE.Mesh(new THREE.PlaneGeometry(1024, 1024), new THREE.MeshStandardMaterial({ color: 0x202522, roughness: 1 }));
+ground.receiveShadow = true;
 ground.rotation.x = -Math.PI / 2; ground.position.set(-0.5, -0.16, -0.5); worldGroup.add(ground);
 const gridHelper = new THREE.GridHelper(1024, 64, 0x53605a, 0x29312d); gridHelper.position.set(-0.5, -0.14, -0.5); gridHelper.material.transparent = true; gridHelper.material.opacity = 0.3; worldGroup.add(gridHelper);
 const enemyAreaVisuals = new THREE.Group(); worldGroup.add(enemyAreaVisuals);
@@ -1077,6 +1109,12 @@ document.querySelector('#redo-button').addEventListener('click', redo);
 ambientColorInput.addEventListener('input', () => { const hex = ambientColorInput.value.slice(1); lighting.ambientColor = [0, 2, 4].map((index) => Number.parseInt(hex.slice(index, index + 2), 16) / 255); updateSceneAmbientLight(); updateSummary(); });
 ambientIntensityInput.addEventListener('input', () => { lighting.ambientIntensity = Number(ambientIntensityInput.value); ambientIntensityValue.textContent = lighting.ambientIntensity.toFixed(2); updateSceneAmbientLight(); updateSummary(); });
 directionalIntensityInput.addEventListener('input', () => { lighting.directional.intensity = Number(directionalIntensityInput.value); directionalIntensityValue.textContent = lighting.directional.intensity.toFixed(2); updateSceneAmbientLight(); updateSummary(); });
+directionalInputs.forEach((input, index) => input.addEventListener('input', () => {
+  lighting.directional.direction[index] = Number(input.value);
+  directionalValues[index].textContent = lighting.directional.direction[index].toFixed(2);
+  updateSceneAmbientLight();
+  updateSummary();
+}));
 skyColorInput.addEventListener('input', () => { const hex = skyColorInput.value.slice(1); skyColor = [0, 2, 4].map((index) => Number.parseInt(hex.slice(index, index + 2), 16) / 255); updateSceneAtmosphere(); updateSummary(); });
 fogColorInput.addEventListener('input', () => { const hex = fogColorInput.value.slice(1); fog.color = [0, 2, 4].map((index) => Number.parseInt(hex.slice(index, index + 2), 16) / 255); updateSceneAtmosphere(); updateSummary(); });
 fogNearInput.addEventListener('input', () => { fog.near = Number(fogNearInput.value) || 0; if (fog.near >= fog.far) fog.far = fog.near + 1; updateSceneAtmosphere(); updateSummary(); });
