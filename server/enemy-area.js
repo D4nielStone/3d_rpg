@@ -1,4 +1,5 @@
 import { Enemy } from './enemy.js';
+import { doesAttackHit } from './combat.js';
 
 export class EnemyArea {
   constructor({
@@ -123,6 +124,10 @@ export class EnemyArea {
 
     if (currentMode === 'magic') {
       player.mana = Math.max(0, player.mana - manaCost);
+    }
+
+    if (!doesAttackHit(player.accuracy, target.defense)) {
+      return { hit: false, manaCost };
     }
 
     const damage = target.receiveDamage(attackDamage);

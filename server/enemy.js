@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { createEnemyTypeMap } from './world/enemy-types.js';
 import { canTraverseTerrain, PLAYER_HEIGHT, sampleTerrainHeight } from '../shared/terrain-height.js';
+import { doesAttackHit } from './combat.js';
 
 export class Enemy {
   constructor({ id = randomUUID(), type = 'rat', level, position = [0, 0, 0], definitions = null, terrain = null } = {}) {
@@ -15,6 +16,7 @@ export class Enemy {
     this.hp = definition.maxHp;
     this.maxHp = definition.maxHp;
     this.defense = Math.max(0, Number(definition.defense) || 0);
+    this.accuracy = Math.max(1, Number(definition.accuracy) || 1);
     this.experience = definition.experience;
     this.goldMin = definition.gold.min;
     this.goldMax = definition.gold.max;
@@ -74,8 +76,9 @@ export class Enemy {
 
     if (targetDistance <= this.attackRange) {
       if (this.attackCooldown === 0 && target.hp > 0) {
-        target.hp = Math.max(0, target.hp - this.attackDamage);
         this.attackCooldown = 1;
+        if (!doesAttackHit(this.accuracy, target.defense)) return;
+        target.hp = Math.max(0, target.hp - this.attackDamage);
         return { damagedPlayer: target };
       }
       return;
@@ -188,6 +191,7 @@ export class Enemy {
       hp: this.hp,
       maxHp: this.maxHp,
       defense: this.defense,
+      accuracy: this.accuracy,
       alerted: this.alerted,
       position: [...this.position],
       rotationY: this.rotationY,

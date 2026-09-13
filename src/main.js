@@ -167,6 +167,7 @@ function createMultiplayer(game, playerEntity, enemyAssets, soundPlayer, mapConf
   const multiplayerUrl = getMultiplayerUrl();
   const guestId = getGuestId();
   const url = multiplayerUrl ? new URL(multiplayerUrl) : null;
+  let previousPlayerHp = null;
   url?.searchParams.set('guestId', guestId);
   url?.searchParams.set('nickname', window.localStorage.getItem('webgl-rpg-nickname') ?? 'Guest');
   const multiplayer = new MultiplayerSystem({
@@ -177,6 +178,11 @@ function createMultiplayer(game, playerEntity, enemyAssets, soundPlayer, mapConf
       status.textContent = `${message} Clique para mover; Space cancela.`;
     },
     onPlayerState: (player) => {
+      if (previousPlayerHp !== null && player.hp < previousPlayerHp) {
+        const transform = game.world.getComponent(playerEntity, Transform);
+        if (transform) game.renderSystem.spawnSlash(transform.position, transform.rotation[1]);
+      }
+      previousPlayerHp = player.hp;
       playerStatus.update(player);
       updatePlayerAttributes(player);
       updateCombatMode(player.combatMode, game.world, playerEntity);
@@ -191,9 +197,15 @@ function createMultiplayer(game, playerEntity, enemyAssets, soundPlayer, mapConf
     onAttack: () => {
       game.world.getComponent(playerEntity, SwordRenderer)?.attack();
     },
-    onAttackHit: () => {
+    onAttackHit: (message) => {
       const soundName = { melee: 'slash', ranged: 'pulse', magic: 'arc' }[combatMode] ?? 'slash';
       soundPlayer?.play(soundName).catch(() => {});
+      if (!message.enemyId) return;
+      const targetEntity = game.world.query(EnemyIdentity).find((entity) => (
+        game.world.getComponent(entity, EnemyIdentity)?.enemyId === message.enemyId
+      ));
+      const targetTransform = targetEntity ? game.world.getComponent(targetEntity, Transform) : null;
+      if (targetTransform) game.renderSystem.spawnSlash(targetTransform.position, targetTransform.rotation[1]);
     },
     onLevelUp: () => {
       soundPlayer?.play('level-up').catch(() => {});

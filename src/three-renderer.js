@@ -67,6 +67,8 @@ export class ThreeRenderSystem {
     this.root = new THREE.Group();
     this.scene.add(this.root);
     this.entityObjects = new Map();
+    this.slashEffects = [];
+    this.slashGeometry = null;
 
     const ambient = lighting.ambientColor ?? [1, 1, 1];
     this.scene.add(new THREE.AmbientLight(colorFrom(ambient), Number(lighting.ambientIntensity ?? 1)));
@@ -202,8 +204,69 @@ export class ThreeRenderSystem {
     return ring;
   }
 
+  spawnSlash(position, rotation = 0) {
+    if (!this.slashGeometry) {
+      const shape = new THREE.Shape();
+      shape.moveTo(-0.72, -0.5);
+      shape.quadraticCurveTo(0.05, -0.18, 0.72, 0.58);
+      shape.lineTo(0.52, 0.72);
+      shape.quadraticCurveTo(-0.08, 0.18, -0.82, -0.28);
+      shape.closePath();
+      this.slashGeometry = new THREE.ShapeGeometry(shape);
+    }
+
+    const group = new THREE.Group();
+    const glow = new THREE.Mesh(
+      this.slashGeometry,
+      new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.35,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+      }),
+    );
+    const core = new THREE.Mesh(
+      this.slashGeometry,
+      new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.95,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+      }),
+    );
+    glow.scale.setScalar(1.18);
+    group.add(glow, core);
+    group.position.set(position[0], position[1] + 0.85, position[2]);
+    group.rotation.set(0, rotation, 0);
+    group.scale.setScalar(0.35);
+    this.root.add(group);
+    this.slashEffects.push({ group, glow, core, startedAt: performance.now() });
+  }
+
+  updateSlashEffects(time) {
+    this.slashEffects = this.slashEffects.filter((effect) => {
+      const progress = Math.min(1, Math.max(0, (time - effect.startedAt) / 260));
+      if (progress >= 1) {
+        this.root.remove(effect.group);
+        effect.glow.material.dispose();
+        effect.core.material.dispose();
+        return false;
+      }
+      const fade = 1 - progress;
+      effect.group.scale.setScalar(0.35 + progress * 0.95);
+      effect.group.rotation.z = -0.45 + progress * 0.9;
+      effect.glow.material.opacity = fade * 0.35;
+      effect.core.material.opacity = fade * 0.95;
+      return true;
+    });
+  }
+
   render(world, time = 0) {
     this.syncCamera();
+    this.updateSlashEffects(time);
 
     const livingEntities = new Set();
     for (const entity of world.query(Transform, MeshRenderer)) livingEntities.add(entity);

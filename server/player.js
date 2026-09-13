@@ -52,6 +52,7 @@ export class Player {
     strength = 1,
     strengthXp = 0,
     accuracy = 1,
+    defense = 1,
     magic = 1,
     combatMode = 'melee',
     area = { id: 'starting-rat-area', name: 'Área dos Ratos', level: 1 },
@@ -73,6 +74,7 @@ export class Player {
     this.maxStrengthXp = calculateMeleeXp(this.strength);
     this.lastBloodHitAt = 0;
     this.accuracy = Math.max(1, Number(accuracy) || 1);
+    this.defense = Math.max(0, Number(defense) || 0);
     this.magic = Math.max(1, Number(magic) || 1);
     this.combatMode = ['melee', 'ranged', 'magic'].includes(combatMode)
       ? combatMode
@@ -230,6 +232,7 @@ export class Player {
       strengthXp: this.strengthXp,
       maxStrengthXp: this.maxStrengthXp,
       accuracy: this.accuracy,
+      defense: this.defense,
       magic: this.magic,
       combatMode: this.combatMode,
       area: { ...this.area },
