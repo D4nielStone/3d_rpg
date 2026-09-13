@@ -99,6 +99,19 @@ export class NameTagSystem {
     });
   }
 
+  
+  spawnMissAttack(position) {
+    const element = document.createElement('span');
+    element.className = 'floating-miss';
+    element.textContent = 'MISS';
+    document.body.append(element);
+    this.floatingLevelUps.push({
+      element,
+      position: [position[0], position[1] + 0.8, position[2]],
+      age: 0,
+    });
+  }
+
   updateOverlayPosition(element, position, offset) {
     const screenPosition = this.camera.worldToScreen(position, this.canvas);
     element.hidden = !screenPosition.visible;

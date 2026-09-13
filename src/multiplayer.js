@@ -451,17 +451,16 @@ export class MultiplayerSystem {
     const deltaZ = targetTransform.position[2] - playerTransform.position[2];
     const distance = Math.hypot(deltaX, deltaZ);
     const attackDistance = this.combatMode === 'melee' ? COMBAT_DISTANCE : RANGED_ATTACK_DISTANCE;
+    if (distance > 0.001) {
+      playerTransform.rotation[1] = Math.atan2(deltaX, deltaZ);
+    }
 
-    if (this.combatMode === 'melee') {
-      if (distance > COMBAT_DISTANCE) {
-        moveTarget.position = [
-          targetTransform.position[0] - deltaX / distance * COMBAT_DISTANCE,
-          targetTransform.position[1],
-          targetTransform.position[2] - deltaZ / distance * COMBAT_DISTANCE,
-        ];
-      } else {
-        moveTarget.position = null;
-      }
+    if (distance > attackDistance) {
+      moveTarget.position = [
+        targetTransform.position[0] - deltaX / distance * attackDistance,
+        targetTransform.position[1],
+        targetTransform.position[2] - deltaZ / distance * attackDistance,
+      ];
     } else {
       moveTarget.position = null;
     }

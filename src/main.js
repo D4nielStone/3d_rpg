@@ -310,7 +310,6 @@ async function start(identity = {}) {
   game.enemyHoverSystem.onSelect = (entity) => {
     if (entity && game.world.getComponent(entity, EnemyIdentity)) {
       multiplayerSystem.setAttackTarget(entity);
-      multiplayerSystem.sendAttack();
       return;
     }
     multiplayerSystem.setAttackTarget(null);

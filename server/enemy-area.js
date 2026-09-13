@@ -142,6 +142,7 @@ export class EnemyArea {
         manaCost,
       };
     }
+    // miss attack
     return {
       hit: true,
       damage,
