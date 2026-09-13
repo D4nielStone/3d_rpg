@@ -14,6 +14,7 @@ import { NameTagSystem } from './name-tags.js';
 import { EnemyHoverSystem } from './enemy-hover.js';
 import { customizeMap } from './map-customization.js';
 import { ThreeRenderSystem } from './three-renderer.js';
+import { createMobileControls } from './mobile-controls.js';
 
 export async function createGame(canvas, mapConfig = null) {
   const camera = new Camera({ terrain: mapConfig?.terrain ?? null });
@@ -45,6 +46,7 @@ export async function createGame(canvas, mapConfig = null) {
     far: Number(mapConfig?.scene?.fog?.far ?? 850),
   };
   const input = new InputState();
+  createMobileControls({ input, camera });
   const renderSystem = new ThreeRenderSystem(
     canvas,
     camera,

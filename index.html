@@ -54,6 +54,16 @@
         </section>
         <main>
             <canvas id="canvas" width="800" height="500"></canvas>
+            <section id="mobile-controls" aria-label="Controles para celular">
+                <div id="mobile-joystick" aria-label="Mover personagem">
+                    <span id="mobile-joystick-thumb"></span>
+                </div>
+                <div id="mobile-camera-pad" aria-label="Controlar câmera"></div>
+                <div id="mobile-camera-zoom" aria-label="Zoom da câmera">
+                    <button type="button" data-camera-zoom="-1" aria-label="Afastar câmera">−</button>
+                    <button type="button" data-camera-zoom="1" aria-label="Aproximar câmera">+</button>
+                </div>
+            </section>
             <button id="chat-toggle" type="button" aria-expanded="false" aria-controls="chat" aria-label="Abrir chat">CHAT</button>
             <div id="action-bar" aria-label="Ações rápidas">
                 <button class="action-slot action-slot-selected" type="button" data-combat-mode="melee" aria-label="Selecionar ataque corpo a corpo">⚔️</button>
