@@ -169,7 +169,7 @@ export class Enemy {
       id: this.id,
       type: this.type,
       name: this.name,
-      model: this.model,
+      ...(this.model.length <= 512 ? { model: this.model } : {}),
       level: this.level,
       hp: this.hp,
       maxHp: this.maxHp,

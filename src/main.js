@@ -160,7 +160,7 @@ chatToggle.addEventListener('click', () => {
   ui.toggleChat();
 });
 
-function createMultiplayer(game, playerEntity, enemyAssets, soundPlayer) {
+function createMultiplayer(game, playerEntity, enemyAssets, soundPlayer, mapConfig) {
   // Em producao, a URL vem do Render; localmente usamos o relay na porta 5174.
   const multiplayerUrl = getMultiplayerUrl();
   const guestId = getGuestId();
@@ -196,7 +196,13 @@ function createMultiplayer(game, playerEntity, enemyAssets, soundPlayer) {
       if (transform) game.nameTagSystem.spawnLevelUp(transform.position);
     },
     createRemoteEntity: (peerId, nickname, level) => addRemotePlayer(game.world, playerEntity, peerId, nickname, level),
-    createEnemyEntity: (enemy) => addRemoteEnemy(game.world, enemyAssets, enemy),
+    createEnemyEntity: (enemy) => {
+      const enemyType = mapConfig?.enemyTypes?.find((type) => type.id === enemy.type);
+      return addRemoteEnemy(game.world, enemyAssets, {
+        ...enemy,
+        model: enemy.model ?? enemyType?.model,
+      });
+    },
     onAttackTargetChanged: (entity) => game.PlayerPathSystem.setCombatTarget(entity),
   });
   chat.connect((message) => multiplayer.sendChat(message));
@@ -281,7 +287,7 @@ async function start(identity = {}) {
 
 
   // Configura o sistema de multiplayer, incluindo respawn e ataque a inimigos
-  const multiplayerSystem = createMultiplayer(game, playerEntity, enemyAssets, soundPlayer);
+  const multiplayerSystem = createMultiplayer(game, playerEntity, enemyAssets, soundPlayer, mapConfig);
   respawnButton.addEventListener('click', () => multiplayerSystem.sendRespawn());
   game.enemyHoverSystem.onSelect = (entity) => {
     if (entity && game.world.getComponent(entity, EnemyIdentity)) {

@@ -121,7 +121,9 @@ export class MultiplayerSystem {
           } else if (event.code === 1013) {
             this.connectionPromise = null;
             this.resolveConnection = null;
-            const message = 'O relay está cheio. Feche outra aba ou aumente MAX_WS_CONNECTIONS.';
+            const message = event.reason === 'Client too slow'
+              ? 'O relay encerrou a conexão porque o cliente não conseguiu acompanhar as atualizações.'
+              : 'O relay está cheio. Feche outra aba ou aumente MAX_WS_CONNECTIONS.';
             this.onStatus(message);
             reject(new Error(message));
             return;

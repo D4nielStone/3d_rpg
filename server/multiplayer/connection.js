@@ -67,6 +67,27 @@ export function registerConnectionHandler({
     });
 
     let player;
+    let announced = false;
+    let cleanedUp = false;
+    const cleanup = () => {
+      if (cleanedUp) return;
+      cleanedUp = true;
+      const activeSession = state.activeGuestSessions.get(playerId);
+      if (activeSession?.peerId === peerId) state.activeGuestSessions.delete(playerId);
+      if (player) state.players.delete(peerId);
+      if (!announced) return;
+      if (player) savePlayer(playerId, player).catch((error) => {
+        logger.error('Falha ao salvar jogador', { peerId, error: error.message });
+      });
+      logger.info(`${userLabel} saiu do servidor`, { peerId });
+      broadcast({
+        type: 'system',
+        text: `${userLabel} saiu do servidor.`,
+        sentAt: Date.now(),
+      });
+      broadcastSnapshot();
+    };
+    socket.on('close', cleanup);
     try {
       player = await playerStore.get(
         playerId,
@@ -74,13 +95,18 @@ export function registerConnectionHandler({
         identity.nickname,
         state.publishedMapConfig?.player ?? {},
       );
+      if (cleanedUp || socket.readyState !== 1) {
+        cleanup();
+        return;
+      }
     } catch (error) {
       logger.error('Falha ao carregar jogador', { peerId, error: error.message });
-      state.activeGuestSessions.delete(playerId);
+      cleanup();
       socket.close(1011, 'Database unavailable');
       return;
     }
     state.players.set(peerId, player);
+    announced = true;
     // Identidade curta aparece no chat; o UUID completo fica apenas nos logs.
     logger.info(`${userLabel} entrou no servidor`, { peerId });
     socket.send(JSON.stringify({ type: 'welcome', peerId }));
@@ -270,21 +296,5 @@ export function registerConnectionHandler({
       }
     });
 
-    socket.on('close', async () => {
-      const activeSession = state.activeGuestSessions.get(playerId);
-      if (activeSession?.peerId === peerId) state.activeGuestSessions.delete(playerId);
-      const player = state.players.get(peerId);
-      if (player) savePlayer(playerId, player).catch((error) => {
-        logger.error('Falha ao salvar jogador', { peerId, error: error.message });
-      });
-      state.players.delete(peerId);
-      logger.info(`${userLabel} saiu do servidor`, { peerId });
-      broadcast({
-        type: 'system',
-        text: `${userLabel} saiu do servidor.`,
-        sentAt: Date.now(),
-      });
-      broadcastSnapshot();
-    });
   });
 }
