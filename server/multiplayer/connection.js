@@ -223,6 +223,8 @@ export function registerConnectionHandler({
               type: 'attack-hit',
               damage: attackResult.damage,
               enemyId: attackResult.enemyId ?? null,
+              projectile: attackResult.projectile ?? null,
+              manaCost: attackResult.manaCost ?? 0,
               sentAt: Date.now(),
             }));
             broadcastSnapshot();

@@ -84,27 +84,48 @@ export class EnemyArea {
   }
 
   attack(player, now) {
-    if (player.combatMode !== 'melee') return { hit: false };
-    const weapon = player.getMainWeapon();
+    const currentMode = player.combatMode ?? 'melee';
+    const weapon = player.getMainWeapon(currentMode);
     if (!weapon) return { hit: false };
 
+    const attackRange = currentMode === 'magic'
+      ? Number(weapon.range ?? 5)
+      : currentMode === 'ranged'
+        ? Number(weapon.range ?? 5)
+        : 1;
+    const manaCost = currentMode === 'magic'
+      ? Math.max(1, Number(weapon.manaCost ?? weapon.damage ?? 1))
+      : 0;
+
     let target = null;
-    let targetDistance = 1;
+    let targetDistance = Number.POSITIVE_INFINITY;
     for (const enemy of this.enemies.values()) {
       const distance = Math.hypot(
         player.position[0] - enemy.position[0],
         player.position[2] - enemy.position[2],
       );
-      if (distance <= targetDistance) {
+      if (distance <= attackRange && distance < targetDistance) {
         target = enemy;
         targetDistance = distance;
       }
     }
 
     if (!target || !player.canAttack(now)) return { hit: false };
+    if (currentMode === 'magic' && player.mana < manaCost) return { hit: false };
 
     target.setTarget(player);
-    const damage = target.receiveDamage(weapon.damage + player.strength);
+    const weaponDamage = Number(weapon.damage ?? 1);
+    const attackDamage = currentMode === 'magic'
+      ? weaponDamage + Math.max(0, player.magic - 1)
+      : currentMode === 'ranged'
+        ? weaponDamage + Math.max(0, Math.floor(player.accuracy) - 1)
+        : weaponDamage + player.strength;
+
+    if (currentMode === 'magic') {
+      player.mana = Math.max(0, player.mana - manaCost);
+    }
+
+    const damage = target.receiveDamage(attackDamage);
     if (target.hp <= 0) {
       this.removeEnemy(target.id);
       return {
@@ -112,9 +133,16 @@ export class EnemyArea {
         damage,
         enemyId: target.id,
         rewards: target.getDrop(),
+        projectile: weapon.projectile ?? 'magic-ball',
+        manaCost,
       };
     }
-    return { hit: true, damage };
+    return {
+      hit: true,
+      damage,
+      projectile: weapon.projectile ?? 'magic-ball',
+      manaCost,
+    };
   }
 
   toSnapshots() {

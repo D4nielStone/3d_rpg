@@ -6,9 +6,24 @@ const BASIC_SWORD = {
   name: 'Espada Básica',
   type: 'weapon',
   slot: 'main',
+  kind: 'melee',
   level: 1,
   damage: 1,
   speed: 1,
+};
+
+const BASIC_WAND = {
+  id: 'basic-wand',
+  name: 'Varinha Básica',
+  type: 'weapon',
+  slot: 'main',
+  kind: 'magic',
+  level: 1,
+  damage: 1,
+  manaCost: 1,
+  range: 5,
+  speed: 1,
+  projectile: 'magic-ball',
 };
 
 function copyVector(vector, fallback) {
@@ -83,7 +98,7 @@ export class Player {
     const storedInventory = Array.isArray(inventory) ? inventory : [];
     this.inventory = storedInventory.length > 0
       ? [...storedInventory]
-      : [{ ...BASIC_SWORD }];
+      : [{ ...BASIC_WAND }, { ...BASIC_SWORD }];
   }
 
   setTransform(position, rotation) {
@@ -91,9 +106,14 @@ export class Player {
     this.rotation = copyVector(rotation, this.rotation);
   }
 
-  getMainWeapon() {
-    return this.inventory.find((item) => item.type === 'weapon' && item.slot === 'main')
-      ?? null;
+  getMainWeapon(mode = this.combatMode) {
+    const normalizedMode = ['melee', 'ranged', 'magic'].includes(mode) ? mode : this.combatMode;
+    const matchingWeapon = this.inventory.find((item) => (
+      item.type === 'weapon'
+      && item.slot === 'main'
+      && (normalizedMode === 'melee' ? item.kind !== 'magic' && item.kind !== 'ranged' : item.kind === normalizedMode)
+    ));
+    return matchingWeapon ?? this.inventory.find((item) => item.type === 'weapon' && item.slot === 'main') ?? null;
   }
 
   setCombatMode(mode) {
