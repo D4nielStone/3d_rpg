@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
+import { createEnemyAreas } from '../server/world/enemy-areas.js';
 import { isMapAccessAuthorized } from '../server/multiplayer/routes.js';
 
 test('aceita acesso do editor quando a sessao ficou desatualizada mas o usuario continua admin no banco', () => {
@@ -43,4 +44,12 @@ test('rejeita ticket expirado mesmo para administrador', () => {
   };
 
   assert.equal(isMapAccessAuthorized({ access, session, user }), false);
+});
+
+test('cria uma área de inimigos padrão quando não há mapa publicado', () => {
+  const enemyAreas = createEnemyAreas();
+
+  assert.equal(enemyAreas.length > 0, true);
+  assert.equal(enemyAreas[0].id, 'starting-rat-area');
+  assert.equal(enemyAreas[0].enemyType, 'rat');
 });

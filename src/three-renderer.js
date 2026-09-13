@@ -170,6 +170,28 @@ export class ThreeRenderSystem {
 
   render(world, time = 0) {
     this.syncCamera();
+
+    const livingEntities = new Set();
+    for (const entity of world.query(Transform, MeshRenderer)) livingEntities.add(entity);
+    for (const entity of world.query(Transform, OutlineRenderer)) livingEntities.add(entity);
+    for (const entity of world.query(Transform, ShadowRenderer)) livingEntities.add(entity);
+
+    for (const [key, object] of [...this.entityObjects.entries()]) {
+      if (typeof key === 'number') {
+        if (!livingEntities.has(key)) {
+          this.root.remove(object);
+          this.entityObjects.delete(key);
+        }
+        continue;
+      }
+
+      const suffix = Number(key.split('-').at(-1));
+      if (!Number.isInteger(suffix) || !livingEntities.has(suffix)) {
+        this.root.remove(object);
+        this.entityObjects.delete(key);
+      }
+    }
+
     for (const entity of world.query(Transform, MeshRenderer)) this.updateObject(entity, world);
     for (const entity of world.query(Transform, ShadowRenderer)) {
       const object = this.entityObjects.get(entity);
