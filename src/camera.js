@@ -204,7 +204,7 @@ export class Camera {
     return settings;
   }
 
-  zoom(amount, { minDistance = 6, maxDistance = 14 } = {}) {
+  zoom(amount, { minDistance = 14, maxDistance = 30 } = {}) {
     if (!this.orbit) return;
     const distance = Math.min(
       maxDistance,

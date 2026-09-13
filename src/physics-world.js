@@ -207,12 +207,25 @@ export class PhysicsWorld {
   }
 
   movePlayer(id, from, to, deltaSeconds = 1 / 30) {
+    const body = this.bodies.get(id) ?? this.addPlayer(id, from);
+    if (collidesWithStaticColliders(from, to, 0.35, this.staticColliders)) {
+      body.position.set(...from);
+      body.velocity.set(0, 0, 0);
+      body.wakeUp();
+      return [...from];
+    }
+
     const step = Math.max(Number(deltaSeconds) || 0, 1 / 60);
     const velocity = [
       (to[0] - from[0]) / Math.max(deltaSeconds, 1 / 60),
       0,
       (to[2] - from[2]) / Math.max(deltaSeconds, 1 / 60),
     ];
-    return this.stepPlayer(id, from, velocity, step);
+    body.position.set(...from);
+    body.wakeUp();
+    body.velocity.x = velocity[0];
+    body.velocity.z = velocity[2];
+    if (step > 0) this.world.step(1 / 60, step, 8);
+    return [body.position.x, body.position.y, body.position.z];
   }
 }

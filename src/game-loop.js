@@ -29,9 +29,9 @@ export function startGameLoop({
     const listenerComponent = listener ? world.getComponent(listener, SoundListener) : null;
     soundPlayerSystem.update(world, listenerComponent?.context ?? null);
     renderSystem.syncCamera();
+    enemyHoverSystem.update(world);
     PlayerPathSystem.update(world, time);
     nameTagSystem.update(world);
-    enemyHoverSystem.update(world);
     renderSystem.render(world, time);
     requestAnimationFrame(frame);
   }

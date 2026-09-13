@@ -228,7 +228,7 @@ async function loadSceneAssets(textureManager, enemyTypes, assetDefinitions) {
 function getGuestId() {
   const storageKey = 'webgl-rpg-guest-id';
   const savedGuestId = window.localStorage.getItem(storageKey);
-  if (savedGuestId) return savedGuestId;
+  if (/^[0-9a-f-]{36}$/i.test(savedGuestId ?? '')) return savedGuestId;
 
   const guestId = window.crypto.randomUUID();
   window.localStorage.setItem(storageKey, guestId);

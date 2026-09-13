@@ -133,7 +133,7 @@ export function createRequestHandler({
           saved: true,
         });
       } catch (error) {
-        sendJson(response, 400, {
+        sendJson(response, error.statusCode ?? 400, {
           error: error.message,
         });
       }
@@ -313,7 +313,7 @@ export function createRequestHandler({
           error: error.message,
         });
 
-        sendJson(response, 400, {
+        sendJson(response, error.statusCode ?? 400, {
           error: 'Nao foi possivel processar a solicitacao.',
         });
       }

@@ -22,14 +22,14 @@ export function registerConnectionHandler({
   savePlayer,
 }) {
   socketServer.on('connection', async (socket, request) => {
-    if (socketServer.clients.size >= maxWebSocketConnections) {
-      socket.close(1013, 'Server busy');
-      return;
-    }
     const peerId = randomUUID();
     const identity = getConnectionIdentity(request.url, request.headers, state.sessions);
     if (!identity) {
       socket.close(4001, 'Authentication required');
+      return;
+    }
+    if (state.activeGuestSessions.size >= maxWebSocketConnections) {
+      socket.close(1013, 'Server busy');
       return;
     }
     const playerId = identity.id;
@@ -145,6 +145,14 @@ export function registerConnectionHandler({
             if (attackResult.hit) break;
           }
           if (attackResult.hit) {
+            if (attackResult.enemyId) {
+              broadcast({
+                type: 'enemy-defeated',
+                enemyId: attackResult.enemyId,
+                sentAt: Date.now(),
+              });
+              broadcastSnapshot();
+            }
             const strengthLeveledUp = player.combatMode === 'melee'
               ? player.registerMeleeAttack(attackResult.damage, attackAt)
               : false;
@@ -184,6 +192,7 @@ export function registerConnectionHandler({
             socket.send(JSON.stringify({
               type: 'attack-hit',
               damage: attackResult.damage,
+              enemyId: attackResult.enemyId ?? null,
               sentAt: Date.now(),
             }));
             broadcastSnapshot();
@@ -230,6 +239,7 @@ export function registerConnectionHandler({
           playerId,
           player.position,
           message.position,
+          0.05,
         );
         if (Math.hypot(
           physicsPosition[0] - message.position[0],

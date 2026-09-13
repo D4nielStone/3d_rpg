@@ -52,6 +52,7 @@ export class MultiplayerSystem {
     this.localPeerId = null;
     this.remoteEntities = new Map();
     this.enemyEntities = new Map();
+    this.defeatedEnemyIds = new Set();
     this.lastSentAt = 0;
     this.pendingState = null;
     this.welcomeReceived = false;
@@ -118,7 +119,12 @@ export class MultiplayerSystem {
           if (event.code === 1011) {
             this.onStatus('O relay está sem acesso ao banco de dados. Tentando novamente...');
           } else if (event.code === 1013) {
-            this.onStatus('O relay está cheio. Tentando novamente...');
+            this.connectionPromise = null;
+            this.resolveConnection = null;
+            const message = 'O relay está cheio. Feche outra aba ou aumente MAX_WS_CONNECTIONS.';
+            this.onStatus(message);
+            reject(new Error(message));
+            return;
           } else {
             this.onStatus('Multiplayer offline. Inicie o relay para conectar.');
           }
@@ -158,11 +164,22 @@ export class MultiplayerSystem {
 
     if (message.type === 'death') {
       this.localPlayerDead = true;
+      if (!this.deathScreenShown) {
+        this.deathScreenShown = true;
+        this.onDeath();
+      }
       return;
     }
 
     if (message.type === 'attack-hit') {
       this.onAttackHit(message);
+      if (message.enemyId) this.removeEnemyEntity(message.enemyId);
+      return;
+    }
+
+    if (message.type === 'enemy-defeated' && message.enemyId) {
+      this.defeatedEnemyIds.add(message.enemyId);
+      this.removeEnemyEntity(message.enemyId);
       return;
     }
 
@@ -358,6 +375,20 @@ export class MultiplayerSystem {
     this.onAttackTargetChanged(entity);
   }
 
+  removeEnemyEntity(enemyId, world = this.world) {
+    const normalizedId = String(enemyId);
+    const entity = this.enemyEntities.get(normalizedId)
+      ?? world.query(EnemyIdentity).find((candidate) => {
+        const identity = world.getComponent(candidate, EnemyIdentity);
+        return String(identity?.enemyId) === normalizedId;
+      });
+    if (!entity) return;
+
+    if (this.attackTargetEntity === entity) this.setAttackTarget(null);
+    world.removeEntity(entity);
+    this.enemyEntities.delete(normalizedId);
+  }
+
   update(world, time) {
     this.applySnapshot(world);
     this.updateAttackTarget(world, time);
@@ -453,6 +484,7 @@ export class MultiplayerSystem {
     const activeEnemies = new Set();
     for (const enemy of this.pendingEnemies ?? []) {
       if (!enemy.id || !Array.isArray(enemy.position)) continue;
+      if (this.defeatedEnemyIds.has(enemy.id)) continue;
       activeEnemies.add(enemy.id);
       let entity = this.enemyEntities.get(enemy.id);
       if (!entity) {
@@ -492,9 +524,7 @@ export class MultiplayerSystem {
     }
     for (const [enemyId, entity] of this.enemyEntities) {
       if (!activeEnemies.has(enemyId)) {
-        if (this.attackTargetEntity === entity) this.setAttackTarget(null);
-        world.removeEntity(entity);
-        this.enemyEntities.delete(enemyId);
+        this.removeEnemyEntity(enemyId, world);
       }
     }
     this.pendingState = null;

@@ -104,7 +104,12 @@ export class EnemyArea {
     const damage = target.receiveDamage(weapon.damage + player.strength);
     if (target.hp <= 0) {
       this.removeEnemy(target.id);
-      return { hit: true, damage, rewards: target.getDrop() };
+      return {
+        hit: true,
+        damage,
+        enemyId: target.id,
+        rewards: target.getDrop(),
+      };
     }
     return { hit: true, damage };
   }
