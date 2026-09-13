@@ -16,10 +16,11 @@ import { customizeMap } from './map-customization.js';
 import { ThreeRenderSystem } from './three-renderer.js';
 
 export async function createGame(canvas, mapConfig = null) {
-  const camera = new Camera();
+  const camera = new Camera({ terrain: mapConfig?.terrain ?? null });
   const world = new World();
   const textureManager = new TextureManager();
   await customizeMap(world, mapConfig, textureManager);
+  camera.setTerrain(mapConfig?.terrain ?? null);
   const pointLights = (mapConfig?.entities ?? [])
     .filter((entity) => entity.type === 'pointLight')
     .map((entity) => ({

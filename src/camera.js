@@ -6,6 +6,7 @@ import {
   rotationY,
   translation,
 } from './math.js';
+import { sampleTerrainHeight, TERRAIN_BASE_Y } from '../shared/terrain-height.js';
 import * as THREE from 'three';
 
 export class Camera {
@@ -17,6 +18,8 @@ export class Camera {
     position = [0, 0, 5],
     pitch = 0,
     yaw = 0,
+    terrain = null,
+    terrainClearance = 1.2,
   } = {}) {
     this.fieldOfView = fieldOfView;
     this.aspect = aspect;
@@ -27,6 +30,13 @@ export class Camera {
     this.yaw = yaw;
     this.orbit = null;
     this.renderCamera = null;
+    this.terrain = terrain;
+    this.terrainClearance = Number.isFinite(Number(terrainClearance)) ? Number(terrainClearance) : 1.2;
+  }
+
+  setTerrain(terrain, clearance = this.terrainClearance) {
+    this.terrain = terrain ?? null;
+    if (Number.isFinite(Number(clearance))) this.terrainClearance = Number(clearance);
   }
 
   setRenderCamera(renderCamera) {
@@ -126,6 +136,12 @@ export class Camera {
     };
   }
 
+  getTerrainHeightAt(x, z) {
+    if (!this.terrain) return null;
+    const height = sampleTerrainHeight(this.terrain, x, z);
+    return height === null ? null : height + this.terrainClearance;
+  }
+
   updatePosition() {
     if (this.orbit) {
       const { target, distance, azimuth, elevation, targetHeight } = this.orbit;
@@ -136,10 +152,27 @@ export class Camera {
         targetHeight + Math.sin(elevation) * distance;
       const finalZ = target.position[2] +
         Math.cos(azimuth) * cosineElevation * distance;
+      const terrainHeight = this.getTerrainHeightAt(finalX, finalZ);
+      if (terrainHeight !== null && finalY < terrainHeight) {
+        const limitedY = terrainHeight;
+        const cameraHeight = limitedY - (target.position[1] + targetHeight);
+        const clampedElevation = Math.atan2(cameraHeight, distance);
+        this.orbit.elevation = Math.min(Math.PI / 2 - 0.01, Math.max(-Math.PI / 2 + 0.01, clampedElevation));
+      }
+      const adjustedX = target.position[0] +
+        Math.sin(azimuth) * Math.cos(this.orbit.elevation) * distance;
+      const adjustedY = target.position[1] +
+        targetHeight + Math.sin(this.orbit.elevation) * distance;
+      const adjustedZ = target.position[2] +
+        Math.cos(azimuth) * Math.cos(this.orbit.elevation) * distance;
+      const terrainHeightAfterAdjust = this.getTerrainHeightAt(adjustedX, adjustedZ);
+      const safeY = terrainHeightAfterAdjust !== null && adjustedY < terrainHeightAfterAdjust
+        ? terrainHeightAfterAdjust
+        : adjustedY;
       const smoothing = 0.1;
-      this.position[0] = lerp(this.position[0], finalX, smoothing);
-      this.position[1] = lerp(this.position[1], finalY, smoothing);
-      this.position[2] = lerp(this.position[2], finalZ, smoothing);
+      this.position[0] = lerp(this.position[0], adjustedX, smoothing);
+      this.position[1] = Math.max(lerp(this.position[1], safeY, smoothing), safeY);
+      this.position[2] = lerp(this.position[2], adjustedZ, smoothing);
       this.lookAt([
         target.position[0],
         target.position[1] + targetHeight,
