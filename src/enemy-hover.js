@@ -17,6 +17,7 @@ export class EnemyHoverSystem {
       this.pointer = null;
     });
     canvas.addEventListener('pointerdown', (event) => {
+      if (event.button !== 0) return;
       this.pendingClick = [event.clientX, event.clientY];
     });
   }

@@ -156,6 +156,7 @@ export class MultiplayerSystem {
     if (message.type === 'welcome') {
       this.localPeerId = message.peerId;
       if (this.localEntity) this.setLocalEntity(this.localEntity);
+      if (message.player) this.applyLocalPlayerState(message.player);
       this.welcomeReceived = true;
       this.connectionPromise = null;
       this.resolveConnection?.();
@@ -328,6 +329,24 @@ export class MultiplayerSystem {
         text: message.text,
         sentAt: message.sentAt,
       });
+    }
+  }
+
+  applyLocalPlayerState(player) {
+    const transform = this.localEntity
+      ? this.world.getComponent(this.localEntity, Transform)
+      : null;
+    if (transform && Array.isArray(player.position) && Array.isArray(player.rotation)) {
+      transform.position = [...player.position];
+      transform.rotation = [...player.rotation];
+    }
+    this.localStateRestored = true;
+    this.localPlayerDead = Boolean(player.dead);
+    this.combatMode = player.combatMode ?? 'melee';
+    this.onPlayerState(player);
+    if (player.dead && !this.deathScreenShown) {
+      this.deathScreenShown = true;
+      this.onDeath();
     }
   }
 

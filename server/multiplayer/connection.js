@@ -109,7 +109,11 @@ export function registerConnectionHandler({
     announced = true;
     // Identidade curta aparece no chat; o UUID completo fica apenas nos logs.
     logger.info(`${userLabel} entrou no servidor`, { peerId });
-    socket.send(JSON.stringify({ type: 'welcome', peerId }));
+    socket.send(JSON.stringify({
+      type: 'welcome',
+      peerId,
+      player: player.toSnapshot(),
+    }));
     broadcast({
       type: 'system',
       text: `${userLabel} entrou no servidor.`,

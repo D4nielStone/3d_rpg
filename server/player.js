@@ -35,7 +35,7 @@ export class Player {
   constructor({
     peerId,
     nickname = 'Guest',
-    hp = 20,
+    hp,
     mana = 20,
     money = 0,
     strength = 1,
@@ -66,9 +66,14 @@ export class Player {
       : 'melee';
     this.area = { ...area };
     this.level = Math.max(1, Math.floor(Number(level)));
-    this.maxHp = calculateMaxAttribute(20, this.level);
+    this.maxHpLimit = Math.max(0, Number(maxHp) || 0);
+    this.maxHp = this.maxHpLimit > 0
+      ? Math.min(calculateMaxAttribute(20, this.level), this.maxHpLimit)
+      : calculateMaxAttribute(20, this.level);
     this.maxMana = calculateMaxAttribute(20, this.level);
-    this.hp = Math.min(this.maxHp, Math.max(0, Number(hp)));
+    this.hp = hp === undefined
+      ? this.maxHp
+      : Math.min(this.maxHp, Math.max(0, Number(hp) || 0));
     this.dead = this.hp <= 0;
     this.mana = Math.min(this.maxMana, Math.max(0, Number(mana)));
     this.xp = Number(xp);
@@ -118,7 +123,9 @@ export class Player {
       this.xp -= this.maxXp;
       this.level += 1;
       this.maxXp = calculateMaxXp(this.level);
-      this.maxHp = calculateMaxAttribute(20, this.level);
+      this.maxHp = this.maxHpLimit > 0
+        ? Math.min(calculateMaxAttribute(20, this.level), this.maxHpLimit)
+        : calculateMaxAttribute(20, this.level);
       this.maxMana = calculateMaxAttribute(20, this.level);
       this.hp = this.maxHp;
       this.mana = this.maxMana;
@@ -144,7 +151,9 @@ export class Player {
       this.maxXp = calculateMaxXp(this.level);
     }
 
-    this.maxHp = calculateMaxAttribute(20, this.level);
+    this.maxHp = this.maxHpLimit > 0
+      ? Math.min(calculateMaxAttribute(20, this.level), this.maxHpLimit)
+      : calculateMaxAttribute(20, this.level);
     this.maxMana = calculateMaxAttribute(20, this.level);
     this.hp = Math.min(this.hp, this.maxHp);
     this.mana = Math.min(this.mana, this.maxMana);
@@ -198,6 +207,7 @@ export class Player {
       hp: this.hp,
       dead: this.dead,
       maxHp: this.maxHp,
+      maxHpLimit: this.maxHpLimit,
       mana: this.mana,
       maxMana: this.maxMana,
       money: this.money,

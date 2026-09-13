@@ -18,6 +18,16 @@ function geometryFromMesh(mesh) {
   return geometry;
 }
 
+export function configureShadowState(object, { castShadow = true, receiveShadow = true } = {}) {
+  if (!object) return object;
+  object.traverse((child) => {
+    if (!child.isMesh) return;
+    child.castShadow = castShadow;
+    child.receiveShadow = receiveShadow;
+  });
+  return object;
+}
+
 function textureFrom(texture) {
   if (!texture?.image) return null;
   if (!texture.threeTexture) {
@@ -113,16 +123,19 @@ export class ThreeRenderSystem {
 
   createObject(renderer, texture, isWater, isEnemyArea) {
     const group = new THREE.Group();
+    const castShadow = renderer.castShadow !== false;
+    const receiveShadow = renderer.receiveLight !== false;
     for (const mesh of renderer.meshes ?? []) {
       const object = new THREE.Mesh(
         geometryFromMesh(mesh),
         createMaterial(mesh, texture, isEnemyArea),
       );
-      object.castShadow = renderer.castShadow !== false;
-      object.receiveShadow = renderer.receiveLight !== false;
+      object.castShadow = castShadow;
+      object.receiveShadow = receiveShadow;
       if (isWater) object.material.color.setRGB(0.08, 0.45, 0.7);
       group.add(object);
     }
+    configureShadowState(group, { castShadow, receiveShadow });
     return group;
   }
 
@@ -192,10 +205,17 @@ export class ThreeRenderSystem {
       }
     }
 
-    for (const entity of world.query(Transform, MeshRenderer)) this.updateObject(entity, world);
+    for (const entity of world.query(Transform, MeshRenderer)) {
+      const object = this.updateObject(entity, world);
+      const renderer = world.getComponent(entity, MeshRenderer);
+      if (object) configureShadowState(object, {
+        castShadow: renderer.castShadow !== false,
+        receiveShadow: renderer.receiveLight !== false,
+      });
+    }
     for (const entity of world.query(Transform, ShadowRenderer)) {
       const object = this.entityObjects.get(entity);
-      if (object) object.traverse((child) => { child.castShadow = true; });
+      if (object) configureShadowState(object, { castShadow: true, receiveShadow: true });
     }
     for (const entity of world.query(LineRenderer)) {
       const line = world.getComponent(entity, LineRenderer);

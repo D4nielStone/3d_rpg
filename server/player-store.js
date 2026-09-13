@@ -90,6 +90,7 @@ export class PlayerStore {
       position: playerDefinition.position,
       rotation: playerDefinition.rotation,
       ...(playerDefinition.status ?? {}),
+      maxHp: playerDefinition.maxHp ?? playerDefinition.status?.maxHp,
       inventory: playerDefinition.inventory,
     });
 
@@ -116,6 +117,10 @@ export class PlayerStore {
       position: result.rows[0]?.state?.position ?? playerDefinition.position,
       rotation: result.rows[0]?.state?.rotation ?? playerDefinition.rotation,
       ...(!result.rows[0] ? playerDefinition.status : {}),
+      maxHp: result.rows[0]?.state?.maxHpLimit
+        ?? result.rows[0]?.state?.maxHp
+        ?? playerDefinition.maxHp
+        ?? playerDefinition.status?.maxHp,
       inventory: result.rows[0]?.state?.inventory ?? playerDefinition.inventory,
     });
   }

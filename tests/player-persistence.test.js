@@ -5,13 +5,21 @@ import { Player } from '../server/player.js';
 import { createPlayerPersistence } from '../server/multiplayer/persistence.js';
 
 test('sincroniza vida máxima diretamente ao nível', () => {
-  const player = new Player({ level: 3, hp: 999, maxHp: 999 });
+  const player = new Player({ level: 3, hp: 999 });
   assert.equal(player.maxHp, 29);
   assert.equal(player.hp, 29);
 
   player.addExperience(1000);
   assert.equal(player.maxHp, Math.round(20 * 1.2 ** (player.level - 1)));
   assert.equal(player.hp, player.maxHp);
+});
+
+test('respeita o limite de maxHp definido no mundo', () => {
+  const player = new Player({ level: 1, maxHp: 100 });
+  assert.equal(player.maxHp, 20);
+  player.addExperience(1000);
+  assert.equal(player.maxHp, 100);
+  assert.equal(player.hp, 100);
 });
 
 test('salva apenas o snapshot mais recente em ordem', async () => {
