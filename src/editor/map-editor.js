@@ -290,7 +290,7 @@ orbit.target.set(0, 0, 0); orbit.enableDamping = true; orbit.maxPolarAngle = Mat
 const ambientLight = new THREE.AmbientLight(0xffffff, lighting.ambientIntensity);
 const directionalLight = new THREE.DirectionalLight(0xffffff, lighting.directional.intensity);
 directionalLight.castShadow = true;
-directionalLight.shadow.mapSize.set(1024, 1024);
+directionalLight.shadow.mapSize.set(2048, 2048);
 directionalLight.shadow.camera.left = -80;
 directionalLight.shadow.camera.right = 80;
 directionalLight.shadow.camera.top = 80;

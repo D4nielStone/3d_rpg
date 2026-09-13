@@ -420,43 +420,82 @@ function createSwordBox(size, center, color) {
   const [centerX, centerY, centerZ] = center;
 
   const vertices = new Float32Array([
+    // Frente (+Z)
     centerX - width, centerY - height, centerZ + depth,
     centerX + width, centerY - height, centerZ + depth,
     centerX + width, centerY + height, centerZ + depth,
     centerX - width, centerY + height, centerZ + depth,
 
+    // Trás (-Z)
     centerX - width, centerY - height, centerZ - depth,
     centerX - width, centerY + height, centerZ - depth,
     centerX + width, centerY + height, centerZ - depth,
     centerX + width, centerY - height, centerZ - depth,
 
+    // Topo (+Y)
     centerX - width, centerY + height, centerZ - depth,
     centerX - width, centerY + height, centerZ + depth,
     centerX + width, centerY + height, centerZ + depth,
     centerX + width, centerY + height, centerZ - depth,
 
+    // Baixo (-Y)
     centerX - width, centerY - height, centerZ - depth,
     centerX + width, centerY - height, centerZ - depth,
     centerX + width, centerY - height, centerZ + depth,
     centerX - width, centerY - height, centerZ + depth,
+
+    // Lado direito (+X)
+    centerX + width, centerY - height, centerZ - depth,
+    centerX + width, centerY + height, centerZ - depth,
+    centerX + width, centerY + height, centerZ + depth,
+    centerX + width, centerY - height, centerZ + depth,
+
+    // Lado esquerdo (-X)
+    centerX - width, centerY - height, centerZ - depth,
+    centerX - width, centerY - height, centerZ + depth,
+    centerX - width, centerY + height, centerZ + depth,
+    centerX - width, centerY + height, centerZ - depth,
+  ]);
+
+  const vertexCount = vertices.length / 3;
+
+  const colors = new Float32Array(
+    Array.from(
+      { length: vertexCount },
+      () => color
+    ).flat()
+  );
+
+  const indices = new Uint16Array([
+    // Frente
+    0, 1, 2,
+    0, 2, 3,
+
+    // Trás
+    4, 5, 6,
+    4, 6, 7,
+
+    // Topo
+    8, 9, 10,
+    8, 10, 11,
+
+    // Baixo
+    12, 13, 14,
+    12, 14, 15,
+
+    // Lado direito
+    16, 17, 18,
+    16, 18, 19,
+
+    // Lado esquerdo
+    20, 21, 22,
+    20, 22, 23,
   ]);
 
   return {
     vertices,
-
-    colors: new Float32Array(
-      Array.from(
-        { length: vertices.length / 3 },
-        () => color
-      ).flat()
-    ),
-
-    indices: new Uint16Array([
-      0, 1, 2, 0, 2, 3,
-      4, 5, 6, 4, 6, 7,
-      8, 9, 10, 8, 10, 11,
-      12, 13, 14, 12, 14, 15,
-    ]),
+    colors,
+    indices,
 
     material: new Material({
       diffuseColor: color,
@@ -473,7 +512,7 @@ export class SwordRenderer {
   constructor({ visible = true } = {}) {
     this.visible = visible;
 
-    this.offset = [0.55, 0.45, -0.25];
+    this.offset = [0.55, 0.2, -0.25];
 
     this.attackStartedAt = -Infinity;
     this.attackDuration = 260;

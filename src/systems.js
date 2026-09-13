@@ -321,7 +321,7 @@ export class RenderSystem {
     this.shadowProgram = shadowProgram;
     this.shadowLocations = shadowLocations;
     this.sceneConfig = sceneConfig ?? {};
-    this.shadowSize = 1024;
+    this.shadowSize = 2048;
     this.shadowFramebuffer = gl.createFramebuffer();
     this.shadowTexture = gl.createTexture();
     this.shadowDepthBuffer = gl.createRenderbuffer();

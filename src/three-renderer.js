@@ -81,7 +81,7 @@ export class ThreeRenderSystem {
     directionalLight.target.position.set(0, 0, 0);
     this.scene.add(directionalLight.target);
     directionalLight.castShadow = true;
-    directionalLight.shadow.mapSize.set(1024, 1024);
+    directionalLight.shadow.mapSize.set(2048, 2048);
     directionalLight.shadow.camera.left = -80;
     directionalLight.shadow.camera.right = 80;
     directionalLight.shadow.camera.top = 80;
