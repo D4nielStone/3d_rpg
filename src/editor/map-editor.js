@@ -90,6 +90,21 @@ const fogNearInput = document.querySelector('#fog-near');
 const fogNearValue = document.querySelector('#fog-near-value');
 const fogFarInput = document.querySelector('#fog-far');
 const fogFarValue = document.querySelector('#fog-far-value');
+const terrainWidthInput = document.querySelector('#terrain-width');
+const terrainWidthValue = document.querySelector('#terrain-width-value');
+const terrainDepthInput = document.querySelector('#terrain-depth');
+const terrainDepthValue = document.querySelector('#terrain-depth-value');
+const terrainSegmentsInput = document.querySelector('#terrain-segments');
+const terrainSegmentsValue = document.querySelector('#terrain-segments-value');
+const terrainAmplitudeInput = document.querySelector('#terrain-amplitude');
+const terrainAmplitudeValue = document.querySelector('#terrain-amplitude-value');
+const terrainFrequencyInput = document.querySelector('#terrain-frequency');
+const terrainFrequencyValue = document.querySelector('#terrain-frequency-value');
+const terrainColorInput = document.querySelector('#terrain-color');
+const terrainBrushRadiusInput = document.querySelector('#terrain-brush-radius');
+const terrainBrushRadiusValue = document.querySelector('#terrain-brush-radius-value');
+const terrainBrushStrengthInput = document.querySelector('#terrain-brush-strength');
+const terrainBrushStrengthValue = document.querySelector('#terrain-brush-strength-value');
 const panelToggles = [
   ['assets-toggle', 'assets-panel'],
   ['inspector-toggle', 'inspector-panel'],
@@ -102,6 +117,7 @@ let assets = [];
 let sounds = { slash: '', pulse: '', arc: '' };
 let enemyAreas = [];
 let enemyTypes = [];
+let terrainConfig = { width: 128, depth: 128, segments: 64, amplitude: 0.15, frequency: 0.22, color: '#202522', brushRadius: 3, brushStrength: 0.8 };
 let lighting = {
   ambientColor: [1, 1, 1],
   ambientIntensity: 1,
@@ -197,8 +213,8 @@ function normalizeLighting(value = {}) {
   };
   lighting = {
     ambientColor: normalizeVector(value.ambientColor, [1, 1, 1]).map((channel) => Math.min(1, Math.max(0, channel))),
-    ambientIntensity: Math.min(2, Math.max(0, Number(value.ambientIntensity ?? 1) || 0)),
-    directional: normalizeLight(value.directional, { direction: [-0.45, 0.85, 0.35], color: [1, 0.95, 0.85], intensity: 0.8 }, 4),
+    ambientIntensity: Math.min(1.2, Math.max(0, Number(value.ambientIntensity ?? 1) || 0)),
+    directional: normalizeLight(value.directional, { direction: [-0.45, 0.85, 0.35], color: [1, 0.95, 0.85], intensity: 0.8 }, 1.5),
     point: normalizeLight(value.point, { position: [0, 8, 0], color: [1, 0.72, 0.45], intensity: 2, distance: 18 }, 10),
   };
   return lighting;
@@ -259,7 +275,7 @@ async function redo() { const state = future.pop(); if (!state) return; history.
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.type = THREE.PCFShadowMap;
 const editorGl = renderer.getContext();
 editorGl.enable(editorGl.CULL_FACE);
 editorGl.cullFace(editorGl.BACK);
@@ -285,9 +301,37 @@ directionalLight.shadow.bias = -0.0005;
 directionalLight.shadow.normalBias = 0.02;
 scene.add(ambientLight, directionalLight, directionalLight.target);
 const worldGroup = new THREE.Group(); scene.add(worldGroup);
-const ground = new THREE.Mesh(new THREE.PlaneGeometry(1024, 1024), new THREE.MeshStandardMaterial({ color: 0x202522, roughness: 1 }));
+const terrainGeometry = new THREE.PlaneGeometry(128, 128, 64, 64);
+terrainGeometry.rotateX(-Math.PI / 2);
+const terrainPosition = terrainGeometry.attributes.position;
+for (let index = 0; index < terrainPosition.count; index += 1) {
+  terrainPosition.setY(index, 0.05 * Math.sin(terrainPosition.getX(index) * 0.22) * Math.cos(terrainPosition.getZ(index) * 0.19));
+}
+terrainGeometry.computeVertexNormals();
+function configureTerrainMesh(plane, config = terrainConfig) {
+  const geometry = new THREE.PlaneGeometry(config.width, config.depth, config.segments, config.segments);
+  geometry.rotateX(-Math.PI / 2);
+  const position = geometry.attributes.position;
+  const centerX = config.width / 2;
+  const centerZ = config.depth / 2;
+  for (let index = 0; index < position.count; index += 1) {
+    const x = position.getX(index) + centerX;
+    const z = position.getZ(index) + centerZ;
+    const storedHeight = config.heights?.length === position.count ? config.heights[index] : undefined;
+    const height = Number.isFinite(storedHeight)
+      ? storedHeight
+      : config.amplitude * Math.sin(x * config.frequency) * Math.cos(z * config.frequency);
+    position.setY(index, height);
+  }
+  geometry.computeVertexNormals();
+  plane.geometry.dispose();
+  plane.geometry = geometry;
+  plane.position.set(-0.5, -0.16, -0.5);
+  return plane;
+}
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(128, 128, 64, 64), new THREE.MeshStandardMaterial({ color: terrainConfig.color, roughness: 1 }));
 ground.receiveShadow = true;
-ground.rotation.x = -Math.PI / 2; ground.position.set(-0.5, -0.16, -0.5); worldGroup.add(ground);
+ground.position.set(-0.5, -0.16, -0.5); configureTerrainMesh(ground); worldGroup.add(ground);
 const gridHelper = new THREE.GridHelper(1024, 64, 0x53605a, 0x29312d); gridHelper.position.set(-0.5, -0.14, -0.5); gridHelper.material.transparent = true; gridHelper.material.opacity = 0.3; worldGroup.add(gridHelper);
 const enemyAreaVisuals = new THREE.Group(); worldGroup.add(enemyAreaVisuals);
 const entityGroup = new THREE.Group(); worldGroup.add(entityGroup);
@@ -508,6 +552,7 @@ function createPrimitiveObject(type) {
     capsule: () => new THREE.CapsuleGeometry(0.35, 0.3, 8, 16),
     plane: () => new THREE.PlaneGeometry(1, 1),
   };
+
   const geometry = geometries[type]?.();
   if (!geometry) return null;
   if (type === 'plane') geometry.rotateX(-Math.PI / 2);
@@ -834,8 +879,25 @@ function updateInspector() {
 function updateVector(input) {
   const entity = selectedEntity(); if (!entity) return; normalizeEntityTransform(entity); const vector = input.dataset.vector; const index = Number(input.dataset.index); const value = Number(input.value); const safeValue = Number.isFinite(value) ? value : 0; entity[vector][index] = vector === 'rotation' ? THREE.MathUtils.degToRad(safeValue) : safeValue; applyEntityTransform(entity); updateCollisionVisual(entity); gizmos.update(entity.object); if (entity.isPlayerPreview) syncPlayerFromPreview(entity); updateInspector(); updateSummary();
 }
-function setMode(next) { mode = next; document.querySelectorAll('.mode-button').forEach((button) => button.classList.toggle('mode-button-active', button.dataset.mode === mode)); orbit.enabled = true; gizmos.setMode(mode); canvas.style.cursor = 'default'; }
-function exportConfig() { return { format: 'webrpg.world', version: 2, scene: { name: 'main-world', units: 'world', skyColor: [...skyColor], fog: { color: [...fog.color], near: fog.near, far: fog.far } }, lighting: { ambientColor: [...lighting.ambientColor], ambientIntensity: lighting.ambientIntensity, directional: { ...lighting.directional, direction: [...lighting.directional.direction], color: [...lighting.directional.color] }, point: { ...lighting.point, position: [...lighting.point.position], color: [...lighting.point.color] } }, sounds: { ...sounds }, player: { ...player, position: [...player.position], rotation: [...player.rotation], scale: [...player.scale], materials: player.materials?.map((material) => ({ ...material, diffuseColor: [...material.diffuseColor], texture: material.texture ?? null })) ?? [], status: { ...player.status }, inventory: [...player.inventory], collision: { ...player.collision }, animation: { ...player.animation } }, assets: assets.map(({ id, name, url, source, format, dependencies }) => ({ id, name, url, source, format, dependencies })), entities: entities.filter((entity) => !entity.isPlayerPreview).map(({ object, ...entity }) => entitySnapshot(entity)), enemyTypes: enemyTypes.map((type, index) => normalizeEnemyType({ ...type, gold: { ...type.gold }, itemDrops: [...type.itemDrops] }, index)), enemyAreas: enemyAreas.map((area) => ({ ...normalizeEnemyArea(area), center: [...area.center] })) }; }
+function setMode(next) { mode = next; document.querySelectorAll('.mode-button').forEach((button) => button.classList.toggle('mode-button-active', button.dataset.mode === mode)); orbit.enabled = mode !== 'terrain'; gizmos.setMode(mode); canvas.style.cursor = mode === 'terrain' ? 'crosshair' : 'default'; }
+function applyTerrainBrushToGround(point) {
+  const position = ground.geometry.attributes.position;
+  const local = point.clone().applyMatrix4(ground.matrixWorld.clone().invert());
+  for (let index = 0; index < position.count; index += 1) {
+    const x = position.getX(index);
+    const z = position.getZ(index);
+    const dx = x - local.x;
+    const dz = z - local.z;
+    const distance = Math.sqrt(dx * dx + dz * dz);
+    if (distance > terrainConfig.brushRadius) continue;
+    const falloff = 1 - distance / terrainConfig.brushRadius;
+    position.setY(index, position.getY(index) + terrainConfig.brushStrength * falloff * falloff);
+  }
+  position.needsUpdate = true;
+  ground.geometry.computeVertexNormals();
+  terrainConfig.heights = Array.from(position.array).filter((_, index) => index % 3 === 1);
+}
+function exportConfig() { return { format: 'webrpg.world', version: 2, scene: { name: 'main-world', units: 'world', skyColor: [...skyColor], fog: { color: [...fog.color], near: fog.near, far: fog.far } }, terrain: { ...terrainConfig, heights: Array.from(ground.geometry.attributes.position.array).filter((_, index) => index % 3 === 1) }, lighting: { ambientColor: [...lighting.ambientColor], ambientIntensity: lighting.ambientIntensity, directional: { ...lighting.directional, direction: [...lighting.directional.direction], color: [...lighting.directional.color] }, point: { ...lighting.point, position: [...lighting.point.position], color: [...lighting.point.color] } }, sounds: { ...sounds }, player: { ...player, position: [...player.position], rotation: [...player.rotation], scale: [...player.scale], materials: player.materials?.map((material) => ({ ...material, diffuseColor: [...material.diffuseColor], texture: material.texture ?? null })) ?? [], status: { ...player.status }, inventory: [...player.inventory], collision: { ...player.collision }, animation: { ...player.animation } }, assets: assets.map(({ id, name, url, source, format, dependencies }) => ({ id, name, url, source, format, dependencies })), entities: entities.filter((entity) => !entity.isPlayerPreview).map(({ object, ...entity }) => entitySnapshot(entity)), enemyTypes: enemyTypes.map((type, index) => normalizeEnemyType({ ...type, gold: { ...type.gold }, itemDrops: [...type.itemDrops] }, index)), enemyAreas: enemyAreas.map((area) => ({ ...normalizeEnemyArea(area), center: [...area.center] })) }; }
 function updateSummary() {
   const config = exportConfig();
   document.querySelector('#entity-summary-count').textContent = String(config.entities.length);
@@ -896,9 +958,61 @@ const result = await new GLTFLoader(manager).loadAsync(url); return { object: re
 async function instantiateAsset(asset) { try { setStatus(`Carregando ${asset.name}...`); const loaded = await loadModel(asset.url, asset.format, asset.dependencies); const object = loaded.object; object.traverse((child) => { if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; } }); const entity = asset._definition ? { ...asset._definition, object } : { ...createEntity(asset.name, asset.id), materials: readObjectMaterials(object), object }; addEntity(entity, object, loaded.animations); setMode('translate'); setStatus(`${asset.name} adicionado à cena`); } catch (error) { setStatus(`Falha ao carregar ${asset.name}: ${error.message}`); } }
 async function registerAsset(url, name, source = url, format = assetFormat(name), dependencies = null) { const asset = { id: newId('asset'), name, url, source, format, dependencies }; assets.push(asset); renderAssets(); updatePlayerInspector(); updateSummary(); await instantiateAsset(asset); }
 function download() { readPlayerInspector(); const link = document.createElement('a'); link.href = URL.createObjectURL(new Blob([JSON.stringify(exportConfig(), null, 2)], { type: 'application/json' })); link.download = 'main-world.world'; link.click(); URL.revokeObjectURL(link.href); setStatus('Cena .world exportada'); }
-async function applyToGame() { readPlayerInspector(); const config = exportConfig(); const response = await fetch(`${httpUrl}/api/map-config`, { method: 'PUT', credentials: 'include', headers: { 'content-type': 'application/json' }, body: JSON.stringify(config) }).catch(() => null); if (!response?.ok) { const result = await response?.json().catch(() => null); setStatus(result?.error ?? 'Não foi possível aplicar o mundo no servidor'); return; } saveMapConfig(config); setStatus('Mundo aplicado no jogo'); }
+let applyingMap = false;
+async function applyToGame() {
+  if (applyingMap) return;
+  applyingMap = true;
+  setStatus('Aplicando mundo no jogo...');
+  try {
+    readPlayerInspector();
+    const config = exportConfig();
+    const response = await fetch(`${httpUrl}/api/map-config`, {
+      method: 'PUT',
+      credentials: 'include',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(config),
+    });
+    const result = await response.json().catch(() => null);
+    if (!response.ok) {
+      setStatus(result?.error ?? `Não foi possível aplicar o mundo (HTTP ${response.status})`);
+      return;
+    }
+    try { saveMapConfig(config); } catch { /* O mapa já foi salvo no servidor. */ }
+    setStatus('Mundo aplicado no jogo');
+  } catch {
+    setStatus('Falha de conexão ao aplicar o mundo no jogo');
+  } finally {
+    applyingMap = false;
+  }
+}
 // Carrega o mundo a partir de uma configuração JSON, normalizando os dados e atualizando a cena.
 async function loadWorld(config) {
+  terrainConfig = { ...terrainConfig, ...(config?.terrain ?? {}) };
+  terrainConfig.width = Math.max(16, Number(terrainConfig.width) || 128);
+  terrainConfig.depth = Math.max(16, Number(terrainConfig.depth) || 128);
+  terrainConfig.segments = Math.max(8, Math.floor(Number(terrainConfig.segments) || 64));
+  terrainConfig.amplitude = Math.max(0, Number(terrainConfig.amplitude) || 0.15);
+  terrainConfig.frequency = Math.max(0.05, Number(terrainConfig.frequency) || 0.22);
+  terrainConfig.color = /^#[0-9a-f]{6}$/i.test(terrainConfig.color) ? terrainConfig.color : '#202522';
+  terrainConfig.brushRadius = Math.max(0.5, Number(terrainConfig.brushRadius) || 3);
+  terrainConfig.brushStrength = Math.max(0.1, Number(terrainConfig.brushStrength) || 0.8);
+  configureTerrainMesh(ground, terrainConfig);
+  ground.material.color.set(terrainConfig.color);
+  terrainColorInput.value = terrainConfig.color;
+  terrainWidthInput.value = terrainConfig.width;
+  terrainWidthValue.textContent = terrainConfig.width.toFixed(2);
+  terrainDepthInput.value = terrainConfig.depth;
+  terrainDepthValue.textContent = terrainConfig.depth.toFixed(2);
+  terrainSegmentsInput.value = terrainConfig.segments;
+  terrainSegmentsValue.textContent = String(terrainConfig.segments);
+  terrainAmplitudeInput.value = terrainConfig.amplitude;
+  terrainAmplitudeValue.textContent = terrainConfig.amplitude.toFixed(2);
+  terrainFrequencyInput.value = terrainConfig.frequency;
+  terrainFrequencyValue.textContent = terrainConfig.frequency.toFixed(2);
+  terrainBrushRadiusInput.value = terrainConfig.brushRadius;
+  terrainBrushRadiusValue.textContent = terrainConfig.brushRadius.toFixed(2);
+  terrainBrushStrengthInput.value = terrainConfig.brushStrength;
+  terrainBrushStrengthValue.textContent = terrainConfig.brushStrength.toFixed(2);
   normalizeSkyColor(config?.scene?.skyColor);
   normalizeFog(config?.scene?.fog);
   updateSceneAtmosphere();
@@ -936,7 +1050,8 @@ async function loadWorld(config) {
 // Carrega o mundo salvo do servidor ou do armazenamento local.
 async function loadSavedWorld() { 
   const response = await fetch(`${httpUrl}/api/map-config`, { 
-    credentials: 'include' 
+    credentials: 'include',
+    cache: 'no-store',
   }).catch(() => null); 
   const remoteConfig = response?.ok ? await response.json() : null; 
   await loadWorld(remoteConfig?.entities ? remoteConfig : readSavedMapConfig()); 
@@ -1106,6 +1221,51 @@ document.querySelector('#player-asset').addEventListener('change', async () => {
 document.querySelector('#apply-button').addEventListener('click', applyToGame);
 document.querySelector('#undo-button').addEventListener('click', undo);
 document.querySelector('#redo-button').addEventListener('click', redo);
+terrainWidthInput.addEventListener('input', () => {
+  terrainConfig.width = Number(terrainWidthInput.value) || 128;
+  terrainWidthValue.textContent = terrainConfig.width.toFixed(2);
+  configureTerrainMesh(ground, terrainConfig);
+  updateSummary();
+});
+terrainDepthInput.addEventListener('input', () => {
+  terrainConfig.depth = Number(terrainDepthInput.value) || 128;
+  terrainDepthValue.textContent = terrainConfig.depth.toFixed(2);
+  configureTerrainMesh(ground, terrainConfig);
+  updateSummary();
+});
+terrainSegmentsInput.addEventListener('input', () => {
+  terrainConfig.segments = Number(terrainSegmentsInput.value) || 64;
+  terrainSegmentsValue.textContent = String(terrainConfig.segments);
+  configureTerrainMesh(ground, terrainConfig);
+  updateSummary();
+});
+terrainAmplitudeInput.addEventListener('input', () => {
+  terrainConfig.amplitude = Number(terrainAmplitudeInput.value) || 0.15;
+  terrainAmplitudeValue.textContent = terrainConfig.amplitude.toFixed(2);
+  configureTerrainMesh(ground, terrainConfig);
+  updateSummary();
+});
+terrainFrequencyInput.addEventListener('input', () => {
+  terrainConfig.frequency = Number(terrainFrequencyInput.value) || 0.22;
+  terrainFrequencyValue.textContent = terrainConfig.frequency.toFixed(2);
+  configureTerrainMesh(ground, terrainConfig);
+  updateSummary();
+});
+terrainColorInput.addEventListener('input', () => {
+  terrainConfig.color = terrainColorInput.value;
+  ground.material.color.set(terrainConfig.color);
+  updateSummary();
+});
+terrainBrushRadiusInput.addEventListener('input', () => {
+  terrainConfig.brushRadius = Number(terrainBrushRadiusInput.value) || 3;
+  terrainBrushRadiusValue.textContent = terrainConfig.brushRadius.toFixed(2);
+  updateSummary();
+});
+terrainBrushStrengthInput.addEventListener('input', () => {
+  terrainConfig.brushStrength = Number(terrainBrushStrengthInput.value) || 0.8;
+  terrainBrushStrengthValue.textContent = terrainConfig.brushStrength.toFixed(2);
+  updateSummary();
+});
 ambientColorInput.addEventListener('input', () => { const hex = ambientColorInput.value.slice(1); lighting.ambientColor = [0, 2, 4].map((index) => Number.parseInt(hex.slice(index, index + 2), 16) / 255); updateSceneAmbientLight(); updateSummary(); });
 ambientIntensityInput.addEventListener('input', () => { lighting.ambientIntensity = Number(ambientIntensityInput.value); ambientIntensityValue.textContent = lighting.ambientIntensity.toFixed(2); updateSceneAmbientLight(); updateSummary(); });
 directionalIntensityInput.addEventListener('input', () => { lighting.directional.intensity = Number(directionalIntensityInput.value); directionalIntensityValue.textContent = lighting.directional.intensity.toFixed(2); updateSceneAmbientLight(); updateSummary(); });
@@ -1129,11 +1289,24 @@ window.addEventListener('keydown', (event) => {
   const nextMode = shortcuts[event.key.toLowerCase()];
   if (nextMode) setMode(nextMode);
 });
+let terrainBrushActive = false;
 canvas.addEventListener('pointerdown', (event) => {
   if (gizmoDragging) return;
-  const rect = canvas.getBoundingClientRect(); pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1; pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1; raycaster.setFromCamera(pointer, camera); const hit = raycaster.intersectObject(entityGroup, true)[0]; const id = hit?.object?.userData.entityId; if (id) { selectEntity(id); selectedMaterialIndex = materialIndexForObject(selectedEntity(), hit.object) + (hit.face?.materialIndex ?? 0); updateInspector(); }
+  const rect = canvas.getBoundingClientRect(); pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1; pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1; raycaster.setFromCamera(pointer, camera);
+  const groundHit = raycaster.intersectObject(ground, false)[0];
+  if (mode === 'terrain' && groundHit) {
+    terrainBrushActive = true;
+    canvas.setPointerCapture(event.pointerId);
+    pushHistory();
+    applyTerrainBrushToGround(groundHit.point);
+    setStatus('Terreno deformado');
+    return;
+  }
+  const hit = raycaster.intersectObject(entityGroup, true)[0]; const id = hit?.object?.userData.entityId; if (id) { selectEntity(id); selectedMaterialIndex = materialIndexForObject(selectedEntity(), hit.object) + (hit.face?.materialIndex ?? 0); updateInspector(); }
 });
-canvas.addEventListener('pointermove', (event) => { const rect = canvas.getBoundingClientRect(); pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1; pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1; raycaster.setFromCamera(pointer, camera); const hit = raycaster.intersectObject(ground, false)[0]; if (hit) coordinates.textContent = `x: ${hit.point.x.toFixed(1)}, y: 0, z: ${hit.point.z.toFixed(1)}`; });
+canvas.addEventListener('pointermove', (event) => { const rect = canvas.getBoundingClientRect(); pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1; pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1; raycaster.setFromCamera(pointer, camera); const hit = raycaster.intersectObject(ground, false)[0]; if (hit) { coordinates.textContent = `x: ${hit.point.x.toFixed(1)}, y: ${hit.point.y.toFixed(1)}, z: ${hit.point.z.toFixed(1)}`; if (terrainBrushActive && mode === 'terrain') { applyTerrainBrushToGround(hit.point); setStatus('Terreno deformado'); } } });
+canvas.addEventListener('pointerup', (event) => { terrainBrushActive = false; if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId); });
+canvas.addEventListener('pointercancel', () => { terrainBrushActive = false; });
 canvas.addEventListener('pointerleave', () => { hover.visible = false; });
 window.addEventListener('resize', resize);
 makeVectorFields(); makeAreaVectorFields(); normalizeSkyColor(); normalizeFog(); updateSceneAtmosphere(); normalizeLighting(); updateLightingInspector(); renderEnemyAreas(); await loadSavedWorld(); resize(); setMode('select');

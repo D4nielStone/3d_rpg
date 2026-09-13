@@ -1,8 +1,9 @@
 export const MAX_JSON_BODY_BYTES = 256 * 1024;
+export const MAX_MAP_CONFIG_BODY_BYTES = 8 * 1024 * 1024;
 
-export async function readJson(request) {
+export async function readJson(request, maxBytes = MAX_JSON_BODY_BYTES) {
   const contentLength = Number(request.headers?.['content-length']);
-  if (Number.isFinite(contentLength) && contentLength > MAX_JSON_BODY_BYTES) {
+  if (Number.isFinite(contentLength) && contentLength > maxBytes) {
     const error = new Error('Payload too large');
     error.statusCode = 413;
     throw error;
@@ -13,7 +14,7 @@ export async function readJson(request) {
   for await (const chunk of request) {
     const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
     bodyLength += buffer.length;
-    if (bodyLength > MAX_JSON_BODY_BYTES) {
+    if (bodyLength > maxBytes) {
       const error = new Error('Payload too large');
       error.statusCode = 413;
       throw error;

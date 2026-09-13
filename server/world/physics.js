@@ -1,5 +1,6 @@
 import * as CANNON from 'cannon-es';
 import { normalizePlayerScale } from '../../shared/player-size.js';
+import { canTraverseTerrain, PLAYER_HEIGHT, sampleTerrainHeight } from '../../shared/terrain-height.js';
 
 function addCapsule(body, scale = [1, 1, 1]) {
   const radius = Math.max(0.25, Math.min(Math.abs(scale[0] ?? 1), Math.abs(scale[2] ?? 1)) * 0.5);
@@ -42,6 +43,7 @@ export class PhysicsWorld {
     this.lastCollision = null;
     this.staticBodies = new Map();
     this.playerScale = normalizePlayerScale(mapConfig?.player?.scale);
+    this.terrain = mapConfig?.terrain ?? null;
     for (const entity of mapConfig?.entities ?? []) {
       if (!entity.collision?.enabled) continue;
       const scale = entity.scale ?? [1, 1, 1];
@@ -97,6 +99,20 @@ export class PhysicsWorld {
     );
     const step = Math.max(0, Math.min(Number(deltaSeconds) || 0, 0.1));
     if (step > 0) this.world.step(1 / 60, step, 8);
+    const desired = [
+      from[0] + (to[0] - from[0]) * Math.min(step / Math.max(deltaSeconds, 1 / 60), 1),
+      from[1],
+      from[2] + (to[2] - from[2]) * Math.min(step / Math.max(deltaSeconds, 1 / 60), 1),
+    ];
+    const terrainHeight = sampleTerrainHeight(this.terrain, desired[0], desired[2]);
+    if (terrainHeight !== null && !canTraverseTerrain(this.terrain, from, desired)) {
+      body.position.set(...from);
+    } else if (terrainHeight !== null) {
+      body.position.x = desired[0];
+      body.position.z = desired[2];
+      body.position.y = terrainHeight + PLAYER_HEIGHT / 2;
+      body.velocity.y = 0;
+    }
     for (const contact of this.world.contacts ?? []) {
       const otherBody = contact.bi === body ? contact.bj : contact.bj === body ? contact.bi : null;
       const collider = otherBody ? this.staticBodies.get(otherBody) : null;

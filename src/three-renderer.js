@@ -50,7 +50,7 @@ export class ThreeRenderSystem {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.scene = new THREE.Scene();
     this.scene.background = colorFrom(skyColor, [0.039, 0.051, 0.047]);
     this.scene.fog = new THREE.Fog(colorFrom(fog.color, [0.63, 0.69, 0.68]), Number(fog.near ?? 180), Number(fog.far ?? 850));

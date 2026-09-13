@@ -132,5 +132,25 @@ export function startMultiplayerServer() {
       process.exitCode = 1;
     });
 
+  let shuttingDown = false;
+  const shutdown = async (signal) => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    logger.info(`Encerrando relay por ${signal}; salvando jogadores ativos`);
+    await Promise.all([...state.activeGuestSessions].map(async ([playerId, session]) => {
+      const player = state.players.get(session.peerId);
+      if (!player) return;
+      await savePlayer(playerId, player).catch((error) => {
+        logger.error('Falha ao salvar jogador no encerramento', { playerId, error: error.message });
+      });
+    }));
+    for (const client of socketServer.clients) client.close(1001, 'Server shutting down');
+    socketServer.close();
+    await new Promise((resolve) => server.close(resolve));
+    await playerStore.pool.end().catch(() => {});
+  };
+  process.once('SIGTERM', () => { shutdown('SIGTERM').catch((error) => logger.error('Falha no encerramento', { error: error.message })); });
+  process.once('SIGINT', () => { shutdown('SIGINT').catch((error) => logger.error('Falha no encerramento', { error: error.message })); });
+
   return { server, socketServer, state };
 }

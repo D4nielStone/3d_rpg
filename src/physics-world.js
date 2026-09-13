@@ -1,4 +1,5 @@
 import * as CANNON from 'cannon-es';
+import { canTraverseTerrain, PLAYER_HEIGHT, sampleTerrainHeight } from '../shared/terrain-height.js';
 
 function addCapsule(body, scale = [1, 1, 1]) {
   const radius = Math.max(0.25, Math.min(Math.abs(scale[0] ?? 1), Math.abs(scale[2] ?? 1)) * 0.5);
@@ -155,6 +156,7 @@ export class PhysicsWorld {
     this.world = new CANNON.World({ gravity: new CANNON.Vec3(0, -9.81, 0) });
     this.playerMaterial = new CANNON.Material('player');
     this.bodies = new Map();
+    this.terrain = mapConfig?.terrain ?? null;
     this.staticColliders = (mapConfig?.entities ?? [])
       .map((entity) => getStaticColliderBounds(entity))
       .filter(Boolean);
@@ -179,6 +181,7 @@ export class PhysicsWorld {
   }
 
   findPath(from, to, radius = 0.35) {
+    if (!canTraverseTerrain(this.terrain, from, to)) return [];
     if (!collidesWithStaticColliders(from, to, radius, this.staticColliders)) return [[...to]];
 
     const nodes = [[...from], [...to]];
@@ -203,6 +206,20 @@ export class PhysicsWorld {
     body.velocity.z = Number(velocity[2]) || 0;
     body.velocity.y = Number(body.velocity.y) || 0;
     if (step > 0) this.world.step(1 / 60, step, 8);
+    const terrainHeight = sampleTerrainHeight(this.terrain, body.position.x, body.position.z);
+    const desired = [
+      position[0] + (Number(velocity[0]) || 0) * step,
+      position[1],
+      position[2] + (Number(velocity[2]) || 0) * step,
+    ];
+    if (terrainHeight !== null && !canTraverseTerrain(this.terrain, position, desired)) {
+      body.position.set(...position);
+    } else if (terrainHeight !== null) {
+      body.position.x = desired[0];
+      body.position.z = desired[2];
+      body.position.y = sampleTerrainHeight(this.terrain, body.position.x, body.position.z) + PLAYER_HEIGHT / 2;
+      body.velocity.y = 0;
+    }
     return [body.position.x, body.position.y, body.position.z];
   }
 

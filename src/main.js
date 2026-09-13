@@ -56,7 +56,7 @@ function finishLoading() {
 async function loadPublishedMapConfig() {
   const httpUrl = getMultiplayerHttpUrl();
   try {
-    const response = await fetch(`${httpUrl}/api/map-config`, { credentials: 'include' });
+    const response = await fetch(`${httpUrl}/api/map-config`, { credentials: 'include', cache: 'no-store' });
     if (!response.ok) {
       throw new Error(`Servidor multiplayer indisponível (HTTP ${response.status}).`);
     }

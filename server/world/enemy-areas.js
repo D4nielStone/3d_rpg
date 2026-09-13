@@ -28,6 +28,7 @@ export function createEnemyAreas(config = null) {
     areaLevel: area.areaLevel ?? Math.min(index + 1, 2),
     spawnIntervalMs: area.spawnIntervalMs ?? 3000,
     enemyDefinitions: enemyTypes,
+    terrain: config?.terrain ?? null,
   }));
 }
 

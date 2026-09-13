@@ -69,15 +69,15 @@ export function registerConnectionHandler({
     let player;
     let announced = false;
     let cleanedUp = false;
-    const cleanup = () => {
+    const cleanup = async () => {
       if (cleanedUp) return;
       cleanedUp = true;
       const activeSession = state.activeGuestSessions.get(playerId);
       if (activeSession?.peerId === peerId) state.activeGuestSessions.delete(playerId);
       if (player) state.players.delete(peerId);
       if (!announced) return;
-      if (player) savePlayer(playerId, player).catch((error) => {
-        logger.error('Falha ao salvar jogador', { peerId, error: error.message });
+      if (player) await savePlayer(playerId, player).catch((error) => {
+        logger.error('Falha ao salvar jogador na desconexão', { peerId, error: error.message });
       });
       logger.info(`${userLabel} saiu do servidor`, { peerId });
       broadcast({
@@ -87,7 +87,7 @@ export function registerConnectionHandler({
       });
       broadcastSnapshot();
     };
-    socket.on('close', cleanup);
+    socket.on('close', () => { cleanup().catch((error) => logger.error('Falha no encerramento da sessão', { peerId, error: error.message })); });
     try {
       player = await playerStore.get(
         playerId,

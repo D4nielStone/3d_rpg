@@ -66,11 +66,7 @@ export class Player {
       : 'melee';
     this.area = { ...area };
     this.level = Math.max(1, Math.floor(Number(level)));
-    this.maxHp = Math.max(
-      calculateMaxAttribute(20, this.level),
-      Number(maxHp) || 0,
-      Number(hp) || 0,
-    );
+    this.maxHp = calculateMaxAttribute(20, this.level);
     this.maxMana = calculateMaxAttribute(20, this.level);
     this.hp = Math.min(this.maxHp, Math.max(0, Number(hp)));
     this.dead = this.hp <= 0;
@@ -122,10 +118,7 @@ export class Player {
       this.xp -= this.maxXp;
       this.level += 1;
       this.maxXp = calculateMaxXp(this.level);
-      this.maxHp = Math.max(
-        calculateMaxAttribute(20, this.level),
-        Math.round(this.maxHp * 1.2),
-      );
+      this.maxHp = calculateMaxAttribute(20, this.level);
       this.maxMana = calculateMaxAttribute(20, this.level);
       this.hp = this.maxHp;
       this.mana = this.maxMana;

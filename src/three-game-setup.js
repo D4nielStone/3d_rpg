@@ -28,7 +28,16 @@ export async function createGame(canvas, mapConfig = null) {
       intensity: entity.light?.intensity,
       distance: entity.light?.distance,
     }));
-  const lighting = { ...(mapConfig?.lighting ?? {}), pointLights };
+  const configuredLighting = mapConfig?.lighting ?? {};
+  const lighting = {
+    ...configuredLighting,
+    ambientIntensity: Math.min(1.2, Math.max(0, Number(configuredLighting.ambientIntensity ?? 1) || 0)),
+    directional: {
+      ...(configuredLighting.directional ?? {}),
+      intensity: Math.min(1.5, Math.max(0, Number(configuredLighting.directional?.intensity ?? 0.8) || 0)),
+    },
+    pointLights,
+  };
   const fog = {
     color: mapConfig?.scene?.fog?.color ?? [0.63, 0.69, 0.68],
     near: Number(mapConfig?.scene?.fog?.near ?? 180),

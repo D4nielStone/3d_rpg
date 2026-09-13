@@ -11,6 +11,7 @@ export class EnemyArea {
     areaLevel = 1,
     spawnIntervalMs = 3000,
     enemyDefinitions = null,
+    terrain = null,
   } = {}) {
     this.id = id;
     this.center = [...center];
@@ -21,6 +22,7 @@ export class EnemyArea {
     this.areaLevel = areaLevel;
     this.spawnIntervalMs = spawnIntervalMs;
     this.enemyDefinitions = enemyDefinitions;
+    this.terrain = terrain;
     this.enemies = new Map();
     this.lastSpawnAt = 0;
   }
@@ -51,6 +53,7 @@ export class EnemyArea {
         level: this.areaLevel,
         position: this.randomPosition(),
         definitions: this.enemyDefinitions,
+        terrain: this.terrain,
       });
       this.enemies.set(enemy.id, enemy);
       this.lastSpawnAt = time;

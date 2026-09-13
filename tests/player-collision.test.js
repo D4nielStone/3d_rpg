@@ -44,6 +44,37 @@ test('permite caminhar sobre um collider de chão fino', () => {
   assert.ok(result[0] > 0.25, `X deveria avançar sobre o chão, mas ficou ${result[0]}`);
 });
 
+test('faz o jogador subir uma colina abaixo da altura do jogador', () => {
+  const world = new PhysicsWorld({
+    terrain: {
+      width: 4,
+      depth: 4,
+      segments: 2,
+      heights: [0, 0, 0, 0, 0.6, 0, 0, 0, 0],
+    },
+  });
+
+  const result = world.stepPlayer('player', [-1, 0, 0], [3, 0, 0], 0.5);
+
+  assert.ok(result[0] > -0.8, `O jogador deveria avançar pela colina, mas ficou em ${result[0]}`);
+  assert.ok(result[1] > 0.2, `O jogador deveria subir para a altura da colina, mas ficou em ${result[1]}`);
+});
+
+test('bloqueia uma montanha mais alta que o jogador', () => {
+  const world = new PhysicsWorld({
+    terrain: {
+      width: 4,
+      depth: 4,
+      segments: 2,
+      heights: [0, 0, 0, 0, 2, 0, 0, 0, 0],
+    },
+  });
+
+  const result = world.stepPlayer('player', [-1, 0, 0], [3, 0, 0], 0.5);
+
+  assert.ok(result[0] < -0.5, `O jogador não deveria atravessar a montanha, mas chegou a ${result[0]}`);
+});
+
 test('encontra uma rota por fora de um obstaculo', () => {
   const world = new PhysicsWorld({
     entities: [{

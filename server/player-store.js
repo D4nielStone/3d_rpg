@@ -242,6 +242,10 @@ export class PlayerStore {
   }
 
   async save(guestId, player) {
+    return this.saveState(guestId, player.toPersistence());
+  }
+
+  async saveState(guestId, state) {
     await this.ready;
 
     // Converte o estado do Player para o formato persistente
@@ -256,7 +260,7 @@ export class PlayerStore {
       DO UPDATE SET state = EXCLUDED.state, updated_at = NOW()
     `, [
       guestId,
-      JSON.stringify(player.toPersistence()),
+      JSON.stringify(state),
     ]);
   }
 

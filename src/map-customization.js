@@ -140,6 +140,53 @@ function createTerrain(world, terrain) {
   }));
 }
 
+function createEditorTerrain(world, terrain) {
+  const width = Number(terrain?.width);
+  const depth = Number(terrain?.depth);
+  const segments = Math.floor(Number(terrain?.segments));
+  const heights = terrain?.heights;
+  if (!Number.isFinite(width) || !Number.isFinite(depth) || !Number.isInteger(segments) || segments < 1 || !Array.isArray(heights)) return;
+  const columns = segments + 1;
+  if (heights.length !== columns * columns) return;
+  const vertices = [];
+  const normals = [];
+  const indices = [];
+  const halfWidth = width / 2;
+  const halfDepth = depth / 2;
+  for (let row = 0; row <= segments; row += 1) {
+    for (let column = 0; column <= segments; column += 1) {
+      const heightAt = (sampleRow, sampleColumn) => Number(heights[Math.max(0, Math.min(segments, sampleRow)) * columns + Math.max(0, Math.min(segments, sampleColumn))]) || 0;
+      const heightLeft = heightAt(row, column - 1);
+      const heightRight = heightAt(row, column + 1);
+      const heightTop = heightAt(row - 1, column);
+      const heightBottom = heightAt(row + 1, column);
+      const normalX = -(heightRight - heightLeft) / Math.max(width / segments, 0.001);
+      const normalZ = -(heightBottom - heightTop) / Math.max(depth / segments, 0.001);
+      const normalLength = Math.hypot(normalX, 1, normalZ);
+      vertices.push((column / segments) * width - halfWidth, heightAt(row, column), (row / segments) * depth - halfDepth);
+      normals.push(normalX / normalLength, 1 / normalLength, normalZ / normalLength);
+    }
+  }
+  for (let row = 0; row < segments; row += 1) for (let column = 0; column < segments; column += 1) {
+    const first = row * columns + column;
+    const next = first + 1;
+    const below = first + columns;
+    indices.push(first, below, next, next, below, below + 1);
+  }
+  const color = String(terrain.color ?? '').match(/^#([0-9a-f]{6})$/i);
+  const diffuseColor = color ? [0, 2, 4].map((index) => Number.parseInt(color[1].slice(index, index + 2), 16) / 255) : [0.125, 0.145, 0.133];
+  const entity = world.createEntity();
+  world.addComponent(entity, new Transform());
+  world.addComponent(entity, new MeshRenderer({
+    meshes: [{
+      vertices: new Float32Array(vertices),
+      normals: new Float32Array(normals),
+      indices: new Uint32Array(indices),
+      material: { diffuseColor },
+    }],
+  }));
+}
+
 /** Esta função cria as entidades do mundo com base na configuração fornecida. */
 async function createWorldEntities(world, config, textureManager) {
   // Cria um mapa de assets para facilitar a busca por ID
@@ -206,7 +253,8 @@ async function createWorldEntities(world, config, textureManager) {
 
 export async function customizeMap(world, config = null, textureManager = null) {
   const activeConfig = config ?? readSavedMapConfig() ?? DEFAULT_MAP_CONFIG;
-  createTerrain(world, activeConfig.terrain);
+  if (activeConfig.terrain?.width && activeConfig.terrain?.heights) createEditorTerrain(world, activeConfig.terrain);
+  else createTerrain(world, activeConfig.terrain);
   if (activeConfig.water?.enabled && !activeConfig.terrain?.cells) {
     createWater(world, activeConfig.water);
   }

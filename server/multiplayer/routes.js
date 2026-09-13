@@ -4,7 +4,7 @@ import {
   createClearedSessionCookie,
   getSessionFromRequest,
 } from './cookies.js';
-import { readJson, sendJson } from './json.js';
+import { MAX_MAP_CONFIG_BODY_BYTES, readJson, sendJson } from './json.js';
 import { isValidMapConfig } from '../world/enemy-areas.js';
 import {
   createAccountId,
@@ -112,7 +112,7 @@ export function createRequestHandler({
       }
 
       try {
-        const body = await readJson(request);
+        const body = await readJson(request, MAX_MAP_CONFIG_BODY_BYTES);
 
         if (!isValidMapConfig(body)) {
           sendJson(response, 400, {
