@@ -212,12 +212,19 @@ export class PhysicsWorld {
       position[1],
       position[2] + (Number(velocity[2]) || 0) * step,
     ];
-    if (terrainHeight !== null && !canTraverseTerrain(this.terrain, position, desired)) {
+    if (collidesWithStaticColliders(position, desired, 0.35, this.staticColliders)) {
+      body.position.set(...position);
+    } else if (terrainHeight !== null && !canTraverseTerrain(this.terrain, position, desired)) {
       body.position.set(...position);
     } else if (terrainHeight !== null) {
       body.position.x = desired[0];
       body.position.z = desired[2];
       body.position.y = sampleTerrainHeight(this.terrain, body.position.x, body.position.z) + PLAYER_HEIGHT / 2;
+      body.velocity.y = 0;
+    } else {
+      body.position.x = desired[0];
+      body.position.z = desired[2];
+      if (this.staticColliders.length > 0) body.position.y = position[1] + PLAYER_HEIGHT / 2;
       body.velocity.y = 0;
     }
     return [body.position.x, body.position.y, body.position.z];

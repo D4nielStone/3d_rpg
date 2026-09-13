@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { Player } from '../server/player.js';
 import { EnemyArea } from '../server/enemy-area.js';
 import { Enemy } from '../server/enemy.js';
+import { MoveTarget, OutlineRenderer, Transform } from '../src/components.js';
 
 test('ataque mágico consome mana e usa distância e projétil configuráveis', () => {
   const player = new Player({
@@ -54,4 +55,29 @@ test('ataque mágico consome mana e usa distância e projétil configuráveis', 
   assert.equal(result.projectile, 'magic-ball');
   assert.equal(player.mana, 4);
   assert.equal(enemy.hp, 2);
+});
+
+test('ataques à distância não travam o movimento do jogador', async () => {
+  const { MultiplayerSystem } = await import('../src/multiplayer.js');
+  const moveTarget = { position: [1, 0, 1] };
+  const world = {
+    getComponent: (entity, type) => {
+      if (type === Transform) return entity === 10 ? { position: [0, 0, 0], rotation: [0, 0, 0] } : { position: [3, 0, 0], rotation: [0, 0, 0] };
+      if (type === MoveTarget) return moveTarget;
+      if (type === OutlineRenderer) return null;
+      return null;
+    },
+  };
+  const system = new MultiplayerSystem({
+    world,
+    createRemoteEntity: () => 1,
+    onAttackTargetChanged: () => {},
+  });
+  system.localEntity = 10;
+  system.combatMode = 'ranged';
+  system.attackTargetEntity = 99;
+
+  system.updateAttackTarget(world, 1000);
+
+  assert.equal(moveTarget.position, null);
 });

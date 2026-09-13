@@ -11,6 +11,7 @@ import {
 
 const MESSAGE_LIMIT = 32;
 const COMBAT_DISTANCE = 1;
+const RANGED_ATTACK_DISTANCE = 5;
 
 export class MultiplayerSystem {
   constructor({
@@ -192,6 +193,7 @@ export class MultiplayerSystem {
     }
 
     if (message.type === 'respawned') {
+      this.pendingState = null;
       const transform = this.localEntity
         ? this.world.getComponent(this.localEntity, Transform)
         : null;
@@ -445,16 +447,23 @@ export class MultiplayerSystem {
     const deltaX = targetTransform.position[0] - playerTransform.position[0];
     const deltaZ = targetTransform.position[2] - playerTransform.position[2];
     const distance = Math.hypot(deltaX, deltaZ);
-    if (distance > COMBAT_DISTANCE) {
-      moveTarget.position = [
-        targetTransform.position[0] - deltaX / distance * COMBAT_DISTANCE,
-        targetTransform.position[1],
-        targetTransform.position[2] - deltaZ / distance * COMBAT_DISTANCE,
-      ];
+    const attackDistance = this.combatMode === 'melee' ? COMBAT_DISTANCE : RANGED_ATTACK_DISTANCE;
+
+    if (this.combatMode === 'melee') {
+      if (distance > COMBAT_DISTANCE) {
+        moveTarget.position = [
+          targetTransform.position[0] - deltaX / distance * COMBAT_DISTANCE,
+          targetTransform.position[1],
+          targetTransform.position[2] - deltaZ / distance * COMBAT_DISTANCE,
+        ];
+      } else {
+        moveTarget.position = null;
+      }
     } else {
       moveTarget.position = null;
     }
-    if (distance <= 1 && time - this.lastAttackRequestAt >= 200) {
+
+    if (distance <= attackDistance && time - this.lastAttackRequestAt >= 200) {
       if (this.sendAttack()) this.lastAttackRequestAt = time;
     }
   }

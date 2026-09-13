@@ -22,6 +22,47 @@ function getCollisionScale(entity) {
   return scale.map((value) => Math.max(0.01, Math.abs(Number(value) || 1)));
 }
 
+function getStaticColliderBounds(entity) {
+  if (!entity?.collision?.enabled || !Array.isArray(entity.position)) return null;
+  const scale = entity.scale ?? [1, 1, 1];
+  const collisionScale = getCollisionScale(entity);
+  const offset = entity.collision.offset ?? [0, 0, 0];
+  const halfX = Math.max(0.05, Math.abs(Number(scale[0]) || 1) * collisionScale[0] * 0.5);
+  const halfY = isGroundSurface(entity) ? 0.05 : Math.max(0.05, Math.abs(Number(scale[1]) || 1) * collisionScale[1] * 0.5);
+  const halfZ = Math.max(0.05, Math.abs(Number(scale[2]) || 1) * collisionScale[2] * 0.5);
+  return {
+    minX: entity.position[0] + (Number(offset[0]) || 0) - halfX,
+    maxX: entity.position[0] + (Number(offset[0]) || 0) + halfX,
+    minY: entity.position[1] + (Number(offset[1]) || 0) - halfY,
+    maxY: entity.position[1] + (Number(offset[1]) || 0) + halfY,
+    minZ: entity.position[2] + (Number(offset[2]) || 0) - halfZ,
+    maxZ: entity.position[2] + (Number(offset[2]) || 0) + halfZ,
+  };
+}
+
+function collidesWithStaticColliders(from, to, radius, colliders) {
+  const dx = to[0] - from[0];
+  const dz = to[2] - from[2];
+  const steps = Math.max(2, Math.ceil(Math.hypot(dx, dz) / 0.15));
+
+  for (let step = 1; step <= steps; step += 1) {
+    const progress = step / steps;
+    const x = from[0] + dx * progress;
+    const z = from[2] + dz * progress;
+    const blocked = colliders.some((collider) => {
+      if (!collider) return false;
+      if (collider.maxY <= from[1] + 0.1 && collider.maxY - collider.minY <= 0.5) return false;
+      return x >= collider.minX - radius
+        && x <= collider.maxX + radius
+        && z >= collider.minZ - radius
+        && z <= collider.maxZ + radius;
+    });
+    if (blocked) return true;
+  }
+
+  return false;
+}
+
 function addGroundCollider(world, playerMaterial) {
   const body = new CANNON.Body({
     mass: 0,
@@ -42,6 +83,9 @@ export class PhysicsWorld {
     this.bodies = new Map();
     this.lastCollision = null;
     this.staticBodies = new Map();
+    this.staticColliders = (mapConfig?.entities ?? [])
+      .map((entity) => getStaticColliderBounds(entity))
+      .filter(Boolean);
     this.playerScale = normalizePlayerScale(mapConfig?.player?.scale);
     this.terrain = mapConfig?.terrain ?? null;
     for (const entity of mapConfig?.entities ?? []) {
@@ -105,12 +149,19 @@ export class PhysicsWorld {
       from[2] + (to[2] - from[2]) * Math.min(step / Math.max(deltaSeconds, 1 / 60), 1),
     ];
     const terrainHeight = sampleTerrainHeight(this.terrain, desired[0], desired[2]);
-    if (terrainHeight !== null && !canTraverseTerrain(this.terrain, from, desired)) {
+    if (collidesWithStaticColliders(from, desired, 0.35, this.staticColliders)) {
+      body.position.set(...from);
+    } else if (terrainHeight !== null && !canTraverseTerrain(this.terrain, from, desired)) {
       body.position.set(...from);
     } else if (terrainHeight !== null) {
       body.position.x = desired[0];
       body.position.z = desired[2];
       body.position.y = terrainHeight + PLAYER_HEIGHT / 2;
+      body.velocity.y = 0;
+    } else {
+      body.position.x = desired[0];
+      body.position.z = desired[2];
+      body.position.y = from[1] + PLAYER_HEIGHT / 2;
       body.velocity.y = 0;
     }
     for (const contact of this.world.contacts ?? []) {
