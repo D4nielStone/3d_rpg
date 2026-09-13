@@ -29,6 +29,7 @@ export class MultiplayerSystem {
     onOnlinePlayers = () => {},
     onMapAccess = () => {},
     onAttackTargetChanged = () => {},
+    onAttack = () => {},
     onAttackHit = () => {},
     onLevelUp = () => {},
   }) {
@@ -46,6 +47,7 @@ export class MultiplayerSystem {
     this.onOnlinePlayers = onOnlinePlayers;
     this.onMapAccess = onMapAccess;
     this.onAttackTargetChanged = onAttackTargetChanged;
+    this.onAttack = onAttack;
     this.onAttackHit = onAttackHit;
     this.onLevelUp = onLevelUp;
     this.socket = null;
@@ -377,6 +379,7 @@ export class MultiplayerSystem {
   sendAttack() {
     if (!this.socket || this.socket.readyState !== WebSocket.OPEN) return false;
     this.socket.send(JSON.stringify({ type: 'attack', mode: this.combatMode ?? 'melee' }));
+    this.onAttack();
     return true;
   }
 

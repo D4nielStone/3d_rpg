@@ -415,6 +415,58 @@ export class MeshRenderer {
   get texture() { return this.meshes[0]?.material?.texture ?? null; }
 }
 
+function createSwordBox(size, center, color) {
+  const [width, height, depth] = size;
+  const [centerX, centerY, centerZ] = center;
+  const vertices = new Float32Array([
+    centerX - width, centerY - height, centerZ + depth, centerX + width, centerY - height, centerZ + depth,
+    centerX + width, centerY + height, centerZ + depth, centerX - width, centerY + height, centerZ + depth,
+    centerX - width, centerY - height, centerZ - depth, centerX - width, centerY + height, centerZ - depth,
+    centerX + width, centerY + height, centerZ - depth, centerX + width, centerY - height, centerZ - depth,
+    centerX - width, centerY + height, centerZ - depth, centerX - width, centerY + height, centerZ + depth,
+    centerX + width, centerY + height, centerZ + depth, centerX + width, centerY + height, centerZ - depth,
+    centerX - width, centerY - height, centerZ - depth, centerX + width, centerY - height, centerZ - depth,
+    centerX + width, centerY - height, centerZ + depth, centerX - width, centerY - height, centerZ + depth,
+  ]);
+  return {
+    vertices,
+    colors: new Float32Array(Array.from({ length: vertices.length / 3 }, () => color).flat()),
+    indices: new Uint16Array([
+      0, 1, 2, 0, 2, 3, 4, 5, 6, 4, 6, 7,
+      8, 9, 10, 8, 10, 11, 12, 13, 14, 12, 14, 15,
+      16, 17, 18, 16, 18, 19, 20, 21, 22, 20, 22, 23,
+    ]),
+    material: new Material({ diffuseColor: color }),
+  };
+}
+
+export class SwordRenderer {
+  constructor({ visible = true } = {}) {
+    this.visible = visible;
+    this.offset = [0.55, 0.45, -0.25];
+    this.attackStartedAt = -Infinity;
+    this.attackDuration = 260;
+    this.meshRenderer = new MeshRenderer({ meshes: [
+      createSwordBox([0.07, 0.62, 0.035], [0, 0.72, 0], [0.72, 0.78, 0.86]),
+      createSwordBox([0.16, 0.045, 0.06], [0, 0.08, 0], [0.78, 0.52, 0.12]),
+      createSwordBox([0.055, 0.2, 0.055], [0, -0.16, 0], [0.28, 0.12, 0.06]),
+    ]});
+  }
+
+  attack(time = performance.now()) {
+    this.attackStartedAt = time;
+  }
+
+  getAttackPose(time = performance.now()) {
+    const progress = Math.min(1, Math.max(0, (time - this.attackStartedAt) / this.attackDuration));
+    const swing = Math.sin(progress * Math.PI);
+    return {
+      rotation: swing * 2.2,
+      lift: swing * 0.18,
+    };
+  }
+}
+
 export class Water {
   constructor({ color = [0.08, 0.45, 0.72] } = {}) {
     this.color = color;

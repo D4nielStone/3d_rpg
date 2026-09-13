@@ -1,4 +1,4 @@
-import { EnemyIdentity, SoundListener, SoundPlayer, Transform } from './components.js';
+import { EnemyIdentity, SoundListener, SoundPlayer, SwordRenderer, Transform } from './components.js';
 import { MultiplayerSystem } from './multiplayer.js';
 import { addRemotePlayer } from './player-factory.js';
 import { createGame } from './three-game-setup.js';
@@ -116,9 +116,11 @@ function updatePlayerAttributes({ strength = 1, strengthXp = 0, maxStrengthXp = 
 
 // Inicializa o modo de combate com valor padrão
 let combatMode = 'melee';
-function updateCombatMode(mode = 'melee') {
+function updateCombatMode(mode = 'melee', world = null, playerEntity = null) {
   combatMode = mode;
   ui.updateCombatMode(mode);
+  const sword = world && playerEntity ? world.getComponent(playerEntity, SwordRenderer) : null;
+  if (sword) sword.visible = mode === 'melee';
 }
 
 // Cria sons de ataque para diferentes tipos de ataques
@@ -177,7 +179,7 @@ function createMultiplayer(game, playerEntity, enemyAssets, soundPlayer, mapConf
     onPlayerState: (player) => {
       playerStatus.update(player);
       updatePlayerAttributes(player);
-      updateCombatMode(player.combatMode);
+      updateCombatMode(player.combatMode, game.world, playerEntity);
       status.textContent = `Área: ${player.area?.name ?? 'Área dos Ratos'} (Nível ${player.area?.level ?? 1}). Clique para mover; Space cancela.`;
     },
     onDeath: () => deathScreen.classList.remove('death-screen-hidden'),
@@ -186,6 +188,9 @@ function createMultiplayer(game, playerEntity, enemyAssets, soundPlayer, mapConf
     onOnlinePlayers: ui.renderOnlinePlayers,
     onMapAccess: (path) => window.open(new URL(path, window.location.origin), '_blank', 'noopener'),
     onChat: (message) => chat.addMessage(message),
+    onAttack: () => {
+      game.world.getComponent(playerEntity, SwordRenderer)?.attack();
+    },
     onAttackHit: () => {
       const soundName = { melee: 'slash', ranged: 'pulse', magic: 'arc' }[combatMode] ?? 'slash';
       soundPlayer?.play(soundName).catch(() => {});
@@ -208,7 +213,7 @@ function createMultiplayer(game, playerEntity, enemyAssets, soundPlayer, mapConf
   chat.connect((message) => multiplayer.sendChat(message));
   combatModeButtons.forEach((button) => {
     button.addEventListener('click', () => {
-      updateCombatMode(button.dataset.combatMode);
+      updateCombatMode(button.dataset.combatMode, game.world, playerEntity);
       multiplayer.setCombatMode(button.dataset.combatMode);
     });
   });
@@ -264,6 +269,7 @@ async function start(identity = {}) {
   const game = await createGame(canvas, mapConfig);
   updateLoading('Carregando cenário e personagem...');
   const { entity: playerEntity, usedFallback } = await loadLocalPlayer(game, mapConfig?.player, mapConfig?.assets);
+    game.world.addComponent(playerEntity, new SwordRenderer());
   const soundListener = new SoundListener();
   game.world.addComponent(playerEntity, soundListener);
   game.world.addComponent(playerEntity, new SoundPlayer({

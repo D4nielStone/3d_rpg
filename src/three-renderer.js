@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { MeshRenderer, OutlineRenderer, ShadowRenderer, Texture, Transform, Water, LineRenderer, EnemyAreaRenderer } from './components.js';
+import { MeshRenderer, OutlineRenderer, ShadowRenderer, SwordRenderer, Texture, Transform, Water, LineRenderer, EnemyAreaRenderer } from './components.js';
 
 function colorFrom(value, fallback = [1, 1, 1]) {
   const channels = Array.isArray(value) ? value : fallback;
@@ -171,6 +171,27 @@ export class ThreeRenderSystem {
     return object;
   }
 
+  updateSwordObject(entity, world, time) {
+    const transform = world.getComponent(entity, Transform);
+    const sword = world.getComponent(entity, SwordRenderer);
+    const key = `sword-${entity}`;
+    let object = this.entityObjects.get(key);
+    if (!object) {
+      object = this.createObject(sword.meshRenderer, null, false, false);
+      this.root.add(object);
+      this.entityObjects.set(key, object);
+    }
+    object.position.set(...transform.position);
+    object.rotation.set(transform.rotation[0], transform.rotation[1], transform.rotation[2]);
+    object.scale.set(...transform.scale);
+    object.translateX(sword.offset[0]);
+    const pose = sword.getAttackPose(time);
+    object.translateY(sword.offset[1] + pose.lift);
+    object.translateZ(sword.offset[2]);
+    object.rotateZ(pose.rotation);
+    return object;
+  }
+
   updateRing(component, transform, time, color) {
     const radius = component.radius * (1 + Math.sin(time * 0.006) * 0.08);
     const shape = new THREE.RingGeometry(Math.max(0, radius - component.thickness), radius, component.segments);
@@ -188,6 +209,9 @@ export class ThreeRenderSystem {
     for (const entity of world.query(Transform, MeshRenderer)) livingEntities.add(entity);
     for (const entity of world.query(Transform, OutlineRenderer)) livingEntities.add(entity);
     for (const entity of world.query(Transform, ShadowRenderer)) livingEntities.add(entity);
+    for (const entity of world.query(Transform, SwordRenderer)) {
+      if (world.getComponent(entity, SwordRenderer).visible) livingEntities.add(`sword-${entity}`);
+    }
 
     for (const [key, object] of [...this.entityObjects.entries()]) {
       if (typeof key === 'number') {
@@ -212,6 +236,10 @@ export class ThreeRenderSystem {
         castShadow: renderer.castShadow !== false,
         receiveShadow: renderer.receiveLight !== false,
       });
+    }
+    for (const entity of world.query(Transform, SwordRenderer)) {
+      const sword = world.getComponent(entity, SwordRenderer);
+      if (sword.visible) this.updateSwordObject(entity, world, time);
     }
     for (const entity of world.query(Transform, ShadowRenderer)) {
       const object = this.entityObjects.get(entity);
