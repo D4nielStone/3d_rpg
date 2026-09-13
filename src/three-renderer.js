@@ -188,7 +188,7 @@ export class ThreeRenderSystem {
     const pose = sword.getAttackPose(time);
     object.translateY(sword.offset[1] + pose.lift);
     object.translateZ(sword.offset[2]);
-    object.rotateZ(pose.rotation);
+    object.rotateX(pose.rotation);
     return object;
   }
 

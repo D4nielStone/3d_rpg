@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { MovementSystem } from '../src/systems.js';
-import { MoveTarget, PlayerController, Transform } from '../src/components.js';
+import { MoveTarget, PlayerController, SwordRenderer, Transform } from '../src/components.js';
+import { ThreeRenderSystem } from '../src/three-renderer.js';
 
 test('move o jogador por teclado quando o mapa nao tem colisoes', () => {
   const components = new Map([
@@ -66,4 +67,36 @@ test('aplica gravidade ao jogador parado', () => {
   new MovementSystem(input).update(world, 0.1);
 
   assert.ok(components.get(Transform).position[1] < 5);
+});
+
+test('o ataque da espada gira no eixo X para um corte frontal', () => {
+  const calls = [];
+  const object = {
+    position: { set: (...args) => calls.push(['position', ...args]) },
+    rotation: { set: (...args) => calls.push(['rotation', ...args]) },
+    scale: { set: (...args) => calls.push(['scale', ...args]) },
+    translateX: () => calls.push(['translateX']),
+    translateY: () => calls.push(['translateY']),
+    translateZ: () => calls.push(['translateZ']),
+    rotateX: () => calls.push(['rotateX']),
+    rotateZ: () => calls.push(['rotateZ']),
+  };
+
+  const system = Object.create(ThreeRenderSystem.prototype);
+  system.entityObjects = new Map();
+  system.root = { add: () => {} };
+  system.createObject = () => object;
+
+  const world = {
+    getComponent: (entity, type) => {
+      if (type === Transform) return new Transform({ position: [1, 2, 3], rotation: [0, 0, 0] });
+      if (type === SwordRenderer) return new SwordRenderer();
+      return null;
+    },
+  };
+
+  system.updateSwordObject(7, world, 100);
+
+  assert.equal(calls.some((call) => call[0] === 'rotateX'), true);
+  assert.equal(calls.some((call) => call[0] === 'rotateZ'), false);
 });

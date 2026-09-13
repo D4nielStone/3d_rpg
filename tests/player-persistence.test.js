@@ -14,12 +14,12 @@ test('sincroniza vida máxima diretamente ao nível', () => {
   assert.equal(player.hp, player.maxHp);
 });
 
-test('respeita o limite de maxHp definido no mundo', () => {
+test('usa maxHp do mundo como vida base da progressão', () => {
   const player = new Player({ level: 1, maxHp: 100 });
-  assert.equal(player.maxHp, 20);
-  player.addExperience(1000);
   assert.equal(player.maxHp, 100);
-  assert.equal(player.hp, 100);
+  player.addExperience(1000);
+  assert.equal(player.maxHp, Math.round(100 * 1.2 ** (player.level - 1)));
+  assert.equal(player.hp, player.maxHp);
 });
 
 test('salva apenas o snapshot mais recente em ordem', async () => {

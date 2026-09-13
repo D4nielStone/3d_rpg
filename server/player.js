@@ -1,3 +1,11 @@
+import {
+  GAME_PROGRESSION,
+  calculateMaxHp,
+  calculateMaxMana,
+  calculateMaxXp,
+  calculateMeleeXp,
+} from './progression.js';
+
 const DEFAULT_POSITION = [0, 0, 0];
 const DEFAULT_ROTATION = [0, 0, 0];
 
@@ -32,19 +40,7 @@ function copyVector(vector, fallback) {
     : [...fallback];
 }
 
-function calculateMaxXp(level) {
-  return Math.ceil(level * (level / 100 + 3));
-}
-
-function calculateMeleeXp(level) {
-  return level ** 2 * 5;
-}
-
 const BLOOD_HIT_WINDOW_MS = 7000;
-
-function calculateMaxAttribute(baseValue, level) {
-  return Math.round(baseValue * 1.2 ** (level - 1));
-}
 
 export class Player {
   constructor({
@@ -63,6 +59,8 @@ export class Player {
     xp = 0,
     maxXp,
     maxHp,
+    baseHp,
+    maxHpLimit,
     position = DEFAULT_POSITION,
     rotation = DEFAULT_ROTATION,
     inventory,
@@ -81,11 +79,12 @@ export class Player {
       : 'melee';
     this.area = { ...area };
     this.level = Math.max(1, Math.floor(Number(level)));
-    this.maxHpLimit = Math.max(0, Number(maxHp) || 0);
-    this.maxHp = this.maxHpLimit > 0
-      ? Math.min(calculateMaxAttribute(20, this.level), this.maxHpLimit)
-      : calculateMaxAttribute(20, this.level);
-    this.maxMana = calculateMaxAttribute(20, this.level);
+    this.baseHp = Math.max(
+      1,
+      Number(baseHp) || Number(maxHpLimit) || Number(maxHp) || GAME_PROGRESSION.player.hp.base,
+    );
+    this.maxHp = calculateMaxHp(this.level, this.baseHp);
+    this.maxMana = calculateMaxMana(this.level);
     this.hp = hp === undefined
       ? this.maxHp
       : Math.min(this.maxHp, Math.max(0, Number(hp) || 0));
@@ -143,10 +142,8 @@ export class Player {
       this.xp -= this.maxXp;
       this.level += 1;
       this.maxXp = calculateMaxXp(this.level);
-      this.maxHp = this.maxHpLimit > 0
-        ? Math.min(calculateMaxAttribute(20, this.level), this.maxHpLimit)
-        : calculateMaxAttribute(20, this.level);
-      this.maxMana = calculateMaxAttribute(20, this.level);
+      this.maxHp = calculateMaxHp(this.level, this.baseHp);
+      this.maxMana = calculateMaxMana(this.level);
       this.hp = this.maxHp;
       this.mana = this.maxMana;
       leveledUp = true;
@@ -171,10 +168,8 @@ export class Player {
       this.maxXp = calculateMaxXp(this.level);
     }
 
-    this.maxHp = this.maxHpLimit > 0
-      ? Math.min(calculateMaxAttribute(20, this.level), this.maxHpLimit)
-      : calculateMaxAttribute(20, this.level);
-    this.maxMana = calculateMaxAttribute(20, this.level);
+    this.maxHp = calculateMaxHp(this.level, this.baseHp);
+    this.maxMana = calculateMaxMana(this.level);
     this.hp = Math.min(this.hp, this.maxHp);
     this.mana = Math.min(this.mana, this.maxMana);
   }
@@ -227,7 +222,7 @@ export class Player {
       hp: this.hp,
       dead: this.dead,
       maxHp: this.maxHp,
-      maxHpLimit: this.maxHpLimit,
+      baseHp: this.baseHp,
       mana: this.mana,
       maxMana: this.maxMana,
       money: this.money,

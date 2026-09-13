@@ -117,7 +117,8 @@ export class PlayerStore {
       position: result.rows[0]?.state?.position ?? playerDefinition.position,
       rotation: result.rows[0]?.state?.rotation ?? playerDefinition.rotation,
       ...(!result.rows[0] ? playerDefinition.status : {}),
-      maxHp: result.rows[0]?.state?.maxHpLimit
+      maxHp: result.rows[0]?.state?.baseHp
+        ?? result.rows[0]?.state?.maxHpLimit
         ?? result.rows[0]?.state?.maxHp
         ?? playerDefinition.maxHp
         ?? playerDefinition.status?.maxHp,
