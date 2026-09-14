@@ -46,7 +46,7 @@ test('move o jogador em relacao a orientacao da camera ao usar WASD', () => {
   new MovementSystem(input, null, camera).update(world, 1);
 
   assert.ok(components.get(Transform).position[0] < 0);
-  assert.equal(components.get(Transform).position[2], 0);
+  assert.ok(Math.abs(components.get(Transform).position[2]) < 1e-9);
 });
 
 test('move o jogador ate um destino de clique', () => {
@@ -129,6 +129,21 @@ test('o jogador cai pela gravidade quando está acima do terreno', () => {
   const result = world.stepPlayer('gravity-check', [0, 5, 0], [0, 0, 0], 0.1);
 
   assert.ok(result[1] < 5);
+});
+
+test('o movimento por teclado ignora o bloqueio legado do terreno', () => {
+  const world = new PhysicsWorld({
+    terrain: {
+      width: 4,
+      depth: 4,
+      segments: 2,
+      heights: [10, 10, 10, 10, 10, 10, 10, 10, 10],
+    },
+  });
+
+  const result = world.stepPlayer('legacy-terrain', [0, 0, 0], [2, 0, 0], 0.1, { ignoreTerrain: true });
+
+  assert.ok(result[0] > 0);
 });
 
 test('o ataque da espada gira no eixo X para um corte frontal', () => {

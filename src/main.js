@@ -300,7 +300,8 @@ async function start(identity = {}) {
   const game = await createGame(canvas, mapConfig);
   updateLoading('Carregando cenário e personagem...');
   const { entity: playerEntity, usedFallback } = await loadLocalPlayer(game, mapConfig?.player, mapConfig?.assets);
-    game.world.addComponent(playerEntity, new SwordRenderer());
+  window.__gameDebug = { game, playerEntity };
+  game.world.addComponent(playerEntity, new SwordRenderer());
   const soundListener = new SoundListener();
   game.world.addComponent(playerEntity, soundListener);
   game.world.addComponent(playerEntity, new SoundPlayer({
@@ -326,6 +327,8 @@ async function start(identity = {}) {
 
   // Configura o sistema de multiplayer, incluindo respawn e ataque a inimigos
   const multiplayerSystem = createMultiplayer(game, playerEntity, enemyAssets, soundPlayer, mapConfig);
+  game.multiplayerSystem = multiplayerSystem;
+  window.__gameDebug = { ...window.__gameDebug, game, playerEntity, multiplayerSystem };
   respawnButton.addEventListener('click', () => multiplayerSystem.sendRespawn());
   game.enemyHoverSystem.onSelect = (entity) => {
     if (entity && game.world.getComponent(entity, EnemyIdentity)) {

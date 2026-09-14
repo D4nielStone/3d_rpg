@@ -13,7 +13,7 @@ function addCapsule(body, scale = [1, 1, 1]) {
 }
 
 function isGroundSurface(entity) {
-  return entity?.collision?.surface === 'ground';
+  return entity?.primitive === 'plane' || entity?.collision?.surface === 'ground';
 }
 
 function getCollisionScale(entity) {
@@ -27,7 +27,7 @@ function getStaticColliderBounds(entity) {
   const collisionScale = getCollisionScale(entity);
   const offset = entity.collision.offset ?? [0, 0, 0];
   const halfX = Math.max(0.05, Math.abs(Number(scale[0]) || 1) * collisionScale[0] * 0.5);
-  const halfY = Math.max(0.05, Math.abs(Number(scale[1]) || 1) * collisionScale[1] * 0.5);
+  const halfY = isGroundSurface(entity) ? 0.05 : Math.max(0.05, Math.abs(Number(scale[1]) || 1) * collisionScale[1] * 0.5);
   const halfZ = Math.max(0.05, Math.abs(Number(scale[2]) || 1) * collisionScale[2] * 0.5);
   return {
     minX: entity.position[0] + (Number(offset[0]) || 0) - halfX,
@@ -116,14 +116,14 @@ function addStaticColliders(world, mapConfig, playerMaterial) {
     material.restitution = Math.min(1, Math.max(0, Number(entity.collision.restitution ?? 0) || 0));
     const scale = entity.scale ?? [1, 1, 1];
     const collisionScale = getCollisionScale(entity);
-    if (Math.abs(Number(scale[1]) || 1) * collisionScale[1] <= 0.5) material.friction = 0;
+    if (isGroundSurface(entity) || Math.abs(Number(scale[1]) || 1) * collisionScale[1] <= 0.5) material.friction = 0;
     body.material = material;
     if (entity.collision.shape === 'capsule') {
       addCapsule(body, scale.map((value, index) => value * collisionScale[index]));
     } else {
       body.addShape(new CANNON.Box(new CANNON.Vec3(
         Math.max(0.05, Math.abs(scale[0] ?? 1) * collisionScale[0] * 0.5),
-        Math.max(0.05, Math.abs(scale[1] ?? 1) * collisionScale[1] * 0.5),
+        isGroundSurface(entity) ? 0.05 : Math.max(0.05, Math.abs(scale[1] ?? 1) * collisionScale[1] * 0.5),
         Math.max(0.05, Math.abs(scale[2] ?? 1) * collisionScale[2] * 0.5),
       )));
     }
@@ -197,39 +197,65 @@ export class PhysicsWorld {
     return findShortestPath(nodes, this.staticColliders, radius);
   }
 
-  stepPlayer(id, position, velocity = [0, 0, 0], deltaSeconds = 1 / 60) {
+  stepPlayer(id, position, velocity = [0, 0, 0], deltaSeconds = 1 / 60, options = {}) {
+    const { ignoreTerrain = false } = options;
     const body = this.bodies.get(id) ?? this.addPlayer(id, position);
     const step = Math.max(0, Math.min(Number(deltaSeconds) || 0, 0.1));
-    const desired = [
-      position[0] + (Number(velocity[0]) || 0) * step,
-      position[1],
-      position[2] + (Number(velocity[2]) || 0) * step,
-    ];
-
     body.position.set(...position);
     body.wakeUp();
     body.velocity.x = Number(velocity[0]) || 0;
     body.velocity.z = Number(velocity[2]) || 0;
     body.velocity.y = Number(body.velocity.y) || 0;
-
     if (step > 0) this.world.step(1 / 60, step, 8);
-
+    const terrainHeight = sampleTerrainHeight(this.terrain, body.position.x, body.position.z);
+    const desired = [
+      position[0] + (Number(velocity[0]) || 0) * step,
+      position[1],
+      position[2] + (Number(velocity[2]) || 0) * step,
+    ];
     if (collidesWithStaticColliders(position, desired, 0.35, this.staticColliders)) {
-      body.position.x = position[0];
-      body.position.z = position[2];
-      body.velocity.x = 0;
-      body.velocity.z = 0;
+      body.position.set(...position);
+    } else if (!ignoreTerrain && terrainHeight !== null && !canTraverseTerrain(this.terrain, position, desired)) {
+      body.position.set(...position);
     } else {
       body.position.x = desired[0];
       body.position.z = desired[2];
-    }
 
+      const groundY = terrainHeight !== null ? terrainHeight + PLAYER_HEIGHT / 2 : null;
+      const floorCollider = this.staticColliders.find((collider) => {
+        if (!collider) return false;
+        if (collider.maxY <= -10) return false;
+        const playerX = body.position.x;
+        const playerZ = body.position.z;
+        return playerX >= collider.minX && playerX <= collider.maxX && playerZ >= collider.minZ && playerZ <= collider.maxZ;
+      });
+      const floorHeight = floorCollider ? floorCollider.maxY + PLAYER_HEIGHT / 2 : null;
+      if (groundY !== null && body.position.y <= groundY + 0.08 && body.velocity.y <= 0) {
+        body.position.y = groundY;
+        body.velocity.y = 0;
+      } else if (groundY !== null && body.position.y > groundY + 0.08) {
+        body.velocity.y = Math.min(body.velocity.y, 0);
+      } else if (floorHeight !== null && body.position.y <= floorHeight + 0.08 && body.velocity.y <= 0) {
+        body.position.y = floorHeight;
+        body.velocity.y = 0;
+      } else if (groundY === null && floorHeight === null && Number.isFinite(body.position.y)) {
+        body.velocity.y = Math.min(body.velocity.y, 0);
+      }
+    }
     return [body.position.x, body.position.y, body.position.z];
   }
 
-  movePlayer(id, from, to, deltaSeconds = 1 / 30) {
+  movePlayer(id, from, to, deltaSeconds = 1 / 30, options = {}) {
     const body = this.bodies.get(id) ?? this.addPlayer(id, from);
     if (collidesWithStaticColliders(from, to, 0.35, this.staticColliders)) {
+      body.position.set(...from);
+      body.velocity.set(0, 0, 0);
+      body.wakeUp();
+      return [...from];
+    }
+
+    const { ignoreTerrain = false } = options;
+    if (!ignoreTerrain && sampleTerrainHeight(this.terrain, to[0], to[2]) !== null && !canTraverseTerrain(this.terrain, from, to)) {
       body.position.set(...from);
       body.velocity.set(0, 0, 0);
       body.wakeUp();

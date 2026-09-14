@@ -353,7 +353,7 @@ export class ThreeRenderSystem {
       geometry.setAttribute('position', new THREE.BufferAttribute(line.vertices, 3));
       geometry.setAttribute('color', new THREE.BufferAttribute(line.colors, 3));
       geometry.setIndex(new THREE.BufferAttribute(line.indices, 1));
-      object = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide, depthWrite: false }));
+      object = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide, depthWrite: false, depthTest: false }));
       this.root.add(object);
       this.entityObjects.set(`line-${entity}`, object);
     }

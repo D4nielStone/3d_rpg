@@ -206,7 +206,9 @@ export class MovementSystem {
       );
       const velocity = [directionX * speed, 0, directionZ * speed];
       const previousPosition = [...transform.position];
-      const next = this.physics.stepPlayer(entity, transform.position, velocity, step);
+      const next = this.physics.stepPlayer(entity, transform.position, velocity, step, {
+        ignoreTerrain: hasKeyboardMovement,
+      });
       transform.position = next;
       const moved = Math.hypot(next[0] - previousPosition[0], next[2] - previousPosition[2]);
       if (distanceToTarget > 0 && (hasKeyboardMovement || moved > 0.001)) {
