@@ -26,6 +26,22 @@ test('aplica gravidade ao jogador durante o passo fisico', () => {
   assert.ok(result[1] < 5, `Y deveria diminuir com a gravidade, mas ficou ${result[1]}`);
 });
 
+test('cai até o chão quando o piso é um collider normal', () => {
+  const world = new PhysicsWorld({
+    entities: [{
+      id: 'ground',
+      position: [0, 0, 0],
+      scale: [10, 0.5, 10],
+      collision: { enabled: true, shape: 'box' },
+    }],
+  });
+
+  const result = world.stepPlayer('player', [0, 5, 0], [0, 0, 0], 0.1);
+
+  assert.ok(result[1] < 5, `Y deveria cair até o collider de chão, mas ficou ${result[1]}`);
+  assert.ok(result[1] > 0, `Y deveria permanecer acima do chão, mas ficou ${result[1]}`);
+});
+
 test('permite caminhar sobre um collider de chão fino', () => {
   const world = new PhysicsWorld({
     entities: [{

@@ -13,6 +13,8 @@ export function createUiController({
   chatElement,
   onlinePlayersPanel,
   onlinePlayersList,
+  playerNameValue,
+  playerLevelValue,
   strengthValue,
   accuracyValue,
   magicValue,
@@ -64,6 +66,17 @@ export function createUiController({
     magicBar.style.width = attributePercent(magic);
   }
 
+  function updatePlayerIdentity({ nickname = 'Guest', level = 1 } = {}) {
+    const safeName = String(nickname || 'Guest');
+    const safeLevel = String(Math.max(1, Number(level) || 1));
+    if (playerNameValue) playerNameValue.textContent = safeName;
+    if (playerLevelValue) playerLevelValue.textContent = safeLevel;
+    if (attributesMenu) {
+      attributesMenu.dataset.playerNickname = safeName;
+      attributesMenu.dataset.playerLevel = safeLevel;
+    }
+  }
+
   function updateCombatMode(mode) {
     combatModeButtons.forEach((button) => {
       button.classList.toggle('combat-mode-selected', button.dataset.combatMode === mode);
@@ -111,23 +124,26 @@ export function createUiController({
     });
   }
 
-  menuButton.addEventListener('click', toggleAttributes);
-  window.addEventListener('keydown', (event) => {
-    if (event.key === 'Tab') {
-      event.preventDefault();
-      onlinePlayersPanel.classList.toggle('online-players-hidden');
-      return;
-    }
-    if (event.key === 'Escape') {
-      closeMenus();
-      closeChat();
-    }
-  });
+  menuButton?.addEventListener?.('click', toggleAttributes);
+  if (typeof window !== 'undefined' && window.addEventListener) {
+    window.addEventListener('keydown', (event) => {
+      if (event.key === 'Tab') {
+        event.preventDefault();
+        onlinePlayersPanel.classList.toggle('online-players-hidden');
+        return;
+      }
+      if (event.key === 'Escape') {
+        closeMenus();
+        closeChat();
+      }
+    });
+  }
 
   return {
     toggleChat,
     toggleRanking,
     updateAttributes,
+    updatePlayerIdentity,
     updateCombatMode,
     renderOnlinePlayers,
     renderRanking,

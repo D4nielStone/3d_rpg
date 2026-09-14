@@ -14,7 +14,7 @@ function addCapsule(body, scale = [1, 1, 1]) {
 }
 
 function isGroundSurface(entity) {
-  return entity?.primitive === 'plane' || entity?.collision?.surface === 'ground';
+  return entity?.collision?.surface === 'ground';
 }
 
 function getCollisionScale(entity) {
@@ -28,7 +28,7 @@ function getStaticColliderBounds(entity) {
   const collisionScale = getCollisionScale(entity);
   const offset = entity.collision.offset ?? [0, 0, 0];
   const halfX = Math.max(0.05, Math.abs(Number(scale[0]) || 1) * collisionScale[0] * 0.5);
-  const halfY = isGroundSurface(entity) ? 0.05 : Math.max(0.05, Math.abs(Number(scale[1]) || 1) * collisionScale[1] * 0.5);
+  const halfY = Math.max(0.05, Math.abs(Number(scale[1]) || 1) * collisionScale[1] * 0.5);
   const halfZ = Math.max(0.05, Math.abs(Number(scale[2]) || 1) * collisionScale[2] * 0.5);
   return {
     minX: entity.position[0] + (Number(offset[0]) || 0) - halfX,
@@ -96,14 +96,14 @@ export class PhysicsWorld {
       const material = new CANNON.Material(`static-${entity.id ?? 'collider'}`);
       material.friction = Math.min(1, Math.max(0, Number(entity.collision.friction ?? 0.3) || 0));
       material.restitution = Math.min(1, Math.max(0, Number(entity.collision.restitution ?? 0) || 0));
-      if (isGroundSurface(entity) || Math.abs(Number(scale[1]) || 1) * collisionScale[1] <= 0.5) material.friction = 0;
+      if (Math.abs(Number(scale[1]) || 1) * collisionScale[1] <= 0.5) material.friction = 0;
       body.material = material;
       if (entity.collision.shape === 'capsule') {
         addCapsule(body, scale.map((value, index) => value * collisionScale[index]));
       } else {
         body.addShape(new CANNON.Box(new CANNON.Vec3(
           Math.max(0.05, Math.abs(scale[0] ?? 1) * collisionScale[0] * 0.5),
-          isGroundSurface(entity) ? 0.05 : Math.max(0.05, Math.abs(scale[1] ?? 1) * collisionScale[1] * 0.5),
+          Math.max(0.05, Math.abs(scale[1] ?? 1) * collisionScale[1] * 0.5),
           Math.max(0.05, Math.abs(scale[2] ?? 1) * collisionScale[2] * 0.5),
         )));
       }

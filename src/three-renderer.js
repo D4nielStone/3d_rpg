@@ -113,23 +113,11 @@ export class ThreeRenderSystem {
       const material = createMaterial(mesh, texture, isEnemyArea);
       const meshWrapper = new THREE.Group();
       const object = new THREE.Mesh(geometry, material);
-      const outline = new THREE.Mesh(
-        geometry.clone(),
-        new THREE.MeshBasicMaterial({
-          color: 0x000000,
-          side: THREE.BackSide,
-          depthWrite: false,
-        }),
-      );
-      outline.scale.setScalar(1.06);
-      outline.renderOrder = 0;
       object.castShadow = castShadow;
       object.receiveShadow = receiveShadow;
       object.renderOrder = 1;
       if (isWater) object.material.color.setRGB(0.08, 0.45, 0.7);
       meshWrapper.userData.mainMesh = object;
-      meshWrapper.userData.outlineMesh = outline;
-      meshWrapper.add(outline);
       meshWrapper.add(object);
       group.add(meshWrapper);
     }
@@ -152,7 +140,6 @@ export class ThreeRenderSystem {
       if (!mesh.dirty) return;
       const meshWrapper = object.children[index];
       const meshObject = meshWrapper?.userData?.mainMesh;
-      const outline = meshWrapper?.userData?.outlineMesh;
       if (!meshObject || !meshObject.geometry) return;
       const position = meshObject.geometry.getAttribute('position');
       const normal = meshObject.geometry.getAttribute('normal');
@@ -162,9 +149,6 @@ export class ThreeRenderSystem {
       if (normal && mesh.normals?.length) {
         normal.copyArray(mesh.normals);
         normal.needsUpdate = true;
-      }
-      if (outline) {
-        outline.geometry.copy(meshObject.geometry);
       }
       meshObject.geometry.computeBoundingSphere();
       mesh.dirty = false;

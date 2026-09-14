@@ -1,4 +1,4 @@
-import { LineRenderer, NameTag, Transform } from './components.js';
+import { LineRenderer, PlayerHealthBar, Transform } from './components.js';
 import { loadPlayer, spawnFallbackPlayer } from './player-factory.js';
 
 const CAMERA_STORAGE_KEY = 'webgl-rpg-player-camera';
@@ -52,11 +52,13 @@ export function followPlayer(game, playerEntity) {
   saveCameraSettings(game.camera.getOrbitSettings());
 }
 
-// Adiciona uma tag de nome acima do jogador, usando o nickname salvo no armazenamento local ou "Guest" como padrão.
-export function addPlayerNameTag(world, playerEntity) {
-  world.addComponent(playerEntity, new NameTag({
-    text: window.localStorage.getItem('webgl-rpg-nickname') ?? 'Guest',
-  }));
+// Remove a tag de nome do jogador local para manter o HUD mais limpo.
+export function addPlayerNameTag() {
+  return null;
+}
+
+export function addPlayerHealthBar(world, playerEntity, hp = 1, maxHp = 1) {
+  world.addComponent(playerEntity, new PlayerHealthBar({ hp, maxHp }));
 }
 
 // Adiciona um marcador de movimento (linha) que segue o jogador, indicando a direção do movimento.

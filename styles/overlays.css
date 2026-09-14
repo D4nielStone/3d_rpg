@@ -16,12 +16,14 @@
   white-space: nowrap;
 }
 
+.player-healthbar,
 .enemy-healthbar,
 .floating-damage {
   position: fixed;
   pointer-events: none;
 }
 
+.player-healthbar,
 .enemy-healthbar {
   z-index: 4;
   width: 3.2rem;
@@ -33,12 +35,26 @@
   box-shadow: 0 1px 2px rgb(0 0 0 / 75%);
 }
 
-.enemy-healthbar span {
+.player-healthbar {
+  width: 3.8rem;
+  border-color: rgba(8, 24, 15, 0.9);
+  background: rgba(8, 24, 15, 0.9);
+}
+
+.enemy-healthbar span,
+.player-healthbar span {
   display: block;
   height: 100%;
   min-width: 0;
-  background: linear-gradient(90deg, #b52f3d, #ef5b5b);
   transition: width 180ms ease;
+}
+
+.enemy-healthbar span {
+  background: linear-gradient(90deg, #b52f3d, #ef5b5b);
+}
+
+.player-healthbar span {
+  background: linear-gradient(90deg, #2ecc71, #7ef0a9);
 }
 
 .floating-damage {

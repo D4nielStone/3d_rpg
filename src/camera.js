@@ -190,7 +190,7 @@ export class Camera {
       const safeY = terrainHeightAfterAdjust !== null && adjustedY < terrainHeightAfterAdjust
         ? terrainHeightAfterAdjust
         : adjustedY;
-      const smoothing = 0.1;
+      const smoothing = 0.03;
       this.position[0] = lerp(this.position[0], adjustedX, smoothing);
       this.position[1] = Math.max(lerp(this.position[1], safeY, smoothing), safeY);
       this.position[2] = lerp(this.position[2], adjustedZ, smoothing);

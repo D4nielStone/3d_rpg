@@ -1,4 +1,4 @@
-import { EnemyHealthBar, NameTag, Transform } from './components.js';
+import { EnemyHealthBar, NameTag, PlayerHealthBar, Transform } from './components.js';
 
 export class NameTagSystem {
   constructor(canvas, camera) {
@@ -49,6 +49,12 @@ export class NameTagSystem {
       }
       healthBar.previousHp = healthBar.hp;
       this.updateOverlayPosition(healthBar.element, transform.position, -34);
+    }
+
+    for (const entity of world.query(Transform, PlayerHealthBar)) {
+      const transform = world.getComponent(entity, Transform);
+      const healthBar = world.getComponent(entity, PlayerHealthBar);
+      this.updateOverlayPosition(healthBar.element, transform.position, -52);
     }
 
     this.floatingDamages = this.floatingDamages.filter((damage) => {

@@ -1,4 +1,4 @@
-import { EnemyIdentity, SoundListener, SoundPlayer, SwordRenderer, Transform } from './components.js';
+import { EnemyIdentity, PlayerHealthBar, SoundListener, SoundPlayer, SwordRenderer, Transform } from './components.js';
 import { MultiplayerSystem } from './multiplayer.js';
 import { addRemotePlayer } from './player-factory.js';
 import { createGame } from './three-game-setup.js';
@@ -14,6 +14,7 @@ import { DEFAULT_MAP_CONFIG } from './map-customization.js';
 import { normalizeMapConfig, readSavedMapConfig } from './map-config.js';
 import {
   addMovementMarker,
+  addPlayerHealthBar,
   addPlayerNameTag,
   followPlayer,
   loadLocalPlayer,
@@ -80,6 +81,8 @@ const ui = createUiController({
   chatElement,
   onlinePlayersPanel: document.querySelector('#online-players-panel'),
   onlinePlayersList: document.querySelector('#online-players-list'),
+  playerNameValue: document.querySelector('#player-attributes-name'),
+  playerLevelValue: document.querySelector('#player-attributes-level'),
   strengthValue: document.querySelector('#player-strength-value'),
   accuracyValue: document.querySelector('#player-accuracy-value'),
   magicValue: document.querySelector('#player-magic-value'),
@@ -183,6 +186,9 @@ function createMultiplayer(game, playerEntity, enemyAssets, soundPlayer, mapConf
       }
       previousPlayerHp = player.hp;
       playerStatus.update(player);
+      const playerHealthBar = game.world.getComponent(playerEntity, PlayerHealthBar);
+      playerHealthBar?.update(player.hp, player.maxHp);
+      ui.updatePlayerIdentity({ nickname: player.nickname ?? 'Guest', level: player.level ?? 1 });
       updatePlayerAttributes(player);
       updateCombatMode(player.combatMode, game.world, playerEntity);
       status.textContent = `Área: ${player.area?.name ?? 'Área dos Ratos'} (Nível ${player.area?.level ?? 1}). Clique para mover; Space cancela.`;
@@ -279,8 +285,10 @@ async function start(identity = {}) {
   // Atualiza o status do jogador com o nickname e se é admin
   playerStatus.update({
     nickname: identity.nickname ?? 'Guest',
+    level: identity.level ?? 1,
     isAdmin: identity.isAdmin === true,
   });
+  ui.updatePlayerIdentity({ nickname: identity.nickname ?? 'Guest', level: identity.level ?? 1 });
 
   // Atualiza o loading screen para indicar que está verificando a conexão com o multiplayer
   updateLoading('Verificando conexão com o multiplayer...', 'Conectando ao jogo');
@@ -307,6 +315,7 @@ async function start(identity = {}) {
   const soundPlayer = game.world.getComponent(playerEntity, SoundPlayer);
   const { enemyAssets } = await loadSceneAssets(game.textureManager, mapConfig?.enemyTypes, mapConfig?.assets);
   addPlayerNameTag(game.world, playerEntity);
+  addPlayerHealthBar(game.world, playerEntity, 20, 20);
 
   updateLoading('Finalizando cena...');
   // Configura o sistema de seguir o jogador e adiciona um marcador de movimento

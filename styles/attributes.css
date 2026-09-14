@@ -13,15 +13,13 @@
 #attributes-menu {
   position: fixed;
   z-index: 13;
-  top: 3.75rem;
-  right: max(1rem, env(safe-area-inset-right));
-  width: min(18rem, calc(100vw - 2rem));
-  padding: 0.7rem 0.7rem 0.9rem;
-  border: 2px solid rgba(177, 191, 151, 0.34);
-  border-radius: 2px;
-  color: var(--ui-text);
-  background: linear-gradient(180deg, rgba(27, 39, 31, 0.96), rgba(17, 22, 18, 0.96));
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04), 0 0.8rem 2rem rgba(0, 0, 0, 0.38);
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  padding: clamp(1rem, 5vw, 4rem);
+  background: rgb(0 0 0 / 94%);
   font-family: 'Pixelify Sans', sans-serif;
 }
 
@@ -29,12 +27,26 @@
   display: none !important;
 }
 
+.attributes-panel {
+  width: min(42rem, 100%);
+  max-height: min(70vh, 38rem);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  padding: 1rem;
+  border: 1px solid rgb(255 255 255 / 24%);
+  background: #000;
+  color: #fff;
+  box-shadow: none;
+}
+
 #attributes-menu h2 {
-  margin: 0 0 0.6rem;
-  padding-bottom: 0.55rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
-  color: #f0d98d;
-  font-size: 0.9rem;
+  margin: 0;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid rgb(255 255 255 / 30%);
+  color: #fff;
+  font-size: 1.15rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   text-align: left;
@@ -45,45 +57,45 @@
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 0.15rem 0.45rem;
   align-items: center;
-  padding: 0.5rem 0.1rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  color: var(--ui-text);
-  font-size: 0.75rem;
+  padding: 0.55rem 0.1rem;
+  border-bottom: 1px solid rgb(255 255 255 / 16%);
+  color: #fff;
+  font-size: 0.8rem;
   letter-spacing: 0.04em;
 }
 
 #attributes-menu .attribute-row span {
-  color: #f2efe5;
+  color: #fff;
 }
 
 #attributes-menu .attribute-row strong {
-  color: #f0d98d;
+  color: #fff;
   font-weight: 700;
 }
 
 #attributes-menu .attribute-meter {
   grid-column: 1 / -1;
-  height: 0.42rem;
+  height: 0.45rem;
   margin-top: 0.12rem;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgb(255 255 255 / 18%);
+  background: rgb(255 255 255 / 12%);
 }
 
 #attributes-menu .attribute-meter span {
   display: block;
   width: 0;
   height: 100%;
-  background: linear-gradient(90deg, #7fb66d 0%, #b7d683 100%);
+  background: linear-gradient(90deg, #ffffff 0%, #d7d7d7 100%);
   transition: width 180ms ease-out;
 }
 
 #attributes-menu .combat-mode-title {
-  margin: 0.9rem 0 0.45rem;
+  margin: 0;
   padding-top: 0.7rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-  color: #f0d98d;
-  font-size: 0.68rem;
+  border-top: 1px solid rgb(255 255 255 / 16%);
+  color: #fff;
+  font-size: 0.7rem;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   text-align: left;
@@ -97,10 +109,10 @@
 
 #attributes-menu .combat-mode-button {
   min-height: 2.1rem;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: 2px;
-  color: #f2efe5;
-  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgb(255 255 255 / 22%);
+  border-radius: 0;
+  color: #fff;
+  background: rgb(255 255 255 / 5%);
   font: 700 0.68rem/1 'Pixelify Sans', sans-serif;
   cursor: pointer;
   transition: all 120ms ease;
@@ -109,38 +121,44 @@
 #attributes-menu .combat-mode-button:hover,
 #attributes-menu .combat-mode-button:focus-visible,
 #attributes-menu .combat-mode-button.combat-mode-selected {
-  border-color: rgba(240, 217, 141, 0.9);
-  color: #17130a;
-  background: linear-gradient(180deg, #f1d57d, #d8a93f);
+  border-color: #fff;
+  color: #000;
+  background: #fff;
   outline: none;
 }
 
 #attributes-menu #logout-button {
   width: 100%;
-  min-height: 2.25rem;
-  margin-top: 0.8rem;
-  border: 1px solid rgba(233, 158, 146, 0.7);
-  border-radius: 2px;
-  color: #f4d9d2;
-  background: rgba(72, 26, 26, 0.7);
+  min-height: 2.5rem;
+  margin-top: 0.2rem;
+  border: 1px solid rgb(255 255 255 / 22%);
+  border-radius: 0;
+  color: #fff;
+  background: rgb(255 255 255 / 6%);
   font: 700 0.72rem/1 'Pixelify Sans', sans-serif;
   cursor: pointer;
 }
 
 #attributes-menu #logout-button:hover,
 #attributes-menu #logout-button:focus-visible {
-  border-color: rgba(250, 193, 177, 0.9);
-  color: #1b120f;
-  background: linear-gradient(180deg, #f6b8af, #d56b59);
+  border-color: #fff;
+  color: #000;
+  background: #fff;
   outline: none;
 }
 
 @media (max-width: 640px) {
   #attributes-menu {
-    top: 3.5rem;
-    right: 0.65rem;
-    width: min(16rem, calc(100vw - 1.3rem));
-    max-height: calc(100dvh - 4.25rem);
+    padding: 1rem;
+  }
+
+  .attributes-panel {
+    width: min(100%, 26rem);
+    max-height: 78vh;
     overflow-y: auto;
+  }
+
+  #attributes-menu .combat-mode-controls {
+    grid-template-columns: 1fr;
   }
 }
