@@ -1,5 +1,6 @@
 import { Camera } from './camera.js';
 import { World } from './ecs.js';
+import { normalizeMapConfig } from './map-config.js';
 import {
   PlayerPathSystem,
   AnimationSystem,
@@ -40,12 +41,13 @@ export function handleCameraWheel(camera, event) {
 }
 
 export async function createGame(canvas, mapConfig = null) {
-  const camera = new Camera({ terrain: mapConfig?.terrain ?? null });
+  const normalizedMapConfig = normalizeMapConfig(mapConfig ?? {}, null);
+  const camera = new Camera({ terrain: normalizedMapConfig?.terrain ?? null });
   const world = new World();
   const textureManager = new TextureManager();
-  await customizeMap(world, mapConfig, textureManager);
-  camera.setTerrain(mapConfig?.terrain ?? null);
-  const pointLights = (mapConfig?.entities ?? [])
+  await customizeMap(world, normalizedMapConfig, textureManager);
+  camera.setTerrain(normalizedMapConfig?.terrain ?? null);
+  const pointLights = (normalizedMapConfig?.entities ?? [])
     .filter((entity) => entity.type === 'pointLight')
     .map((entity) => ({
       position: entity.position,
@@ -53,7 +55,7 @@ export async function createGame(canvas, mapConfig = null) {
       intensity: entity.light?.intensity,
       distance: entity.light?.distance,
     }));
-  const configuredLighting = mapConfig?.lighting ?? {};
+  const configuredLighting = normalizedMapConfig?.lighting ?? {};
   const lighting = {
     ...configuredLighting,
     ambientIntensity: Math.min(1.2, Math.max(0, Number(configuredLighting.ambientIntensity ?? 1) || 0)),
@@ -64,9 +66,9 @@ export async function createGame(canvas, mapConfig = null) {
     pointLights,
   };
   const fog = {
-    color: mapConfig?.scene?.fog?.color ?? [0.63, 0.69, 0.68],
-    near: Number(mapConfig?.scene?.fog?.near ?? 180),
-    far: Number(mapConfig?.scene?.fog?.far ?? 850),
+    color: normalizedMapConfig?.scene?.fog?.color ?? [0.63, 0.69, 0.68],
+    near: Number(normalizedMapConfig?.scene?.fog?.near ?? 180),
+    far: Number(normalizedMapConfig?.scene?.fog?.far ?? 850),
   };
   const input = new InputState();
   createMobileControls({ input, camera });

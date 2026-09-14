@@ -627,6 +627,20 @@ export class Water {
   }
 }
 
+export class DirectionalLightRenderer {
+  constructor({
+    color = [1, 0.95, 0.85],
+    direction = [-0.45, 0.85, 0.35],
+    intensity = 0.8,
+    castShadow = true,
+  } = {}) {
+    this.color = [...color];
+    this.direction = [...direction];
+    this.intensity = Number(intensity) || 0;
+    this.castShadow = castShadow !== false;
+  }
+}
+
 export class LineRenderer {
   // radius controla o tamanho; thickness controla a largura do anel.
   constructor({

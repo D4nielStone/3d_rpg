@@ -1,4 +1,4 @@
-import { AnimationPlayer, MeshRenderer, ShadowRenderer, Texture, Transform } from './components.js';
+import { AnimationPlayer, DirectionalLightRenderer, MeshRenderer, ShadowRenderer, Texture, Transform } from './components.js';
 import { loadAsset } from './asset-loader.js';
 import { createWater } from './water.js';
 import { readSavedMapConfig } from './map-config.js';
@@ -187,6 +187,19 @@ function createEditorTerrain(world, terrain) {
   }));
 }
 
+function createDirectionalLight(world, lightingConfig = {}) {
+  const direction = lightingConfig?.directional ?? {};
+  if (!direction || typeof direction !== 'object') return;
+  const entity = world.createEntity();
+  world.addComponent(entity, new Transform({ position: direction.position ?? [0, 0, 0] }));
+  world.addComponent(entity, new DirectionalLightRenderer({
+    color: direction.color ?? [1, 0.95, 0.85],
+    direction: direction.direction ?? [-0.45, 0.85, 0.35],
+    intensity: direction.intensity ?? 0.8,
+    castShadow: direction.castShadow !== false,
+  }));
+}
+
 /** Esta função cria as entidades do mundo com base na configuração fornecida. */
 async function createWorldEntities(world, config, textureManager) {
   // Cria um mapa de assets para facilitar a busca por ID
@@ -253,12 +266,14 @@ async function createWorldEntities(world, config, textureManager) {
 
 export async function customizeMap(world, config = null, textureManager = null) {
   const activeConfig = config ?? readSavedMapConfig() ?? DEFAULT_MAP_CONFIG;
-  if (activeConfig.terrain?.width && activeConfig.terrain?.heights) createEditorTerrain(world, activeConfig.terrain);
-  else createTerrain(world, activeConfig.terrain);
-  if (activeConfig.water?.enabled && !activeConfig.terrain?.cells) {
-    createWater(world, activeConfig.water);
+  const normalizedConfig = { ...DEFAULT_MAP_CONFIG, ...(activeConfig ?? {}) };
+  if (normalizedConfig.terrain?.width && normalizedConfig.terrain?.heights) createEditorTerrain(world, normalizedConfig.terrain);
+  else createTerrain(world, normalizedConfig.terrain);
+  if (normalizedConfig.water?.enabled && !normalizedConfig.terrain?.cells) {
+    createWater(world, normalizedConfig.water);
   }
-  if (textureManager && Array.isArray(activeConfig.entities)) {
-    await createWorldEntities(world, activeConfig, textureManager);
+  createDirectionalLight(world, normalizedConfig.lighting);
+  if (textureManager && Array.isArray(normalizedConfig.entities)) {
+    await createWorldEntities(world, normalizedConfig, textureManager);
   }
 }

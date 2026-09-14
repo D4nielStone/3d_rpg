@@ -11,7 +11,7 @@ import { createUiController } from './ui-controller.js';
 import { createAccountController } from './account-controller.js';
 import { getMultiplayerHttpUrl, getMultiplayerUrl } from './multiplayer-url.js';
 import { DEFAULT_MAP_CONFIG } from './map-customization.js';
-import { readSavedMapConfig } from './map-config.js';
+import { normalizeMapConfig, readSavedMapConfig } from './map-config.js';
 import {
   addMovementMarker,
   addPlayerNameTag,
@@ -61,11 +61,10 @@ async function loadPublishedMapConfig() {
       throw new Error(`Servidor multiplayer indisponível (HTTP ${response.status}).`);
     }
     const config = await response.json();
-    return Array.isArray(config.enemyAreas) ? config : null;
+    return normalizeMapConfig(config, DEFAULT_MAP_CONFIG);
   } catch (error) {
     const savedConfig = readSavedMapConfig();
-    if (Array.isArray(savedConfig?.enemyAreas)) return savedConfig;
-    return DEFAULT_MAP_CONFIG;
+    return normalizeMapConfig(savedConfig ?? DEFAULT_MAP_CONFIG, DEFAULT_MAP_CONFIG);
   }
 }
 

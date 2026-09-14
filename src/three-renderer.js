@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { MeshRenderer, OutlineRenderer, ShadowRenderer, SwordRenderer, Texture, Transform, Water, LineRenderer, EnemyAreaRenderer } from './components.js';
+import { MeshRenderer, OutlineRenderer, ShadowRenderer, SwordRenderer, Texture, Transform, Water, LineRenderer, EnemyAreaRenderer, DirectionalLightRenderer } from './components.js';
 
 function colorFrom(value, fallback = [1, 1, 1]) {
   const channels = Array.isArray(value) ? value : fallback;
@@ -72,26 +72,7 @@ export class ThreeRenderSystem {
     const ambient = lighting.ambientColor ?? [1, 1, 1];
     const ambientLight = new THREE.AmbientLight(colorFrom(ambient), Number(lighting.ambientIntensity ?? 0.04));
     this.scene.add(ambientLight);
-    const directional = lighting.directional ?? {};
-    const directionalLight = new THREE.DirectionalLight(colorFrom(directional.color, [1, 0.95, 0.85]), Number(directional.intensity ?? 0.08));
-    const direction = new THREE.Vector3(...(directional.direction ?? [-0.45, 0.85, 0.35]));
-    if (direction.lengthSq() === 0) direction.set(-0.45, 0.85, 0.35);
-    direction.normalize();
-    directionalLight.position.copy(direction).multiplyScalar(-45);
-    directionalLight.target.position.set(0, 0, 0);
-    this.scene.add(directionalLight.target);
-    directionalLight.castShadow = true;
-    directionalLight.shadow.mapSize.set(2048, 2048);
-    directionalLight.shadow.camera.left = -80;
-    directionalLight.shadow.camera.right = 80;
-    directionalLight.shadow.camera.top = 80;
-    directionalLight.shadow.camera.bottom = -80;
-    directionalLight.shadow.camera.near = 1;
-    directionalLight.shadow.camera.far = 180;
-    directionalLight.shadow.bias = -0.0005;
-    directionalLight.shadow.normalBias = 0.02;
-    directionalLight.shadow.camera.updateProjectionMatrix();
-    this.scene.add(directionalLight);
+    this.directionalLightObjects = new Map();
     for (const point of lighting.pointLights ?? []) {
       const light = new THREE.PointLight(colorFrom(point.color, [1, 0.72, 0.45]), point.intensity ?? 2, point.distance ?? 18);
       light.position.set(...(point.position ?? [0, 8, 0]));
@@ -320,6 +301,46 @@ export class ThreeRenderSystem {
       }
     }
 
+    const livingDirectionalLights = new Set();
+    for (const entity of world.query(Transform, DirectionalLightRenderer)) {
+      livingDirectionalLights.add(entity);
+      const lightComponent = world.getComponent(entity, DirectionalLightRenderer);
+      const transform = world.getComponent(entity, Transform);
+      let light = this.directionalLightObjects.get(entity);
+      if (!light) {
+        light = new THREE.DirectionalLight(colorFrom(lightComponent.color, [1, 0.95, 0.85]), Number(lightComponent.intensity ?? 0.8));
+        light.castShadow = lightComponent.castShadow !== false;
+        light.shadow.mapSize.set(2048, 2048);
+        light.shadow.camera.left = -80;
+        light.shadow.camera.right = 80;
+        light.shadow.camera.top = 80;
+        light.shadow.camera.bottom = -80;
+        light.shadow.camera.near = 1;
+        light.shadow.camera.far = 180;
+        light.shadow.bias = -0.0005;
+        light.shadow.normalBias = 0.02;
+        light.shadow.camera.updateProjectionMatrix();
+        this.scene.add(light.target);
+        this.scene.add(light);
+        this.directionalLightObjects.set(entity, light);
+      }
+      light.color.setRGB(...lightComponent.color);
+      light.intensity = Number(lightComponent.intensity ?? 0.8);
+      light.castShadow = lightComponent.castShadow !== false;
+      const direction = new THREE.Vector3(...(lightComponent.direction ?? [-0.45, 0.85, 0.35]));
+      if (direction.lengthSq() === 0) direction.set(-0.45, 0.85, 0.35);
+      direction.normalize();
+      light.position.copy(direction).multiplyScalar(-45).add(new THREE.Vector3(...transform.position));
+      light.target.position.set(...transform.position);
+      light.target.updateMatrixWorld();
+    }
+    for (const [entity, light] of [...this.directionalLightObjects.entries()]) {
+      if (!livingDirectionalLights.has(entity)) {
+        this.scene.remove(light.target);
+        this.scene.remove(light);
+        this.directionalLightObjects.delete(entity);
+      }
+    }
     for (const entity of world.query(Transform, MeshRenderer)) {
       const object = this.updateObject(entity, world);
       const renderer = world.getComponent(entity, MeshRenderer);
