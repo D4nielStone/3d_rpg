@@ -214,7 +214,9 @@ function createMultiplayer(game, playerEntity, enemyAssets, soundPlayer, mapConf
         ))
         : null;
       const targetTransform = targetEntity ? game.world.getComponent(targetEntity, Transform) : null;
-      const position = targetTransform?.position ?? message.position ?? [0, 0, 0];
+      const position = Array.isArray(message.position)
+        ? message.position
+        : (targetTransform?.position ?? [0, 0, 0]);
       game.nameTagSystem.spawnMissAttack(position);
     },
     onLevelUp: () => {

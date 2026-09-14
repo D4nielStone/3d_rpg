@@ -69,6 +69,7 @@ const ambientIntensityInput = document.querySelector('#ambient-intensity');
 const ambientIntensityValue = document.querySelector('#ambient-intensity-value');
 const directionalIntensityInput = document.querySelector('#directional-intensity');
 const directionalIntensityValue = document.querySelector('#directional-intensity-value');
+const directionalCastShadowInput = document.querySelector('#directional-cast-shadow');
 const directionalInputs = [
   document.querySelector('#directional-x'),
   document.querySelector('#directional-y'),
@@ -123,7 +124,7 @@ let terrainRemoved = false;
 let lighting = {
   ambientColor: [1, 1, 1],
   ambientIntensity: 1,
-  directional: { direction: [-0.45, 0.85, 0.35], color: [1, 0.95, 0.85], intensity: 0.8 },
+  directional: { direction: [-0.45, 0.85, 0.35], color: [1, 0.95, 0.85], intensity: 0.8, castShadow: true },
   point: { position: [0, 8, 0], color: [1, 0.72, 0.45], intensity: 2, distance: 18 },
 };
 let skyColor = [0.039, 0.051, 0.047];
@@ -216,7 +217,10 @@ function normalizeLighting(value = {}) {
   lighting = {
     ambientColor: normalizeVector(value.ambientColor, [1, 1, 1]).map((channel) => Math.min(1, Math.max(0, channel))),
     ambientIntensity: Math.min(1.2, Math.max(0, Number(value.ambientIntensity ?? 1) || 0)),
-    directional: normalizeLight(value.directional, { direction: [-0.45, 0.85, 0.35], color: [1, 0.95, 0.85], intensity: 0.8 }, 1.5),
+    directional: {
+      ...normalizeLight(value.directional, { direction: [-0.45, 0.85, 0.35], color: [1, 0.95, 0.85], intensity: 0.8 }, 1.5),
+      castShadow: value.directional?.castShadow !== false,
+    },
     point: normalizeLight(value.point, { position: [0, 8, 0], color: [1, 0.72, 0.45], intensity: 2, distance: 18 }, 10),
   };
   return lighting;
@@ -255,6 +259,8 @@ function updateSceneAmbientLight() {
   directionalLight.target.updateMatrixWorld();
   directionalLight.color.setRGB(...lighting.directional.color);
   directionalLight.intensity = lighting.directional.intensity;
+  directionalLight.castShadow = lighting.directional.castShadow !== false;
+  directionalLight.shadow.needsUpdate = directionalLight.castShadow;
 }
 function updateLightingInspector() {
   ambientColorInput.value = `#${lighting.ambientColor.map((channel) => Math.round(channel * 255).toString(16).padStart(2, '0')).join('')}`;
@@ -266,6 +272,7 @@ function updateLightingInspector() {
   });
   directionalIntensityInput.value = lighting.directional.intensity;
   directionalIntensityValue.textContent = lighting.directional.intensity.toFixed(2);
+  directionalCastShadowInput.checked = lighting.directional.castShadow !== false;
   updateSceneAmbientLight();
 }
 function entitySnapshot(entity) { normalizeEntityTransform(entity); normalizeEntityMaterials(entity); normalizeEntityAnimation(entity); normalizeCollision(entity); normalizeEntityShadows(entity); return { id: entity.id, name: entity.name, assetId: entity.assetId, primitive: entity.primitive ?? null, type: entity.type ?? null, light: entity.type === 'pointLight' ? { ...normalizePointLight(entity).light, color: [...entity.light.color] } : null, position: [...entity.position], rotation: [...entity.rotation], scale: [...entity.scale], receiveLight: entity.receiveLight, castShadow: entity.castShadow, materials: entity.materials.map((material) => ({ ...material, diffuseColor: [...material.diffuseColor], texture: material.texture ?? null })), animation: { ...entity.animation }, collision: { ...entity.collision } }; }
@@ -919,7 +926,7 @@ function applyTerrainBrushToGround(point) {
   ground.geometry.computeVertexNormals();
   terrainConfig.heights = Array.from(position.array).filter((_, index) => index % 3 === 1);
 }
-function exportConfig() { const maxHp = Math.max(1, Number(player.status?.maxHp) || 20); const terrainState = normalizeTerrainForExport({ ...terrainConfig, heights: Array.from((ground?.geometry?.attributes?.position?.array ?? [])).filter((_, index) => index % 3 === 1) }, terrainRemoved); return { format: 'webrpg.world', version: 2, scene: { name: 'main-world', units: 'world', skyColor: [...skyColor], fog: { color: [...fog.color], near: fog.near, far: fog.far } }, terrain: terrainState, lighting: { ambientColor: [...lighting.ambientColor], ambientIntensity: lighting.ambientIntensity, directional: { ...lighting.directional, direction: [...lighting.directional.direction], color: [...lighting.directional.color] }, point: { ...lighting.point, position: [...lighting.point.position], color: [...lighting.point.color] } }, sounds: { ...sounds }, player: { ...player, maxHp, position: [...player.position], rotation: [...player.rotation], scale: [...player.scale], materials: player.materials?.map((material) => ({ ...material, diffuseColor: [...material.diffuseColor], texture: material.texture ?? null })) ?? [], status: { ...player.status, maxHp }, inventory: [...player.inventory], collision: { ...player.collision }, animation: { ...player.animation } }, assets: assets.map(({ id, name, url, source, format, dependencies }) => ({ id, name, url, source, format, dependencies })), entities: entities.filter((entity) => !entity.isPlayerPreview).map(({ object, ...entity }) => entitySnapshot(entity)), enemyTypes: enemyTypes.map((type, index) => normalizeEnemyType({ ...type, gold: { ...type.gold }, itemDrops: [...type.itemDrops] }, index)), enemyAreas: enemyAreas.map((area) => ({ ...normalizeEnemyArea(area), center: [...area.center] })) }; }
+function exportConfig() { const maxHp = Math.max(1, Number(player.status?.maxHp) || 20); const terrainState = normalizeTerrainForExport({ ...terrainConfig, heights: Array.from((ground?.geometry?.attributes?.position?.array ?? [])).filter((_, index) => index % 3 === 1) }, terrainRemoved); return { format: 'webrpg.world', version: 2, scene: { name: 'main-world', units: 'world', skyColor: [...skyColor], fog: { color: [...fog.color], near: fog.near, far: fog.far } }, terrain: terrainState, lighting: { ambientColor: [...lighting.ambientColor], ambientIntensity: lighting.ambientIntensity, directional: { ...lighting.directional, direction: [...lighting.directional.direction], color: [...lighting.directional.color], castShadow: lighting.directional.castShadow !== false }, point: { ...lighting.point, position: [...lighting.point.position], color: [...lighting.point.color] } }, sounds: { ...sounds }, player: { ...player, maxHp, position: [...player.position], rotation: [...player.rotation], scale: [...player.scale], materials: player.materials?.map((material) => ({ ...material, diffuseColor: [...material.diffuseColor], texture: material.texture ?? null })) ?? [], status: { ...player.status, maxHp }, inventory: [...player.inventory], collision: { ...player.collision }, animation: { ...player.animation } }, assets: assets.map(({ id, name, url, source, format, dependencies }) => ({ id, name, url, source, format, dependencies })), entities: entities.filter((entity) => !entity.isPlayerPreview).map(({ object, ...entity }) => entitySnapshot(entity)), enemyTypes: enemyTypes.map((type, index) => normalizeEnemyType({ ...type, gold: { ...type.gold }, itemDrops: [...type.itemDrops] }, index)), enemyAreas: enemyAreas.map((area) => ({ ...normalizeEnemyArea(area), center: [...area.center] })) }; }
 function updateSummary() {
   const config = exportConfig();
   document.querySelector('#entity-summary-count').textContent = String(config.entities.length);
@@ -1077,13 +1084,61 @@ async function loadWorld(config) {
   updateSummary();
 }
 // Carrega o mundo salvo do servidor ou do armazenamento local.
-async function loadSavedWorld() { 
-  const response = await fetch(`${httpUrl}/api/map-config`, { 
+async function loadSavedWorld() {
+  const response = await fetch(`${httpUrl}/api/map-config`, {
     credentials: 'include',
     cache: 'no-store',
-  }).catch(() => null); 
-  const remoteConfig = response?.ok ? await response.json() : null; 
-  await loadWorld(remoteConfig?.entities ? remoteConfig : readSavedMapConfig()); 
+  }).catch(() => null);
+  const remoteConfig = response?.ok ? await response.json().catch(() => null) : null;
+  const savedConfig = readSavedMapConfig();
+  const fallbackConfig = {
+    format: 'webrpg.world',
+    version: 2,
+    scene: {
+      name: 'main-world',
+      units: 'world',
+      skyColor: [0.039, 0.051, 0.047],
+      fog: { color: [0.63, 0.69, 0.68], near: 180, far: 850 },
+    },
+    terrain: {
+      width: 128,
+      depth: 128,
+      segments: 64,
+      amplitude: 0.15,
+      frequency: 0.22,
+      color: '#202522',
+      brushRadius: 3,
+      brushStrength: 0.8,
+      removed: false,
+      heights: Array.from({ length: 65 * 65 }, (_, index) => 0),
+    },
+    lighting: {
+      ambientColor: [1, 1, 1],
+      ambientIntensity: 1,
+      directional: { direction: [-0.45, 0.85, 0.35], color: [1, 0.95, 0.85], intensity: 0.8, castShadow: true },
+      point: { position: [0, 8, 0], color: [1, 0.72, 0.45], intensity: 2, distance: 18 },
+    },
+    sounds: { slash: '', pulse: '', arc: '' },
+    player: {
+      position: [0, 0, 0],
+      rotation: [0, 0, 0],
+      scale: [1, 1, 1],
+      status: { level: 1, hp: 20, maxHp: 20, mana: 20, xp: 0, strength: 1, accuracy: 1, magic: 1, money: 0 },
+      inventory: [],
+      collision: { enabled: false, shape: 'model', offset: [0, 0, 0], scale: [1, 1, 1], friction: 0.3, restitution: 0 },
+      animation: { name: '', loop: true, speed: 1 },
+    },
+    assets: [],
+    entities: [],
+    enemyTypes: [],
+    enemyAreas: [],
+  };
+  const config = remoteConfig && (remoteConfig.entities || remoteConfig.terrain || remoteConfig.assets || remoteConfig.enemyAreas)
+    ? remoteConfig
+    : (savedConfig && (savedConfig.entities || savedConfig.terrain || savedConfig.assets || savedConfig.enemyAreas)
+      ? savedConfig
+      : fallbackConfig);
+  await loadWorld(config);
 }
 
 document.querySelectorAll('.mode-button').forEach((button) => button.addEventListener('click', () => setMode(button.dataset.mode)));
@@ -1303,6 +1358,11 @@ terrainBrushStrengthInput.addEventListener('input', () => {
 ambientColorInput.addEventListener('input', () => { const hex = ambientColorInput.value.slice(1); lighting.ambientColor = [0, 2, 4].map((index) => Number.parseInt(hex.slice(index, index + 2), 16) / 255); updateSceneAmbientLight(); updateSummary(); });
 ambientIntensityInput.addEventListener('input', () => { lighting.ambientIntensity = Number(ambientIntensityInput.value); ambientIntensityValue.textContent = lighting.ambientIntensity.toFixed(2); updateSceneAmbientLight(); updateSummary(); });
 directionalIntensityInput.addEventListener('input', () => { lighting.directional.intensity = Number(directionalIntensityInput.value); directionalIntensityValue.textContent = lighting.directional.intensity.toFixed(2); updateSceneAmbientLight(); updateSummary(); });
+directionalCastShadowInput.addEventListener('change', () => {
+  lighting.directional.castShadow = directionalCastShadowInput.checked;
+  updateSceneAmbientLight();
+  updateSummary();
+});
 directionalInputs.forEach((input, index) => input.addEventListener('input', () => {
   lighting.directional.direction[index] = Number(input.value);
   directionalValues[index].textContent = lighting.directional.direction[index].toFixed(2);

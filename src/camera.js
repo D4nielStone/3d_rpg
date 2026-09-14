@@ -60,7 +60,18 @@ export class Camera {
         raycaster.setFromCamera(new THREE.Vector2(normalizedX, normalizedY), this.renderCamera);
         const distance = (groundY - raycaster.ray.origin.y) / raycaster.ray.direction.y;
         if (Number.isFinite(distance) && distance > 0) {
-          return raycaster.ray.origin.clone().addScaledVector(raycaster.ray.direction, distance).toArray();
+          const intersection = raycaster.ray.origin.clone().addScaledVector(raycaster.ray.direction, distance);
+          if (this.terrain) {
+            const terrainHeight = sampleTerrainHeight(this.terrain, intersection.x, intersection.z);
+            if (terrainHeight !== null) {
+              intersection.y = terrainHeight;
+            } else {
+              intersection.y = groundY;
+            }
+          } else {
+            intersection.y = groundY;
+          }
+          return intersection.toArray();
         }
         return null;
       }
@@ -98,18 +109,28 @@ export class Camera {
     const distance = (groundY - this.position[1]) / direction[1];
     if (distance <= 0) {
       const fallbackDistance = Math.max(4, this.orbit?.distance ?? 6);
-      return [
+      const fallback = [
         this.position[0] + direction[0] / horizontalLength * fallbackDistance,
         groundY,
         this.position[2] + direction[2] / horizontalLength * fallbackDistance,
       ];
+      if (this.terrain) {
+        const terrainHeight = sampleTerrainHeight(this.terrain, fallback[0], fallback[2]);
+        if (terrainHeight !== null) fallback[1] = terrainHeight;
+      }
+      return fallback;
     }
 
-    return [
+    const hit = [
       this.position[0] + direction[0] * distance,
       groundY,
       this.position[2] + direction[2] * distance,
     ];
+    if (this.terrain) {
+      const terrainHeight = sampleTerrainHeight(this.terrain, hit[0], hit[2]);
+      if (terrainHeight !== null) hit[1] = terrainHeight;
+    }
+    return hit;
   }
 
   worldToScreen(position, canvas) {

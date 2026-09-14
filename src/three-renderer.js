@@ -39,12 +39,11 @@ function textureFrom(texture) {
 }
 
 function createMaterial(mesh, texture, transparent = false) {
-  return new THREE.MeshStandardMaterial({
+  return new THREE.MeshLambertMaterial({
     color: colorFrom(mesh.material?.diffuseColor),
     map: textureFrom(mesh.material?.texture ?? texture),
     vertexColors: Boolean(mesh.colors?.length),
-    roughness: 0.82,
-    metalness: 0,
+    flatShading: true,
     transparent,
     opacity: transparent ? 0.24 : 1,
     side: THREE.DoubleSide,
@@ -71,9 +70,10 @@ export class ThreeRenderSystem {
     this.slashGeometry = null;
 
     const ambient = lighting.ambientColor ?? [1, 1, 1];
-    this.scene.add(new THREE.AmbientLight(colorFrom(ambient), Number(lighting.ambientIntensity ?? 1)));
+    const ambientLight = new THREE.AmbientLight(colorFrom(ambient), Number(lighting.ambientIntensity ?? 0.04));
+    this.scene.add(ambientLight);
     const directional = lighting.directional ?? {};
-    const directionalLight = new THREE.DirectionalLight(colorFrom(directional.color, [1, 0.95, 0.85]), Number(directional.intensity ?? 0.8));
+    const directionalLight = new THREE.DirectionalLight(colorFrom(directional.color, [1, 0.95, 0.85]), Number(directional.intensity ?? 0.08));
     const direction = new THREE.Vector3(...(directional.direction ?? [-0.45, 0.85, 0.35]));
     if (direction.lengthSq() === 0) direction.set(-0.45, 0.85, 0.35);
     direction.normalize();
@@ -128,14 +128,29 @@ export class ThreeRenderSystem {
     const castShadow = renderer.castShadow !== false;
     const receiveShadow = renderer.receiveLight !== false;
     for (const mesh of renderer.meshes ?? []) {
-      const object = new THREE.Mesh(
-        geometryFromMesh(mesh),
-        createMaterial(mesh, texture, isEnemyArea),
+      const geometry = geometryFromMesh(mesh);
+      const material = createMaterial(mesh, texture, isEnemyArea);
+      const meshWrapper = new THREE.Group();
+      const object = new THREE.Mesh(geometry, material);
+      const outline = new THREE.Mesh(
+        geometry.clone(),
+        new THREE.MeshBasicMaterial({
+          color: 0x000000,
+          side: THREE.BackSide,
+          depthWrite: false,
+        }),
       );
+      outline.scale.setScalar(1.06);
+      outline.renderOrder = 0;
       object.castShadow = castShadow;
       object.receiveShadow = receiveShadow;
+      object.renderOrder = 1;
       if (isWater) object.material.color.setRGB(0.08, 0.45, 0.7);
-      group.add(object);
+      meshWrapper.userData.mainMesh = object;
+      meshWrapper.userData.outlineMesh = outline;
+      meshWrapper.add(outline);
+      meshWrapper.add(object);
+      group.add(meshWrapper);
     }
     configureShadowState(group, { castShadow, receiveShadow });
     return group;
@@ -154,15 +169,21 @@ export class ThreeRenderSystem {
     }
     renderer.meshes.forEach((mesh, index) => {
       if (!mesh.dirty) return;
-      const meshObject = object.children[index];
-      if (!meshObject) return;
+      const meshWrapper = object.children[index];
+      const meshObject = meshWrapper?.userData?.mainMesh;
+      const outline = meshWrapper?.userData?.outlineMesh;
+      if (!meshObject || !meshObject.geometry) return;
       const position = meshObject.geometry.getAttribute('position');
       const normal = meshObject.geometry.getAttribute('normal');
+      if (!position) return;
       position.copyArray(mesh.vertices);
       position.needsUpdate = true;
       if (normal && mesh.normals?.length) {
         normal.copyArray(mesh.normals);
         normal.needsUpdate = true;
+      }
+      if (outline) {
+        outline.geometry.copy(meshObject.geometry);
       }
       meshObject.geometry.computeBoundingSphere();
       mesh.dirty = false;
@@ -238,10 +259,17 @@ export class ThreeRenderSystem {
       }),
     );
     glow.scale.setScalar(1.18);
+    glow.material.depthTest = false;
+    glow.material.depthWrite = false;
+    glow.renderOrder = 100;
+    core.material.depthTest = false;
+    core.material.depthWrite = false;
+    core.renderOrder = 101;
     group.add(glow, core);
     group.position.set(position[0], position[1] + 0.85, position[2]);
     group.rotation.set(0, rotation, 0);
     group.scale.setScalar(0.35);
+    group.renderOrder = 100;
     this.root.add(group);
     this.slashEffects.push({ group, glow, core, startedAt: performance.now() });
   }

@@ -31,6 +31,7 @@ export class EnemyArea {
   update(time, players = [], deltaSeconds = 1) {
     let changed = false;
     const damagedPlayers = [];
+    const missedPlayers = [];
     const deadPlayers = [];
     const activePlayers = [...players].filter((player) => this.contains(player.position));
     for (const enemy of this.enemies.values()) {
@@ -38,6 +39,7 @@ export class EnemyArea {
       const previousAlerted = enemy.alerted;
       const result = enemy.updateChase(activePlayers, deltaSeconds, this);
       if (result?.damagedPlayer) damagedPlayers.push(result.damagedPlayer);
+      if (result?.missedPlayer) missedPlayers.push(result.missedPlayer);
       changed = changed
         || previousAlerted !== enemy.alerted
         || previousPosition[0] !== enemy.position[0]
@@ -61,8 +63,9 @@ export class EnemyArea {
       changed = true;
     }
     return {
-      changed: changed || damagedPlayers.length > 0 || deadPlayers.length > 0,
+      changed: changed || damagedPlayers.length > 0 || missedPlayers.length > 0 || deadPlayers.length > 0,
       damagedPlayers,
+      missedPlayers,
       deadPlayers,
     };
   }

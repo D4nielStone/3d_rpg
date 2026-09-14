@@ -35,7 +35,9 @@ export function canTraverseTerrain(terrain, from, to) {
     const x = from[0] + (to[0] - from[0]) * progress;
     const z = from[2] + (to[2] - from[2]) * progress;
     const height = sampleTerrainHeight(terrain, x, z);
-    if (height !== null && height > TERRAIN_BASE_Y + PLAYER_HEIGHT) return false;
+    if (height !== null && (height > TERRAIN_BASE_Y + PLAYER_HEIGHT || height < TERRAIN_BASE_Y - PLAYER_HEIGHT)) {
+      return false;
+    }
   }
   return true;
 }

@@ -114,10 +114,22 @@ export class NameTagSystem {
 
   
   spawnMissAttack(position) {
-    const element = document.createElement('span');
-    element.className = 'floating-miss';
-    element.textContent = 'MISS';
-    document.body.append(element);
+    const element = typeof document === 'undefined'
+      ? {
+        className: 'floating-miss',
+        textContent: 'MISS',
+        style: {},
+        hidden: false,
+        remove() {},
+      }
+      : document.createElement('span');
+
+    if (typeof document !== 'undefined') {
+      element.className = 'floating-miss';
+      element.textContent = 'MISS';
+      document.body.append(element);
+    }
+
     this.floatingMisses.push({
       element,
       position: [position[0], position[1] + 0.8, position[2]],

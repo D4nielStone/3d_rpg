@@ -154,10 +154,7 @@ export class Player {
       this.maxMana = calculateMaxMana(this.level);
       this.hp = this.maxHp;
       this.mana = this.maxMana;
-      this.defense = Math.min(this.defense, this.level + 10);
-      if (this.defenseXp > 0 && this.defense < this.level + 10) {
-        this.defenseXp = 0;
-      }
+      this.defense = Math.min(this.level + 10, this.defense);
       leveledUp = true;
     }
     return leveledUp;
@@ -223,8 +220,13 @@ export class Player {
     if (!Number.isFinite(damage) || damage <= 0) return false;
 
     const maxDefense = this.level + 10;
-    const trainingGain = Math.max(1, Math.floor(Number(ticks) || 1));
-    this.defenseTraining += trainingGain;
+    if (this.defense >= maxDefense) {
+      this.defense = maxDefense;
+      this.defenseTraining = 0;
+      return true;
+    }
+
+    this.defenseTraining += 1;
     this.defense = Math.min(maxDefense, Math.max(0, this.defense));
 
     while (this.defenseTraining >= 4) {

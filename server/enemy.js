@@ -77,7 +77,9 @@ export class Enemy {
     if (targetDistance <= this.attackRange) {
       if (this.attackCooldown === 0 && target.hp > 0) {
         this.attackCooldown = 1;
-        if (!doesAttackHit(this.accuracy, target.defense)) return;
+        if (!doesAttackHit(this.accuracy, target.defense)) {
+          return { missedPlayer: { player: target, enemyId: this.id } };
+        }
         const damage = Math.max(0, this.attackDamage - target.defense);
         target.hp = Math.max(0, target.hp - damage);
         target.registerDefenseProgress(damage);

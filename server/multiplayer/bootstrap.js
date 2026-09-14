@@ -105,6 +105,20 @@ export function startMultiplayerServer() {
           );
           changed = result.changed || changed;
 
+          for (const missedPlayer of result.missedPlayers ?? []) {
+            const playerId = state.getPlayerIdByPeerId(missedPlayer.player.peerId);
+            const session = state.activeGuestSessions.get(playerId);
+
+            if (session?.socket?.readyState === 1) {
+              session.socket.send(JSON.stringify({
+                type: 'attack-miss',
+                enemyId: missedPlayer.enemyId ?? null,
+                position: [...missedPlayer.player.position],
+                sentAt: Date.now(),
+              }));
+            }
+          }
+
           for (const deadPlayer of result.deadPlayers) {
             const deadPlayerId = state.getPlayerIdByPeerId(deadPlayer.peerId);
             const session = state.activeGuestSessions.get(deadPlayerId);

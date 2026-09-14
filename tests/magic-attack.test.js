@@ -97,6 +97,48 @@ test('cria um overlay MISS separado do level up', async () => {
   assert.equal(system.floatingMisses[0].element.textContent, 'MISS');
 });
 
+test('inimigo informa miss no alvo para feedback visual', () => {
+  const player = new Player({
+    peerId: 'miss-player',
+    position: [0, 0, 0],
+    defense: 999,
+  });
+
+  const enemy = new Enemy({
+    type: 'rat',
+    level: 1,
+    position: [0.5, 0, 0],
+    definitions: new Map([['rat', {
+      name: 'Rato',
+      model: '',
+      level: 1,
+      maxHp: 3,
+      speed: 1,
+      defense: 0,
+      damage: 1,
+      experience: 2,
+      scale: 0.35,
+      gold: { min: 1, max: 2 },
+      itemDrops: [],
+    }]]),
+  });
+
+  const originalRandom = Math.random;
+  Math.random = () => 0.99;
+  try {
+    const area = new EnemyArea({ id: 'area', center: [0, 0, 0], width: 12, depth: 12 });
+    area.enemies.set(enemy.id, enemy);
+
+    const result = area.update(Date.now(), [player], 1);
+
+    assert.equal(result.missedPlayers.length, 1);
+    assert.equal(result.missedPlayers[0].player.peerId, 'miss-player');
+    assert.equal(result.missedPlayers[0].enemyId, enemy.id);
+  } finally {
+    Math.random = originalRandom;
+  }
+});
+
 test('player evolui skills ao causar dano e não pelo dano recebido na defesa', () => {
   const player = new Player({
     peerId: 'skill-player',
@@ -155,7 +197,8 @@ test('defesa acumula treinamento, XP em blocos de 4 e respeita o limite de níve
   player.level = 1;
   player.defense = 1;
   player.defenseXp = 25;
-  player.registerDefenseProgress(1);
+  player.registerDefenseProgress(4);
   assert.equal(player.defense, 2);
-  assert.equal(player.defenseXp, 0);
+  assert.equal(player.defenseXp, 1);
+  assert.equal(player.defenseTraining, 0);
 });
