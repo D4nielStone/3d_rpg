@@ -105,9 +105,44 @@ export class NetworkInterpolationSystem {
 }
 
 export class MovementSystem {
-  constructor(input, mapConfig = null) {
+  constructor(input, mapConfig = null, camera = null) {
     this.input = input;
+    this.camera = camera;
     this.physics = new PhysicsWorld(mapConfig);
+  }
+
+  getKeyboardMovement() {
+    const strafe = Number(this.input.isPressed('d', 'arrowright'))
+      - Number(this.input.isPressed('a', 'arrowleft'));
+    const forward = Number(this.input.isPressed('w', 'arrowup'))
+      - Number(this.input.isPressed('s', 'arrowdown'));
+
+    if (!this.camera || (strafe === 0 && forward === 0)) {
+      return { deltaX: strafe, deltaZ: forward, hasKeyboardMovement: strafe !== 0 || forward !== 0 };
+    }
+
+    const forwardVector = [
+      -Math.sin(this.camera.yaw),
+      0,
+      -Math.cos(this.camera.yaw),
+    ];
+    const rightVector = [
+      Math.cos(this.camera.yaw),
+      0,
+      -Math.sin(this.camera.yaw),
+    ];
+    const moveX = rightVector[0] * strafe + forwardVector[0] * forward;
+    const moveZ = rightVector[2] * strafe + forwardVector[2] * forward;
+    const length = Math.hypot(moveX, moveZ);
+    if (length <= 0.0001) {
+      return { deltaX: 0, deltaZ: 0, hasKeyboardMovement: false };
+    }
+
+    return {
+      deltaX: moveX / length,
+      deltaZ: moveZ / length,
+      hasKeyboardMovement: true,
+    };
   }
 
   update(world, deltaSeconds) {
@@ -123,11 +158,7 @@ export class MovementSystem {
         continue;
       }
 
-      const deltaX = Number(this.input.isPressed('d', 'arrowright'))
-        - Number(this.input.isPressed('a', 'arrowleft'));
-      const deltaZ = Number(this.input.isPressed('s', 'arrowdown'))
-        - Number(this.input.isPressed('w', 'arrowup'));
-      const hasKeyboardMovement = deltaX !== 0 || deltaZ !== 0;
+      const { deltaX, deltaZ, hasKeyboardMovement } = this.getKeyboardMovement();
       if (hasKeyboardMovement) {
         moveTarget.position = null;
         moveTarget.path = null;

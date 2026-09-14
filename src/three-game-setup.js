@@ -113,7 +113,7 @@ export async function createGame(canvas, mapConfig = null) {
     textureManager,
     input,
     animationSystem: new AnimationSystem(),
-    movementSystem: new MovementSystem(input, mapConfig),
+    movementSystem: new MovementSystem(input, mapConfig, camera),
     networkInterpolationSystem: new NetworkInterpolationSystem(),
     soundListenerSystem: new SoundListenerSystem(),
     soundPlayerSystem: new SoundPlayerSystem(),
