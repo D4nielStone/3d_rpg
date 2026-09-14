@@ -149,6 +149,17 @@
   white-space: nowrap;
 }
 
+.floating-miss {
+  position: fixed;
+  z-index: 5;
+  color: #f4f7ff;
+  font: 700 1.15rem/1 'Pixelify Sans', sans-serif;
+  pointer-events: none;
+  text-shadow: 3px 3px 0 #2d3f60, 0 0 0.45rem rgb(148 163 184 / 80%);
+  transform: translate(-50%, -100%);
+  white-space: nowrap;
+}
+
 @media (max-width: 640px) {
   #player-status,
   #player-status .status-health,

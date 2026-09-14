@@ -6,6 +6,7 @@ export class NameTagSystem {
     this.camera = camera;
     this.floatingDamages = [];
     this.floatingLevelUps = [];
+    this.floatingMisses = [];
     this.lastUpdateAt = performance.now();
   }
 
@@ -73,6 +74,18 @@ export class NameTagSystem {
       levelUp.element.style.opacity = `${1 - levelUp.age / 1.2}`;
       return true;
     });
+
+    this.floatingMisses = this.floatingMisses.filter((miss) => {
+      miss.age += deltaSeconds;
+      if (miss.age >= 0.8) {
+        miss.element.remove();
+        return false;
+      }
+      miss.position[1] += deltaSeconds * 0.7;
+      this.updateOverlayPosition(miss.element, miss.position, 0);
+      miss.element.style.opacity = `${1 - miss.age / 0.8}`;
+      return true;
+    });
   }
 
   spawnDamage(position, amount) {
@@ -105,7 +118,7 @@ export class NameTagSystem {
     element.className = 'floating-miss';
     element.textContent = 'MISS';
     document.body.append(element);
-    this.floatingLevelUps.push({
+    this.floatingMisses.push({
       element,
       position: [position[0], position[1] + 0.8, position[2]],
       age: 0,

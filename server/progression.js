@@ -26,3 +26,8 @@ export function calculateMaxXp(level) {
 export function calculateMeleeXp(level) {
   return level ** 2 * GAME_PROGRESSION.strengthXp.factor;
 }
+
+export function calculateDefenseXp(defense) {
+  const normalizedDefense = Math.max(0, Number(defense) || 0);
+  return Math.floor(25 * Math.pow(normalizedDefense, 1.6));
+}

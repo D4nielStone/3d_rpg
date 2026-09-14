@@ -207,6 +207,16 @@ function createMultiplayer(game, playerEntity, enemyAssets, soundPlayer, mapConf
       const targetTransform = targetEntity ? game.world.getComponent(targetEntity, Transform) : null;
       if (targetTransform) game.renderSystem.spawnSlash(targetTransform.position, targetTransform.rotation[1]);
     },
+    onAttackMiss: (message) => {
+      const targetEntity = message.enemyId
+        ? game.world.query(EnemyIdentity).find((entity) => (
+          game.world.getComponent(entity, EnemyIdentity)?.enemyId === message.enemyId
+        ))
+        : null;
+      const targetTransform = targetEntity ? game.world.getComponent(targetEntity, Transform) : null;
+      const position = targetTransform?.position ?? message.position ?? [0, 0, 0];
+      game.nameTagSystem.spawnMissAttack(position);
+    },
     onLevelUp: () => {
       soundPlayer?.play('level-up').catch(() => {});
       const transform = game.world.getComponent(playerEntity, Transform);

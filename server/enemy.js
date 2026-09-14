@@ -78,7 +78,9 @@ export class Enemy {
       if (this.attackCooldown === 0 && target.hp > 0) {
         this.attackCooldown = 1;
         if (!doesAttackHit(this.accuracy, target.defense)) return;
-        target.hp = Math.max(0, target.hp - this.attackDamage);
+        const damage = Math.max(0, this.attackDamage - target.defense);
+        target.hp = Math.max(0, target.hp - damage);
+        target.registerDefenseProgress(damage);
         return { damagedPlayer: target };
       }
       return;

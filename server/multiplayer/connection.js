@@ -186,6 +186,7 @@ export function registerConnectionHandler({
             const strengthLeveledUp = player.combatMode === 'melee'
               ? player.registerMeleeAttack(attackResult.damage, attackAt)
               : false;
+            player.registerCombatProgress(attackResult.damage, player.combatMode);
             if (attackResult.rewards) {
               player.money += attackResult.rewards.gold;
               const experience = attackResult.rewards.experience;
@@ -228,6 +229,13 @@ export function registerConnectionHandler({
               sentAt: Date.now(),
             }));
             broadcastSnapshot();
+          } else if (attackResult.enemyId) {
+            socket.send(JSON.stringify({
+              type: 'attack-miss',
+              enemyId: attackResult.enemyId,
+              position: attackResult.position ?? null,
+              sentAt: Date.now(),
+            }));
           }
           return;
         }

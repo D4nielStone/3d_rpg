@@ -6,6 +6,7 @@ import { MTLLoader } from 'three/examples/jsm/loaders/MTLLoader.js';
 import { ConvexGeometry } from 'three/examples/jsm/geometries/ConvexGeometry.js';
 import { AnimationMixer, LoopOnce, LoopRepeat } from 'three';
 import { createEditorGizmos } from './editor-gizmos.js';
+import { normalizeTerrainForExport, isTerrainRemoved } from './terrain-state.js';
 import { readSavedMapConfig, saveMapConfig } from '../map-config.js';
 import { getMultiplayerHttpUrl } from '../multiplayer-url.js';
 
@@ -117,7 +118,8 @@ let assets = [];
 let sounds = { slash: '', pulse: '', arc: '' };
 let enemyAreas = [];
 let enemyTypes = [];
-let terrainConfig = { width: 128, depth: 128, segments: 64, amplitude: 0.15, frequency: 0.22, color: '#202522', brushRadius: 3, brushStrength: 0.8 };
+let terrainConfig = { width: 128, depth: 128, segments: 64, amplitude: 0.15, frequency: 0.22, color: '#202522', brushRadius: 3, brushStrength: 0.8, removed: false };
+let terrainRemoved = false;
 let lighting = {
   ambientColor: [1, 1, 1],
   ambientIntensity: 1,
@@ -734,14 +736,34 @@ function createSceneTreeGroup(label, count, children, open = true) {
 function createSceneTreeNode(icon, label, onClick, selected = false) {
   const node = document.createElement('button'); node.className = `scene-tree-node${selected ? ' scene-tree-node-selected' : ''}`; node.type = 'button'; node.setAttribute('role', 'treeitem'); node.innerHTML = `<span class="asset-icon">${icon}</span><span>${label}</span>`; node.addEventListener('click', onClick); return node;
 }
+function updateTerrainInspector() {
+  const terrainButton = document.querySelector('#delete-terrain-button');
+  if (terrainButton) terrainButton.textContent = terrainRemoved ? 'Restaurar terreno' : 'Excluir terreno';
+  if (ground) ground.visible = !terrainRemoved;
+}
+function setTerrainRemoved(removed) {
+  terrainRemoved = Boolean(removed);
+  terrainConfig.removed = terrainRemoved;
+  if (ground) {
+    ground.visible = !terrainRemoved;
+    ground.userData.removed = terrainRemoved;
+  }
+  updateTerrainInspector();
+  renderSceneTree();
+  updateSummary();
+}
 function renderSceneTree() {
   if (!sceneTree) return;
+  const terrainNode = createSceneTreeNode('T', terrainRemoved ? 'Terreno (removido)' : 'Terreno', () => {
+    setPanelOpen('inspector-panel', true, document.querySelector('#inspector-toggle'));
+    setStatus(terrainRemoved ? 'Terreno removido da cena' : 'Terreno selecionado');
+  });
   const entityNodes = entities.map((entity) => createSceneTreeNode(entity.isPlayerPreview ? 'P' : entity.assetId ? 'M' : 'E', entity.name, () => selectEntity(entity.id), entity.id === selectedEntityId));
   const areaNodes = enemyAreas.map((area) => createSceneTreeNode('A', area.id, () => selectEnemyArea(area.id), area.id === selectedEnemyAreaId));
   const assetNodes = assets.map((asset) => createSceneTreeNode('3D', asset.name, () => instantiateAsset(asset)));
   const settingsNode = createSceneTreeNode('S', 'Luz e cor do céu', () => setPanelOpen('inspector-panel', true, document.querySelector('#inspector-toggle')));
-  sceneTree.replaceChildren(createSceneTreeGroup('Cena', 1, [settingsNode]), createSceneTreeGroup('Entidades', entities.length, entityNodes), createSceneTreeGroup('Áreas inimigas', enemyAreas.length, areaNodes), createSceneTreeGroup('Assets', assets.length, assetNodes));
-  document.querySelector('#scene-tree-count').textContent = String(entities.length + enemyAreas.length + assets.length);
+  sceneTree.replaceChildren(createSceneTreeGroup('Cena', 1 + (terrainRemoved ? 0 : 1), [terrainNode, settingsNode]), createSceneTreeGroup('Entidades', entities.length, entityNodes), createSceneTreeGroup('Áreas inimigas', enemyAreas.length, areaNodes), createSceneTreeGroup('Assets', assets.length, assetNodes));
+  document.querySelector('#scene-tree-count').textContent = String(entities.length + enemyAreas.length + assets.length + 1);
 }
 function selectEnemyArea(id) { selectedEnemyAreaId = id; updateEnemyAreaInspector(); renderEnemyAreas(); }
 let selectedEnemyTypeId = null;
@@ -897,7 +919,7 @@ function applyTerrainBrushToGround(point) {
   ground.geometry.computeVertexNormals();
   terrainConfig.heights = Array.from(position.array).filter((_, index) => index % 3 === 1);
 }
-function exportConfig() { const maxHp = Math.max(1, Number(player.status?.maxHp) || 20); return { format: 'webrpg.world', version: 2, scene: { name: 'main-world', units: 'world', skyColor: [...skyColor], fog: { color: [...fog.color], near: fog.near, far: fog.far } }, terrain: { ...terrainConfig, heights: Array.from(ground.geometry.attributes.position.array).filter((_, index) => index % 3 === 1) }, lighting: { ambientColor: [...lighting.ambientColor], ambientIntensity: lighting.ambientIntensity, directional: { ...lighting.directional, direction: [...lighting.directional.direction], color: [...lighting.directional.color] }, point: { ...lighting.point, position: [...lighting.point.position], color: [...lighting.point.color] } }, sounds: { ...sounds }, player: { ...player, maxHp, position: [...player.position], rotation: [...player.rotation], scale: [...player.scale], materials: player.materials?.map((material) => ({ ...material, diffuseColor: [...material.diffuseColor], texture: material.texture ?? null })) ?? [], status: { ...player.status, maxHp }, inventory: [...player.inventory], collision: { ...player.collision }, animation: { ...player.animation } }, assets: assets.map(({ id, name, url, source, format, dependencies }) => ({ id, name, url, source, format, dependencies })), entities: entities.filter((entity) => !entity.isPlayerPreview).map(({ object, ...entity }) => entitySnapshot(entity)), enemyTypes: enemyTypes.map((type, index) => normalizeEnemyType({ ...type, gold: { ...type.gold }, itemDrops: [...type.itemDrops] }, index)), enemyAreas: enemyAreas.map((area) => ({ ...normalizeEnemyArea(area), center: [...area.center] })) }; }
+function exportConfig() { const maxHp = Math.max(1, Number(player.status?.maxHp) || 20); const terrainState = normalizeTerrainForExport({ ...terrainConfig, heights: Array.from((ground?.geometry?.attributes?.position?.array ?? [])).filter((_, index) => index % 3 === 1) }, terrainRemoved); return { format: 'webrpg.world', version: 2, scene: { name: 'main-world', units: 'world', skyColor: [...skyColor], fog: { color: [...fog.color], near: fog.near, far: fog.far } }, terrain: terrainState, lighting: { ambientColor: [...lighting.ambientColor], ambientIntensity: lighting.ambientIntensity, directional: { ...lighting.directional, direction: [...lighting.directional.direction], color: [...lighting.directional.color] }, point: { ...lighting.point, position: [...lighting.point.position], color: [...lighting.point.color] } }, sounds: { ...sounds }, player: { ...player, maxHp, position: [...player.position], rotation: [...player.rotation], scale: [...player.scale], materials: player.materials?.map((material) => ({ ...material, diffuseColor: [...material.diffuseColor], texture: material.texture ?? null })) ?? [], status: { ...player.status, maxHp }, inventory: [...player.inventory], collision: { ...player.collision }, animation: { ...player.animation } }, assets: assets.map(({ id, name, url, source, format, dependencies }) => ({ id, name, url, source, format, dependencies })), entities: entities.filter((entity) => !entity.isPlayerPreview).map(({ object, ...entity }) => entitySnapshot(entity)), enemyTypes: enemyTypes.map((type, index) => normalizeEnemyType({ ...type, gold: { ...type.gold }, itemDrops: [...type.itemDrops] }, index)), enemyAreas: enemyAreas.map((area) => ({ ...normalizeEnemyArea(area), center: [...area.center] })) }; }
 function updateSummary() {
   const config = exportConfig();
   document.querySelector('#entity-summary-count').textContent = String(config.entities.length);
@@ -987,7 +1009,12 @@ async function applyToGame() {
 }
 // Carrega o mundo a partir de uma configuração JSON, normalizando os dados e atualizando a cena.
 async function loadWorld(config) {
-  terrainConfig = { ...terrainConfig, ...(config?.terrain ?? {}) };
+  const incomingTerrain = config?.terrain === null ? null : (config?.terrain ?? terrainConfig);
+  if (incomingTerrain && typeof incomingTerrain === 'object') {
+    terrainConfig = { ...terrainConfig, ...incomingTerrain };
+  }
+  terrainRemoved = Boolean(isTerrainRemoved(incomingTerrain ?? terrainConfig) || terrainConfig.removed);
+  terrainConfig.removed = terrainRemoved;
   terrainConfig.width = Math.max(16, Number(terrainConfig.width) || 128);
   terrainConfig.depth = Math.max(16, Number(terrainConfig.depth) || 128);
   terrainConfig.segments = Math.max(8, Math.floor(Number(terrainConfig.segments) || 64));
@@ -998,6 +1025,8 @@ async function loadWorld(config) {
   terrainConfig.brushStrength = Math.max(0.1, Number(terrainConfig.brushStrength) || 0.8);
   configureTerrainMesh(ground, terrainConfig);
   ground.material.color.set(terrainConfig.color);
+  ground.visible = !terrainRemoved;
+  updateTerrainInspector();
   terrainColorInput.value = terrainConfig.color;
   terrainWidthInput.value = terrainConfig.width;
   terrainWidthValue.textContent = terrainConfig.width.toFixed(2);
@@ -1108,6 +1137,11 @@ document.querySelector('#create-enemy-area-button').addEventListener('click', ()
 document.querySelector('#create-enemy-type-button').addEventListener('click', () => { pushHistory(); createEnemyType(); setStatus('Tipo de inimigo criado'); });
 document.querySelectorAll('[data-enemy-type-field]').forEach((input) => input.addEventListener('change', () => updateEnemyTypeField(input)));
 document.querySelector('#delete-enemy-area-button').addEventListener('click', () => { if (!selectedEnemyAreaId) return; pushHistory(); enemyAreas = enemyAreas.filter((area) => area.id !== selectedEnemyAreaId); selectedEnemyAreaId = null; updateEnemyAreaInspector(); renderEnemyAreas(); updateSummary(); setStatus('Área inimiga excluída'); });
+document.querySelector('#delete-terrain-button').addEventListener('click', () => {
+  pushHistory();
+  setTerrainRemoved(!terrainRemoved);
+  setStatus(terrainRemoved ? 'Terreno restaurado' : 'Terreno removido');
+});
 document.querySelector('#enemy-area-id').addEventListener('change', (event) => { const area = selectedEnemyArea(); if (!area) return; pushHistory(); area.id = event.target.value.trim() || newId('enemy-area'); updateEnemyAreaInspector(); renderEnemyAreas(); updateSummary(); });
 document.querySelectorAll('[data-area-field]').forEach((input) => input.addEventListener('change', () => updateEnemyAreaField(input)));
 document.querySelector('#delete-entity-button').addEventListener('click', () => { if (selectedEntityId) { pushHistory(); removeEntity(selectedEntityId); setStatus('Entidade excluída'); } });

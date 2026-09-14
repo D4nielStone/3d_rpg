@@ -127,7 +127,12 @@ export class EnemyArea {
     }
 
     if (!doesAttackHit(player.accuracy, target.defense)) {
-      return { hit: false, manaCost };
+      return {
+        hit: false,
+        enemyId: target.id,
+        position: [...target.position],
+        manaCost,
+      };
     }
 
     const damage = target.receiveDamage(attackDamage);

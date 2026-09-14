@@ -81,3 +81,81 @@ test('ataques à distância não travam o movimento do jogador', async () => {
 
   assert.equal(moveTarget.position, null);
 });
+
+test('cria um overlay MISS separado do level up', async () => {
+  const { NameTagSystem } = await import('../src/name-tags.js');
+  const system = new NameTagSystem({
+    getContext: () => ({}),
+  }, {
+    worldToScreen: () => ({ visible: true, x: 100, y: 100 }),
+  });
+
+  system.spawnMissAttack([0, 2, 0]);
+
+  assert.equal(system.floatingMisses.length, 1);
+  assert.equal(system.floatingLevelUps.length, 0);
+  assert.equal(system.floatingMisses[0].element.textContent, 'MISS');
+});
+
+test('player evolui skills ao causar dano e não pelo dano recebido na defesa', () => {
+  const player = new Player({
+    peerId: 'skill-player',
+    strength: 1,
+    accuracy: 1,
+    magic: 1,
+    defense: 1,
+  });
+
+  player.registerCombatProgress(2, 'melee');
+  player.registerCombatProgress(2, 'ranged');
+  player.registerCombatProgress(2, 'magic');
+  player.registerDefenseProgress(2);
+
+  assert.equal(player.strength, 2);
+  assert.equal(player.accuracy, 2);
+  assert.equal(player.magic, 2);
+  assert.equal(player.defense, 1);
+  assert.equal(player.defenseTraining, 1);
+  assert.equal(player.defenseXp, 0);
+});
+
+test('defesa acumula treinamento, XP em blocos de 4 e respeita o limite de nível', () => {
+  const player = new Player({
+    peerId: 'defense-player',
+    level: 1,
+    defense: 1,
+  });
+
+  for (let index = 0; index < 3; index += 1) {
+    const result = player.registerDefenseProgress(7);
+    assert.equal(result, true);
+    assert.equal(player.defense, 1);
+    assert.equal(player.defenseTraining, index + 1);
+    assert.equal(player.defenseXp, 0);
+  }
+
+  const leveled = player.registerDefenseProgress(9);
+  assert.equal(leveled, true);
+  assert.equal(player.defenseTraining, 0);
+  assert.equal(player.defenseXp, 1);
+  assert.equal(player.defense, 1);
+
+  player.defense = 11;
+  player.defenseXp = 0;
+  player.registerDefenseProgress(4);
+  assert.equal(player.defense, 11);
+  assert.equal(player.defenseXp, 0);
+
+  player.level = 2;
+  player.registerDefenseProgress(4);
+  assert.equal(player.defense, 11);
+  assert.equal(player.defenseTraining, 1);
+  assert.equal(player.defenseXp, 0);
+
+  player.level = 1;
+  player.defense = 1;
+  player.defenseXp = 25;
+  player.registerDefenseProgress(1);
+  assert.equal(player.defense, 2);
+  assert.equal(player.defenseXp, 0);
+});

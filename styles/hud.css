@@ -8,8 +8,11 @@
 }
 
 .action-slot {
+  display: grid;
+  place-items: center;
   width: 3.3rem;
   height: 3.3rem;
+  padding: 0;
   border: 3px solid #101820;
   border-radius: 0;
   color: #c8c3a5;
@@ -19,12 +22,25 @@
   cursor: pointer;
 }
 
+.action-slot .sword-preview {
+  display: block;
+  width: 2rem;
+  height: 2rem;
+  filter: drop-shadow(0 2px 0 rgb(16 24 32 / 45%));
+}
+
 .action-slot.combat-mode-selected,
 .action-slot:hover,
 .action-slot:focus-visible {
   border-color: #f0c54a;
   color: #f0c54a;
   background: #536a3c;
+}
+
+.action-slot.combat-mode-selected .sword-preview,
+.action-slot:hover .sword-preview,
+.action-slot:focus-visible .sword-preview {
+  filter: drop-shadow(0 2px 0 rgb(16 24 32 / 60%)) brightness(1.15);
 }
 
 #chat[hidden] { display: none; }

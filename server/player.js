@@ -4,6 +4,7 @@ import {
   calculateMaxMana,
   calculateMaxXp,
   calculateMeleeXp,
+  calculateDefenseXp,
 } from './progression.js';
 
 const DEFAULT_POSITION = [0, 0, 0];
@@ -53,6 +54,8 @@ export class Player {
     strengthXp = 0,
     accuracy = 1,
     defense = 1,
+    defenseXp = 0,
+    defenseTraining = 0,
     magic = 1,
     combatMode = 'melee',
     area = { id: 'starting-rat-area', name: 'Área dos Ratos', level: 1 },
@@ -74,13 +77,16 @@ export class Player {
     this.maxStrengthXp = calculateMeleeXp(this.strength);
     this.lastBloodHitAt = 0;
     this.accuracy = Math.max(1, Number(accuracy) || 1);
-    this.defense = Math.max(0, Number(defense) || 0);
-    this.magic = Math.max(1, Number(magic) || 1);
     this.combatMode = ['melee', 'ranged', 'magic'].includes(combatMode)
       ? combatMode
       : 'melee';
     this.area = { ...area };
     this.level = Math.max(1, Math.floor(Number(level)));
+    const maxDefense = this.level + 10;
+    this.defense = Math.min(maxDefense, Math.max(0, Number(defense) || 0));
+    this.defenseXp = Math.max(0, Number(defenseXp) || 0);
+    this.defenseTraining = Math.max(0, Number(defenseTraining) || 0);
+    this.magic = Math.max(1, Number(magic) || 1);
     this.baseHp = Math.max(
       1,
       Number(baseHp) || Number(maxHpLimit) || Number(maxHp) || GAME_PROGRESSION.player.hp.base,
@@ -148,6 +154,10 @@ export class Player {
       this.maxMana = calculateMaxMana(this.level);
       this.hp = this.maxHp;
       this.mana = this.maxMana;
+      this.defense = Math.min(this.defense, this.level + 10);
+      if (this.defenseXp > 0 && this.defense < this.level + 10) {
+        this.defenseXp = 0;
+      }
       leveledUp = true;
     }
     return leveledUp;
@@ -189,6 +199,64 @@ export class Player {
       leveledUp = true;
     }
     return leveledUp;
+  }
+
+  registerCombatProgress(realDamage, mode = this.combatMode, ticks = 1) {
+    const damage = Number(realDamage);
+    if (!Number.isFinite(damage) || damage <= 0) return false;
+
+    const normalizedMode = ['melee', 'ranged', 'magic'].includes(mode) ? mode : 'melee';
+    if (normalizedMode === 'melee') {
+      this.strength += ticks;
+      return true;
+    }
+    if (normalizedMode === 'ranged') {
+      this.accuracy += ticks;
+      return true;
+    }
+    this.magic += ticks;
+    return true;
+  }
+
+  registerDefenseProgress(realDamage, ticks = 1) {
+    const damage = Number(realDamage);
+    if (!Number.isFinite(damage) || damage <= 0) return false;
+
+    const maxDefense = this.level + 10;
+    const trainingGain = Math.max(1, Math.floor(Number(ticks) || 1));
+    this.defenseTraining += trainingGain;
+    this.defense = Math.min(maxDefense, Math.max(0, this.defense));
+
+    while (this.defenseTraining >= 4) {
+      this.defenseTraining -= 4;
+      if (this.defense >= maxDefense) {
+        continue;
+      }
+
+      this.defenseXp += 1;
+      while (this.defenseXp > 0 && this.defense < maxDefense) {
+        const requiredXp = calculateDefenseXp(this.defense);
+        if (requiredXp <= 0) {
+          this.defense += 1;
+          this.defenseXp = 0;
+          break;
+        }
+        if (this.defenseXp < requiredXp) break;
+
+        this.defenseXp -= requiredXp;
+        this.defense += 1;
+        this.defense = Math.min(maxDefense, this.defense);
+
+        if (this.defense >= maxDefense) {
+          this.defense = maxDefense;
+          this.defenseXp = 0;
+          break;
+        }
+      }
+    }
+
+    this.defense = Math.min(maxDefense, Math.max(0, this.defense));
+    return true;
   }
 
   registerMeleeAttack(realDamage, now, ticks = 1) {
@@ -233,6 +301,8 @@ export class Player {
       maxStrengthXp: this.maxStrengthXp,
       accuracy: this.accuracy,
       defense: this.defense,
+      defenseXp: this.defenseXp,
+      defenseTraining: this.defenseTraining,
       magic: this.magic,
       combatMode: this.combatMode,
       area: { ...this.area },

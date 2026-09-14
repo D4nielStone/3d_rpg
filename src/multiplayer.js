@@ -31,6 +31,7 @@ export class MultiplayerSystem {
     onAttackTargetChanged = () => {},
     onAttack = () => {},
     onAttackHit = () => {},
+    onAttackMiss = () => {},
     onLevelUp = () => {},
   }) {
     this.url = url;
@@ -49,6 +50,7 @@ export class MultiplayerSystem {
     this.onAttackTargetChanged = onAttackTargetChanged;
     this.onAttack = onAttack;
     this.onAttackHit = onAttackHit;
+    this.onAttackMiss = onAttackMiss;
     this.onLevelUp = onLevelUp;
     this.socket = null;
     this.localEntity = null;
@@ -180,6 +182,11 @@ export class MultiplayerSystem {
     if (message.type === 'attack-hit') {
       this.onAttackHit(message);
       if (message.enemyId) this.removeEnemyEntity(message.enemyId);
+      return;
+    }
+
+    if (message.type === 'attack-miss') {
+      this.onAttackMiss(message);
       return;
     }
 
