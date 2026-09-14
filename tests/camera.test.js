@@ -2,6 +2,26 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { Camera } from '../src/camera.js';
+import { handleCameraWheel } from '../src/three-game-setup.js';
+
+test('preserva o clique para mover e orbita a camera em gestos de trackpad', () => {
+  const calls = [];
+  const camera = {
+    rotateOrbit: (...args) => calls.push(['rotateOrbit', ...args]),
+    zoom: (...args) => calls.push(['zoom', ...args]),
+  };
+
+  handleCameraWheel(camera, {
+    deltaX: 12,
+    deltaY: 8,
+    ctrlKey: false,
+    metaKey: false,
+    shiftKey: false,
+    preventDefault: () => {},
+  });
+
+  assert.deepEqual(calls, [['rotateOrbit', 0.042, -0.028]]);
+});
 
 test('calcula destino mesmo enquanto a camera suaviza abaixo do chao', () => {
   const camera = new Camera({ aspect: 1 });

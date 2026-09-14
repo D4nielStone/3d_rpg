@@ -16,6 +16,29 @@ import { customizeMap } from './map-customization.js';
 import { ThreeRenderSystem } from './three-renderer.js';
 import { createMobileControls } from './mobile-controls.js';
 
+export function handleCameraWheel(camera, event) {
+  const hasTrackpadPan = Math.abs(event.deltaX) > 0.5 || (event.shiftKey && Math.abs(event.deltaY) > 0.5);
+  const isPinchZoom = event.ctrlKey || event.metaKey;
+
+  if (isPinchZoom) {
+    event.preventDefault();
+    camera.zoom(-event.deltaY * 0.01);
+    return;
+  }
+
+  if (hasTrackpadPan) {
+    event.preventDefault();
+    camera.rotateOrbit(
+      event.deltaX * 0.0035,
+      -event.deltaY * 0.0035,
+    );
+    return;
+  }
+
+  event.preventDefault();
+  camera.zoom(event.deltaY * 0.01);
+}
+
 export async function createGame(canvas, mapConfig = null) {
   const camera = new Camera({ terrain: mapConfig?.terrain ?? null });
   const world = new World();
@@ -56,8 +79,7 @@ export async function createGame(canvas, mapConfig = null) {
   );
 
   canvas.addEventListener('wheel', (event) => {
-    event.preventDefault();
-    camera.zoom(event.deltaY * 0.01);
+    handleCameraWheel(camera, event);
   }, { passive: false });
   const rotateSensitivity = 0.005;
   let isRightDragging = false;

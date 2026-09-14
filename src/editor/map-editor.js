@@ -7,6 +7,8 @@ import { ConvexGeometry } from 'three/examples/jsm/geometries/ConvexGeometry.js'
 import { AnimationMixer, LoopOnce, LoopRepeat } from 'three';
 import { createEditorGizmos } from './editor-gizmos.js';
 import { normalizeTerrainForExport, isTerrainRemoved } from './terrain-state.js';
+import { normalizeVector, normalizeColor, colorToHex, uniqueEntityName, normalizeCollision, createPrimitiveObject } from './editor-utils.js';
+import { configureTerrainMesh, applyTerrainBrushToGround } from './editor-terrain.js';
 import { readSavedMapConfig, saveMapConfig } from '../map-config.js';
 import { getMultiplayerHttpUrl } from '../multiplayer-url.js';
 
@@ -17,19 +19,6 @@ if (!(accessResponse?.ok && (await accessResponse.json()).authorized)) {
   document.body.innerHTML = '<main class="access-denied"><h1>Acesso restrito</h1><p>O editor de mapas está disponível apenas para administradores pelo comando /map.</p></main>';
   throw new Error('Map editor access denied');
 }
-function normalizeCollision(entity) {
-  const collision = entity.collision ?? {};
-  entity.collision = {
-    enabled: collision.enabled === true,
-    shape: ['model', 'box', 'convex', 'capsule'].includes(collision.shape) ? collision.shape : 'box',
-    offset: normalizeVector(collision.offset, [0, 0, 0]),
-    scale: normalizeVector(collision.scale, [1, 1, 1]).map((value) => Math.max(0.01, Math.abs(value))),
-    friction: Math.min(1, Math.max(0, Number(collision.friction ?? 0.3) || 0)),
-    restitution: Math.min(1, Math.max(0, Number(collision.restitution ?? 0) || 0)),
-  };
-  return entity;
-}
-
 const canvas = document.querySelector('#map-canvas');
 const status = document.querySelector('#map-status');
 const coordinates = document.querySelector('#map-coordinates');
@@ -160,9 +149,7 @@ function renderSounds() {
   }));
 }
 function selectedEntity() { return entities.find((entity) => entity.id === selectedEntityId) ?? null; }
-function normalizeVector(value, fallback) { return Array.from({ length: 3 }, (_, index) => { const item = value?.[index]; return item === null || item === undefined || !Number.isFinite(Number(item)) ? fallback[index] : Number(item); }); }
 function normalizeEntityTransform(entity) { entity.position = normalizeVector(entity.position, [0, 0, 0]); entity.rotation = normalizeVector(entity.rotation, [0, 0, 0]); entity.scale = normalizeVector(entity.scale, [1, 1, 1]); return entity; }
-function normalizeColor(value, fallback = [1, 1, 1]) { return normalizeVector(value, fallback).map((channel) => Math.min(1, Math.max(0, channel))); }
 function normalizeEntityMaterials(entity) { entity.materials = Array.isArray(entity.materials) ? entity.materials.map((material) => ({ ...material, diffuseColor: normalizeColor(material.diffuseColor) })) : []; return entity; }
 function normalizeEntityShadows(entity) { entity.receiveLight = entity.receiveLight !== false; entity.castShadow = entity.castShadow !== false; return entity; }
 function normalizeEntityAnimation(entity) {
@@ -182,7 +169,6 @@ function normalizePointLight(entity) {
   };
   return entity;
 }
-function colorToHex(color) { return `#${color.map((channel) => Math.round(channel * 255).toString(16).padStart(2, '0')).join('')}`; }
 function normalizeEnemyArea(area) { area.center = normalizeVector(area.center, [0, 0, 0]); area.width = Math.max(0.1, Number(area.width) || 25); area.depth = Math.max(0.1, Number(area.depth) || 25); area.maxEnemies = Math.max(0, Number(area.maxEnemies ?? 5) || 0); area.enemyType = String(area.enemyType || 'rat'); area.areaLevel = Math.max(1, Number(area.areaLevel ?? 1) || 1); area.spawnIntervalMs = Math.max(0, Number(area.spawnIntervalMs ?? 3000) || 0); return area; }
 function normalizeEnemyType(type, index = 0) {
   type.id = String(type.id || `enemy-${index + 1}`).trim().toLowerCase().replace(/[^a-z0-9_-]/g, '-') || `enemy-${index + 1}`;
@@ -317,30 +303,9 @@ for (let index = 0; index < terrainPosition.count; index += 1) {
   terrainPosition.setY(index, 0.05 * Math.sin(terrainPosition.getX(index) * 0.22) * Math.cos(terrainPosition.getZ(index) * 0.19));
 }
 terrainGeometry.computeVertexNormals();
-function configureTerrainMesh(plane, config = terrainConfig) {
-  const geometry = new THREE.PlaneGeometry(config.width, config.depth, config.segments, config.segments);
-  geometry.rotateX(-Math.PI / 2);
-  const position = geometry.attributes.position;
-  const centerX = config.width / 2;
-  const centerZ = config.depth / 2;
-  for (let index = 0; index < position.count; index += 1) {
-    const x = position.getX(index) + centerX;
-    const z = position.getZ(index) + centerZ;
-    const storedHeight = config.heights?.length === position.count ? config.heights[index] : undefined;
-    const height = Number.isFinite(storedHeight)
-      ? storedHeight
-      : config.amplitude * Math.sin(x * config.frequency) * Math.cos(z * config.frequency);
-    position.setY(index, height);
-  }
-  geometry.computeVertexNormals();
-  plane.geometry.dispose();
-  plane.geometry = geometry;
-  plane.position.set(-0.5, -0.16, -0.5);
-  return plane;
-}
 const ground = new THREE.Mesh(new THREE.PlaneGeometry(128, 128, 64, 64), new THREE.MeshStandardMaterial({ color: terrainConfig.color, roughness: 1 }));
 ground.receiveShadow = true;
-ground.position.set(-0.5, -0.16, -0.5); configureTerrainMesh(ground); worldGroup.add(ground);
+ground.position.set(-0.5, -0.16, -0.5); configureTerrainMesh(ground, terrainConfig); worldGroup.add(ground);
 const gridHelper = new THREE.GridHelper(1024, 64, 0x53605a, 0x29312d); gridHelper.position.set(-0.5, -0.14, -0.5); gridHelper.material.transparent = true; gridHelper.material.opacity = 0.3; worldGroup.add(gridHelper);
 const enemyAreaVisuals = new THREE.Group(); worldGroup.add(enemyAreaVisuals);
 const entityGroup = new THREE.Group(); worldGroup.add(entityGroup);
@@ -442,19 +407,8 @@ function renderEnemyAreaVisuals() {
   });
 }
 // Adiciona uma entidade à cena, normalizando seus dados e aplicando transformações e materiais.
-function uniqueEntityName(name, ignoredId = null) {
-  const baseName = String(name).trim() || 'Entidade vazia';
-  const normalizedNames = new Set(entities.filter((item) => item.id !== ignoredId).map((item) => String(item.name).trim().toLowerCase()));
-  let uniqueName = baseName;
-  let suffix = 2;
-  while (normalizedNames.has(uniqueName.toLowerCase())) {
-    uniqueName = `${baseName} ${suffix}`;
-    suffix += 1;
-  }
-  return uniqueName;
-}
 function addEntity(entity, object = null, animations = []) {
-  entity.name = uniqueEntityName(entity.name, entity.id);
+  entity.name = uniqueEntityName(entity.name, entities, entity.id);
   normalizeEntityTransform(entity);
   normalizeEntityAnimation(entity);
   normalizeCollision(entity);
@@ -551,25 +505,6 @@ async function refreshPlayerPreview() {
   await applyStoredTextures(playerPreview);
   selectEntity(null);
   renderEntities();
-}
-function createPrimitiveObject(type) {
-  const geometries = {
-    box: () => new THREE.BoxGeometry(1, 1, 1),
-    sphere: () => new THREE.SphereGeometry(0.5, 32, 16),
-    cylinder: () => new THREE.CylinderGeometry(0.5, 0.5, 1, 32),
-    cone: () => new THREE.ConeGeometry(0.5, 1, 32),
-    capsule: () => new THREE.CapsuleGeometry(0.35, 0.3, 8, 16),
-    plane: () => new THREE.PlaneGeometry(1, 1),
-  };
-
-  const geometry = geometries[type]?.();
-  if (!geometry) return null;
-  if (type === 'plane') geometry.rotateX(-Math.PI / 2);
-  const material = new THREE.MeshStandardMaterial({ color: 0x7eb6ff, roughness: 0.72, metalness: 0.05 });
-  const mesh = new THREE.Mesh(geometry, material);
-  mesh.castShadow = true;
-  mesh.receiveShadow = true;
-  return mesh;
 }
 function createPrimitive(type) {
   const labels = { box: 'Cubo', sphere: 'Esfera', cylinder: 'Cilindro', cone: 'Cone', capsule: 'Cápsula', plane: 'Plano' };
@@ -909,23 +844,6 @@ function updateVector(input) {
   const entity = selectedEntity(); if (!entity) return; normalizeEntityTransform(entity); const vector = input.dataset.vector; const index = Number(input.dataset.index); const value = Number(input.value); const safeValue = Number.isFinite(value) ? value : 0; entity[vector][index] = vector === 'rotation' ? THREE.MathUtils.degToRad(safeValue) : safeValue; applyEntityTransform(entity); updateCollisionVisual(entity); gizmos.update(entity.object); if (entity.isPlayerPreview) syncPlayerFromPreview(entity); updateInspector(); updateSummary();
 }
 function setMode(next) { mode = next; document.querySelectorAll('.mode-button').forEach((button) => button.classList.toggle('mode-button-active', button.dataset.mode === mode)); orbit.enabled = mode !== 'terrain'; gizmos.setMode(mode); canvas.style.cursor = mode === 'terrain' ? 'crosshair' : 'default'; }
-function applyTerrainBrushToGround(point) {
-  const position = ground.geometry.attributes.position;
-  const local = point.clone().applyMatrix4(ground.matrixWorld.clone().invert());
-  for (let index = 0; index < position.count; index += 1) {
-    const x = position.getX(index);
-    const z = position.getZ(index);
-    const dx = x - local.x;
-    const dz = z - local.z;
-    const distance = Math.sqrt(dx * dx + dz * dz);
-    if (distance > terrainConfig.brushRadius) continue;
-    const falloff = 1 - distance / terrainConfig.brushRadius;
-    position.setY(index, position.getY(index) + terrainConfig.brushStrength * falloff * falloff);
-  }
-  position.needsUpdate = true;
-  ground.geometry.computeVertexNormals();
-  terrainConfig.heights = Array.from(position.array).filter((_, index) => index % 3 === 1);
-}
 function exportConfig() { const maxHp = Math.max(1, Number(player.status?.maxHp) || 20); const terrainState = normalizeTerrainForExport({ ...terrainConfig, heights: Array.from((ground?.geometry?.attributes?.position?.array ?? [])).filter((_, index) => index % 3 === 1) }, terrainRemoved); return { format: 'webrpg.world', version: 2, scene: { name: 'main-world', units: 'world', skyColor: [...skyColor], fog: { color: [...fog.color], near: fog.near, far: fog.far } }, terrain: terrainState, lighting: { ambientColor: [...lighting.ambientColor], ambientIntensity: lighting.ambientIntensity, directional: { ...lighting.directional, direction: [...lighting.directional.direction], color: [...lighting.directional.color], castShadow: lighting.directional.castShadow !== false }, point: { ...lighting.point, position: [...lighting.point.position], color: [...lighting.point.color] } }, sounds: { ...sounds }, player: { ...player, maxHp, position: [...player.position], rotation: [...player.rotation], scale: [...player.scale], materials: player.materials?.map((material) => ({ ...material, diffuseColor: [...material.diffuseColor], texture: material.texture ?? null })) ?? [], status: { ...player.status, maxHp }, inventory: [...player.inventory], collision: { ...player.collision }, animation: { ...player.animation } }, assets: assets.map(({ id, name, url, source, format, dependencies }) => ({ id, name, url, source, format, dependencies })), entities: entities.filter((entity) => !entity.isPlayerPreview).map(({ object, ...entity }) => entitySnapshot(entity)), enemyTypes: enemyTypes.map((type, index) => normalizeEnemyType({ ...type, gold: { ...type.gold }, itemDrops: [...type.itemDrops] }, index)), enemyAreas: enemyAreas.map((area) => ({ ...normalizeEnemyArea(area), center: [...area.center] })) }; }
 function updateSummary() {
   const config = exportConfig();
