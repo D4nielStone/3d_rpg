@@ -123,7 +123,7 @@ let player = {
   position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1], speed: 3,
   materials: [],
   status: { level: 1, hp: 20, maxHp: 20, mana: 20, xp: 0, strength: 1, accuracy: 1, magic: 1, money: 0 },
-  inventory: [], collision: { enabled: false, shape: 'model' }, animation: { name: '', loop: true, speed: 1 },
+  inventory: [], collision: { enabled: false, shape: 'model', bodyType: 'characterBody' }, animation: { name: '', loop: true, speed: 1 },
 };
 let selectedEntityId = null;
 let selectedEnemyAreaId = null;
@@ -903,6 +903,7 @@ function updateInspector() {
   normalizeCollision(entity);
   document.querySelector('#collision-enabled').checked = entity.collision.enabled;
   document.querySelector('#collision-shape').value = entity.collision.shape;
+  document.querySelector('#collision-body-type').value = entity.collision.bodyType;
   collisionFrictionInput.value = entity.collision.friction;
   collisionFrictionValue.textContent = entity.collision.friction.toFixed(2);
   collisionRestitutionInput.value = entity.collision.restitution;
@@ -1141,7 +1142,7 @@ async function loadSavedWorld() {
       scale: [1, 1, 1],
       status: { level: 1, hp: 20, maxHp: 20, mana: 20, xp: 0, strength: 1, accuracy: 1, magic: 1, money: 0 },
       inventory: [],
-      collision: { enabled: false, shape: 'model', offset: [0, 0, 0], scale: [1, 1, 1], friction: 0.3, restitution: 0 },
+      collision: { enabled: false, shape: 'model', bodyType: 'characterBody', offset: [0, 0, 0], scale: [1, 1, 1], friction: 0.3, restitution: 0 },
       animation: { name: '', loop: true, speed: 1 },
     },
     assets: [],
@@ -1262,6 +1263,7 @@ document.querySelector('#entity-name').addEventListener('change', (event) => {
 });
 document.querySelector('#collision-enabled').addEventListener('change', (event) => { const entity = selectedEntity(); if (!entity) return; pushHistory(); entity.collision.enabled = event.target.checked; if (entity.isPlayerPreview) player.collision = { ...entity.collision }; updateCollisionVisual(entity); updateSummary(); });
 document.querySelector('#collision-shape').addEventListener('change', (event) => { const entity = selectedEntity(); if (!entity) return; pushHistory(); entity.collision.shape = event.target.value; if (entity.isPlayerPreview) player.collision = { ...entity.collision }; updateCollisionVisual(entity); updateSummary(); });
+document.querySelector('#collision-body-type').addEventListener('change', (event) => { const entity = selectedEntity(); if (!entity) return; pushHistory(); entity.collision.bodyType = ['rigidBody', 'staticBody', 'characterBody'].includes(event.target.value) ? event.target.value : 'staticBody'; if (entity.isPlayerPreview) player.collision = { ...entity.collision }; updateCollisionVisual(entity); updateSummary(); });
 function updateCollisionProperty(input, property) {
   const entity = selectedEntity(); if (!entity) return;
   pushHistory();

@@ -6,6 +6,25 @@ import { LineRenderer, MoveTarget, OutlineRenderer, PlayerController, SwordRende
 import { PhysicsWorld } from '../src/physics-world.js';
 import { ThreeRenderSystem } from '../src/three-renderer.js';
 
+test('o corpo do cannon nao e reposicionado manualmente antes do passo fisico', () => {
+  const world = new PhysicsWorld();
+  const body = world.addPlayer('manual-mix', [0, 0, 0]);
+  const originalPosition = [body.position.x, body.position.y, body.position.z];
+
+  let seenPositionAtStep = null;
+  const originalStep = world.world.step.bind(world.world);
+  world.world.step = (...args) => {
+    seenPositionAtStep = [body.position.x, body.position.y, body.position.z];
+    body.position.x += body.velocity.x * args[1];
+    body.position.z += body.velocity.z * args[1];
+    return originalStep(...args);
+  };
+
+  world.stepPlayer('manual-mix', originalPosition, [2, 0, 0], 0.1, { ignoreTerrain: true });
+
+  assert.deepEqual(seenPositionAtStep, originalPosition);
+});
+
 test('move o jogador por teclado quando o mapa nao tem colisoes', () => {
   const components = new Map([
     [Transform, new Transform({ position: [0, 0, 0] })],

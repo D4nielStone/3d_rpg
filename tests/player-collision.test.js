@@ -60,6 +60,38 @@ test('permite caminhar sobre um collider de chão fino', () => {
   assert.ok(result[0] > 0.25, `X deveria avançar sobre o chão, mas ficou ${result[0]}`);
 });
 
+test('permite caminhar sobre um bloco 3d com colisão quando o jogador está por cima', () => {
+  const world = new PhysicsWorld({
+    entities: [{
+      id: 'platform',
+      name: 'Plataforma',
+      position: [0, 0, 0],
+      scale: [4, 1, 4],
+      collision: { enabled: true, shape: 'box' },
+    }],
+  });
+
+  const result = world.stepPlayer('player', [0, 1.2, 0], [0.5, 0, 0], 0.05);
+
+  assert.ok(result[0] > 0.1, `O jogador deveria avançar sobre a plataforma, mas ficou em ${result[0]}`);
+  assert.ok(result[1] > 0.8, `O jogador deveria manter-se acima da plataforma, mas ficou em ${result[1]}`);
+});
+
+test('não teleporta o jogador para o topo do bloco ao cruzar o centro do objeto', () => {
+  const world = new PhysicsWorld({
+    entities: [{
+      id: 'platform',
+      position: [0, 0, 0],
+      scale: [4, 4, 4],
+      collision: { enabled: true, shape: 'box' },
+    }],
+  });
+
+  const result = world.stepPlayer('player', [0, 2.2, 0], [0.2, 0, 0], 0.05);
+
+  assert.ok(Math.abs(result[1] - 2.2) < 0.6, `O jogador não deve ser teletransportado para o topo do bloco, mas ficou em ${result[1]}`);
+});
+
 test('faz o jogador subir uma colina abaixo da altura do jogador', () => {
   const world = new PhysicsWorld({
     terrain: {

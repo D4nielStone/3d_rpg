@@ -117,7 +117,7 @@ export async function createGame(canvas, mapConfig = null) {
     networkInterpolationSystem: new NetworkInterpolationSystem(),
     soundListenerSystem: new SoundListenerSystem(),
     soundPlayerSystem: new SoundPlayerSystem(),
-    PlayerPathSystem: new PlayerPathSystem(canvas, camera),
+    PlayerPathSystem: new PlayerPathSystem(canvas, camera, normalizedMapConfig),
     nameTagSystem: new NameTagSystem(canvas, camera),
     enemyHoverSystem: new EnemyHoverSystem(canvas, camera),
     renderSystem,

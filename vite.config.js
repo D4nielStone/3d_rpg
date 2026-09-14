@@ -9,7 +9,7 @@ export default defineConfig({
     strictPort: true,
   },
   build: {
-    chunkSizeWarningLimit: 700,
+    chunkSizeWarningLimit: 1000,
     rollupOptions: {
       input: {
         app: `${root}/index.html`,

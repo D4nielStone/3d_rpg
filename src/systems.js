@@ -27,6 +27,7 @@ import {
 } from './components.js';
 import { PhysicsWorld } from './physics-world.js';
 import { Camera } from './camera.js';
+import { sampleTerrainHeight } from '../shared/terrain-height.js';
 
 function shortestAngleDelta(target, current) {
   return Math.atan2(Math.sin(target - current), Math.cos(target - current));
@@ -146,45 +147,71 @@ export class MovementSystem {
   }
 
   update(world, deltaSeconds) {
-    const step = Math.max(0, Math.min(Number(deltaSeconds) || 0, 0.1));
+    const step = Math.max(
+      0,
+      Math.min(Number(deltaSeconds) || 0, 0.1)
+    );
+
     for (const entity of world.query(Transform, PlayerController, MoveTarget)) {
       const transform = world.getComponent(entity, Transform);
       const controller = world.getComponent(entity, PlayerController);
       const moveTarget = world.getComponent(entity, MoveTarget);
+
       if (this.input.consumePressed(' ')) {
-        // Space cancela o destino; o PlayerPathSystem remove o marcador no mesmo frame.
         moveTarget.position = null;
         moveTarget.path = null;
         continue;
       }
 
-      const { deltaX, deltaZ, hasKeyboardMovement } = this.getKeyboardMovement();
+      const {
+        deltaX,
+        deltaZ,
+        hasKeyboardMovement,
+      } = this.getKeyboardMovement();
+
       if (hasKeyboardMovement) {
         moveTarget.position = null;
         moveTarget.path = null;
       }
 
-      if (!hasKeyboardMovement && moveTarget.position && !Array.isArray(moveTarget.path)) {
-        moveTarget.path = this.physics.findPath(transform.position, moveTarget.position);
+      if (
+        !hasKeyboardMovement &&
+        moveTarget.position &&
+        !Array.isArray(moveTarget.path)
+      ) {
+        moveTarget.path = this.physics.findPath(
+          transform.position,
+          moveTarget.position
+        );
+
         if (moveTarget.path.length === 0) {
           moveTarget.position = null;
         }
       }
 
       let target = null;
-      if (!hasKeyboardMovement && moveTarget.position && Array.isArray(moveTarget.path)) {
+
+      if (
+        !hasKeyboardMovement &&
+        moveTarget.position &&
+        Array.isArray(moveTarget.path)
+      ) {
         while (moveTarget.path.length > 0) {
           const waypoint = moveTarget.path[0];
+
           const distance = Math.hypot(
             waypoint[0] - transform.position[0],
-            waypoint[2] - transform.position[2],
+            waypoint[2] - transform.position[2]
           );
+
           if (distance > 0.08) {
             target = waypoint;
             break;
           }
+
           moveTarget.path.shift();
         }
+
         if (!target) {
           moveTarget.position = null;
           moveTarget.path = null;
@@ -193,52 +220,131 @@ export class MovementSystem {
 
       const targetDeltaX = hasKeyboardMovement
         ? deltaX
-        : (target?.[0] ?? transform.position[0]) - transform.position[0];
+        : (target?.[0] ?? transform.position[0]) -
+          transform.position[0];
+
       const targetDeltaZ = hasKeyboardMovement
         ? deltaZ
-        : (target?.[2] ?? transform.position[2]) - transform.position[2];
-      const distanceToTarget = Math.hypot(targetDeltaX, targetDeltaZ);
-      const directionX = distanceToTarget > 0 ? targetDeltaX / distanceToTarget : 0;
-      const directionZ = distanceToTarget > 0 ? targetDeltaZ / distanceToTarget : 0;
+        : (target?.[2] ?? transform.position[2]) -
+          transform.position[2];
+
+      const distanceToTarget = Math.hypot(
+        targetDeltaX,
+        targetDeltaZ
+      );
+
+      const directionX =
+        distanceToTarget > 0
+          ? targetDeltaX / distanceToTarget
+          : 0;
+
+      const directionZ =
+        distanceToTarget > 0
+          ? targetDeltaZ / distanceToTarget
+          : 0;
+
       const speed = Math.min(
         controller.speed,
-        step > 0 && !hasKeyboardMovement ? distanceToTarget / step : controller.speed,
+        step > 0 && !hasKeyboardMovement
+          ? distanceToTarget / step
+          : controller.speed
       );
-      const velocity = [directionX * speed, 0, directionZ * speed];
-      const previousPosition = [...transform.position];
-      const next = this.physics.stepPlayer(entity, transform.position, velocity, step, {
-        ignoreTerrain: hasKeyboardMovement,
-      });
+
+      const velocity = [
+        directionX * speed,
+        0,
+        directionZ * speed,
+      ];
+
+      const previousPosition = [
+        ...transform.position,
+      ];
+
+      const next = this.physics.stepPlayer(
+        entity,
+        transform.position,
+        velocity,
+        step
+      );
+
       transform.position = next;
-      const moved = Math.hypot(next[0] - previousPosition[0], next[2] - previousPosition[2]);
-      if (distanceToTarget > 0 && (hasKeyboardMovement || moved > 0.001)) {
-        transform.rotation[1] = Math.atan2(directionX, directionZ);
+
+      const moved = Math.hypot(
+        next[0] - previousPosition[0],
+        next[2] - previousPosition[2]
+      );
+
+      if (
+        distanceToTarget > 0 &&
+        (hasKeyboardMovement || moved > 0.001)
+      ) {
+        transform.rotation[1] =
+          Math.atan2(directionX, directionZ);
       }
 
-      if (!hasKeyboardMovement && target && moveTarget.path?.[0] === target) {
-        const remaining = Math.hypot(target[0] - next[0], target[2] - next[2]);
-        if (remaining <= 0.08) moveTarget.path.shift();
+      if (
+        !hasKeyboardMovement &&
+        target &&
+        moveTarget.path?.[0] === target
+      ) {
+        const remaining = Math.hypot(
+          target[0] - next[0],
+          target[2] - next[2]
+        );
+
+        if (remaining <= 0.08) {
+          moveTarget.path.shift();
+        }
+
         if (moveTarget.path.length === 0) {
           moveTarget.position = null;
           moveTarget.path = null;
         }
       }
     }
-  }
+}
 }
 
 // Desenha o caminho que o player irá seguir
 export class PlayerPathSystem {
-  constructor(canvas, camera) {
+  constructor(canvas, camera, mapConfig = null) {
     this.canvas = canvas;
     this.camera = camera;
+    this.mapConfig = mapConfig;
     this.lastClick = null;
     this.pointerHeld = false;
     this.combatTarget = null;
+
+    this.getSurfaceHeight = (x, z) => {
+    let highest = this.camera?.terrain
+      ? sampleTerrainHeight(this.camera.terrain, x, z)
+      : null;
+        for (const entity of this.mapConfig?.entities ?? []) {
+        if (!entity?.collision?.enabled || !Array.isArray(entity.position)) continue;
+        const scale = entity.scale ?? [1, 1, 1];
+        const collisionScale = entity.collision.scale ?? [1, 1, 1];
+        const offset = entity.collision.offset ?? [0, 0, 0];
+        const halfX = Math.max(0.05, Math.abs(Number(scale[0]) || 1) * Math.abs(Number(collisionScale[0]) || 1) * 0.5);
+        const halfY = Math.max(0.05, Math.abs(Number(scale[1]) || 1) * Math.abs(Number(collisionScale[1]) || 1) * 0.5);
+        const halfZ = Math.max(0.05, Math.abs(Number(scale[2]) || 1) * Math.abs(Number(collisionScale[2]) || 1) * 0.5);
+        const minX = entity.position[0] + (Number(offset[0]) || 0) - halfX;
+        const maxX = entity.position[0] + (Number(offset[0]) || 0) + halfX;
+        const minZ = entity.position[2] + (Number(offset[2]) || 0) - halfZ;
+        const maxZ = entity.position[2] + (Number(offset[2]) || 0) + halfZ;
+        if (x < minX || x > maxX || z < minZ || z > maxZ) continue;
+        highest = Math.max(highest, entity.position[1] + (Number(offset[1]) || 0) + halfY);
+      }
+      return highest ?? 0;
+    };
+
     // Pointer Events funcionam para mouse, toque e caneta com a mesma implementacao.
     const updateTarget = (event) => {
       const target = camera.screenToGround(event.clientX, event.clientY, canvas);
-      if (target) this.lastClick = target;
+      if (target) {
+        const surfaceHeight = this.getSurfaceHeight(target[0], target[2]);
+        if (Number.isFinite(surfaceHeight)) target[1] = surfaceHeight;
+        this.lastClick = target;
+      }
     };
 
     canvas.addEventListener('pointerdown', (event) => {

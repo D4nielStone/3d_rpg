@@ -42,6 +42,7 @@ export function normalizeCollision(entity) {
   entity.collision = {
     enabled: collision.enabled === true,
     shape: ['model', 'box', 'convex', 'capsule'].includes(collision.shape) ? collision.shape : 'box',
+    bodyType: ['rigidBody', 'staticBody', 'characterBody'].includes(collision.bodyType) ? collision.bodyType : 'staticBody',
     offset: normalizeVector(collision.offset, [0, 0, 0]),
     scale: normalizeVector(collision.scale, [1, 1, 1]).map((value) => Math.max(0.01, Math.abs(value))),
     friction: Math.min(1, Math.max(0, Number(collision.friction ?? 0.3) || 0)),
