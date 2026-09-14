@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { normalizeVector, normalizeColor, colorToHex, uniqueEntityName } from '../src/editor/editor-utils.js';
+import { normalizeVector, normalizeColor, colorToHex, uniqueEntityName, listEditorEntities } from '../src/editor/editor-utils.js';
 
 test('normalizeVector usa fallback para valores inválidos', () => {
   assert.deepEqual(normalizeVector([1, 2], [0, 0, 0]), [1, 2, 0]);
@@ -22,4 +22,12 @@ test('uniqueEntityName evita nomes duplicados', () => {
   assert.equal(uniqueEntityName('Novo', entities), 'Novo');
   assert.equal(uniqueEntityName('Portal', entities, 'a'), 'Portal');
   assert.equal(uniqueEntityName('Portal', entities, 'b'), 'Portal 2');
+});
+
+test('listEditorEntities inclui terreno e luz direcional como entidades editáveis', () => {
+  const entities = [{ id: 'entity-1', name: 'Cubo', type: 'entity' }];
+  const list = listEditorEntities(entities);
+  assert.deepEqual(list.map((entity) => entity.type), ['terrain', 'directionalLight', 'entity']);
+  assert.equal(list[0].name, 'Terreno');
+  assert.equal(list[1].name, 'Luz direta');
 });

@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { normalizeTerrainForExport } from '../src/editor/terrain-state.js';
+import { normalizeMapConfig } from '../src/map-config.js';
 import { canTraverseTerrain, sampleTerrainHeight, TERRAIN_BASE_Y, PLAYER_HEIGHT } from '../shared/terrain-height.js';
 import { doesAttackHit } from '../server/combat.js';
 
@@ -16,6 +17,23 @@ test('o terreno ativo mantém o mesmo payload ao exportar', () => {
 
   assert.deepEqual(exported, config);
   assert.notStrictEqual(exported, config);
+});
+
+test('preserva terrain null ao normalizar o mapa para representar terreno removido', () => {
+  const fallback = { terrain: { width: 64, depth: 64, heights: [0] }, entities: [] };
+  const normalized = normalizeMapConfig({ terrain: null, entities: [] }, fallback);
+
+  assert.equal(normalized.terrain, null);
+  assert.deepEqual(normalized.entities, []);
+});
+
+test('marca terrain null como terreno removido mesmo quando o valor é explícito', () => {
+  assert.equal(normalizeTerrainForExport(null, false), null);
+  assert.equal(normalizeTerrainForExport({ width: 64, depth: 64, heights: [0] }, true), null);
+  const config = { terrain: null, entities: [] };
+  const normalized = normalizeMapConfig(config, { terrain: { width: 16, depth: 16, heights: [0] }, entities: [] });
+  assert.equal(normalized.terrain, null);
+  assert.equal(Boolean(normalized.terrain === null), true);
 });
 
 test('ataque com defesa alta tem chance mínima e não ultrapassa o limite de acerto', () => {

@@ -3,7 +3,18 @@ import { loadAsset } from './asset-loader.js';
 import { createWater } from './water.js';
 import { readSavedMapConfig } from './map-config.js';
 
+const DEFAULT_TERRAIN = Object.freeze({
+  width: 128,
+  depth: 128,
+  segments: 16,
+  color: '#202522',
+  amplitude: 0,
+  frequency: 0.22,
+  heights: Array.from({ length: 17 * 17 }, () => 0),
+});
+
 export const DEFAULT_MAP_CONFIG = Object.freeze({
+  terrain: DEFAULT_TERRAIN,
   enemyAreas: [],
   water: {
     enabled: false,

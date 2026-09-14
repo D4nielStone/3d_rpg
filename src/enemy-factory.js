@@ -177,7 +177,6 @@ export function addRemoteEnemy(world, enemyAssets, enemy) {
     maxHp: enemy.maxHp,
   }));
   world.addComponent(entity, new NetworkTransform());
-  world.addComponent(entity, new OutlineRenderer());
   world.addComponent(entity, new NameTag({
     text: enemy.name,
     level: enemy.level,

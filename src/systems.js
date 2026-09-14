@@ -274,9 +274,11 @@ export class PlayerPathSystem {
       const colors = [];
       const indices = [];
       // O marcador permanece no destino; apenas o raio pulsa visualmente.
+      const sourceTransform = world.getComponent(line.sourceEntity, Transform);
+      const baseRadius = line.getRadius?.(sourceTransform) ?? line.radius;
       const height = target[1] + 0.04;
       const pulse = 1 + Math.sin(time * 0.006) * 0.12;
-      const outerRadius = line.radius * pulse;
+      const outerRadius = baseRadius * pulse;
       const rings = [
         { radius: outerRadius + 0.1, thickness: line.thickness * 0.55, color: line.glowColor },
         { radius: outerRadius, thickness: line.thickness, color: line.color },

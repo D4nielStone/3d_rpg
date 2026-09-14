@@ -325,6 +325,14 @@ export class OutlineRenderer {
     this.indexBuffer = null;
     this.dirty = true;
   }
+
+  getRadius(transform = null) {
+    const scale = transform?.scale ?? [1, 1, 1];
+    const width = Number(scale[0]) || 1;
+    const depth = Number(scale[2]) || 1;
+    const scaleFactor = Math.max(1, Math.max(Math.abs(width), Math.abs(depth)));
+    return Number(this.radius) * scaleFactor;
+  }
 }
 
 export class ShadowRenderer {
@@ -642,7 +650,7 @@ export class DirectionalLightRenderer {
 }
 
 export class LineRenderer {
-  // radius controla o tamanho; thickness controla a largura do anel.
+  // radius controla o tamanho base; thickness controla a largura do anel.
   constructor({
     sourceEntity,
     color = [0.12, 0.58, 1],
@@ -667,5 +675,13 @@ export class LineRenderer {
     this.colorBuffer = null;
     this.indexBuffer = null;
     this.dirty = true;
+  }
+
+  getRadius(transform = null) {
+    const scale = transform?.scale ?? [1, 1, 1];
+    const width = Number(scale[0]) || 1;
+    const depth = Number(scale[2]) || 1;
+    const scaleFactor = Math.max(1, Math.max(Math.abs(width), Math.abs(depth)));
+    return Number(this.radius) * scaleFactor;
   }
 }

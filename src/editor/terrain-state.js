@@ -1,7 +1,7 @@
 export function isTerrainRemoved(terrain) {
+  if (terrain === null) return true;
   if (!terrain || typeof terrain !== 'object') return false;
   if (terrain.removed === true) return true;
-  if (terrain === null) return true;
   return false;
 }
 

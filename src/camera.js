@@ -271,7 +271,7 @@ export class Camera {
 
   rotateOrbit(deltaAzimuth, deltaElevation, {
     minElevation = -Math.PI / 2 + 1.7,
-    maxElevation = Math.PI / 2 - 1,
+    maxElevation = Math.PI / 2 - 0.5,
   } = {}) {
     if (!this.orbit) return;
     this.orbit.azimuth -= deltaAzimuth;

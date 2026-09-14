@@ -197,8 +197,10 @@ export class ThreeRenderSystem {
   }
 
   updateRing(component, transform, time, color) {
-    const radius = component.radius * (1 + Math.sin(time * 0.006) * 0.08);
-    const shape = new THREE.RingGeometry(Math.max(0, radius - component.thickness), radius, component.segments);
+    const baseRadius = component.getRadius?.(transform) ?? component.radius;
+    const radius = baseRadius * (1 + Math.sin(time * 0.006) * 0.08);
+    const thickness = component.thickness * Math.max(1, Math.max(Math.abs(transform.scale[0] ?? 1), Math.abs(transform.scale[2] ?? 1)));
+    const shape = new THREE.RingGeometry(Math.max(0, radius - thickness), radius, component.segments);
     const material = new THREE.MeshBasicMaterial({ color: colorFrom(color), transparent: true, opacity: 0.9, side: THREE.DoubleSide, depthWrite: false });
     const ring = new THREE.Mesh(shape, material);
     ring.rotation.x = -Math.PI / 2;
