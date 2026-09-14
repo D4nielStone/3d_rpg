@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 
 import { createEnemyAreas } from '../server/world/enemy-areas.js';
 import { isMapAccessAuthorized } from '../server/multiplayer/routes.js';
+import { DEFAULT_MAP_CONFIG } from '../src/map-customization.js';
+import { normalizeMapConfig } from '../src/map-config.js';
 
 test('aceita acesso do editor quando a sessao ficou desatualizada mas o usuario continua admin no banco', () => {
   const access = {
@@ -46,10 +48,10 @@ test('rejeita ticket expirado mesmo para administrador', () => {
   assert.equal(isMapAccessAuthorized({ access, session, user }), false);
 });
 
-test('cria uma área de inimigos padrão quando não há mapa publicado', () => {
+test('mantém um mundo vazio sem áreas de inimigos quando não há configuração pública', () => {
   const enemyAreas = createEnemyAreas();
+  const normalized = normalizeMapConfig({ enemyAreas: [] }, DEFAULT_MAP_CONFIG);
 
-  assert.equal(enemyAreas.length > 0, true);
-  assert.equal(enemyAreas[0].id, 'starting-rat-area');
-  assert.equal(enemyAreas[0].enemyType, 'rat');
+  assert.deepEqual(enemyAreas, []);
+  assert.deepEqual(normalized.enemyAreas, []);
 });

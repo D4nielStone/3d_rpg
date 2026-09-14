@@ -4,18 +4,7 @@ import { createEnemyTypeMap } from './enemy-types.js';
 export const MIN_LEVEL_FOR_HIGHER_AREA = 3;
 
 export function createEnemyAreas(config = null) {
-  const definitions = Array.isArray(config?.enemyAreas) && config.enemyAreas.length > 0
-    ? config.enemyAreas
-    : [{
-        id: 'starting-rat-area',
-        center: [0, 0, 0],
-        width: 25,
-        depth: 25,
-        maxEnemies: 5,
-        enemyType: 'rat',
-        areaLevel: 1,
-        spawnIntervalMs: 3000,
-      }];
+  const definitions = Array.isArray(config?.enemyAreas) ? config.enemyAreas : [];
   const enemyTypes = createEnemyTypeMap(config);
   const defaultEnemyType = enemyTypes.keys().next().value ?? 'rat';
   return definitions.map((area, index) => new EnemyArea({
