@@ -67,8 +67,6 @@
   background: #f0c54a;
 }
 
-#mobile-controls { display: none; }
-
 @media (max-width: 640px) {
   #player-status,
   #player-status .status-health,
@@ -81,82 +79,4 @@
   .action-slot { width: 2.65rem; height: 2.65rem; }
   #chat-toggle { right: 0.2rem; bottom: 8.9rem; width: 2.65rem; }
 
-  #mobile-controls {
-    position: fixed;
-    z-index: 6;
-    inset: 0;
-    display: block;
-    pointer-events: none;
-    touch-action: none;
-  }
-
-  #mobile-joystick,
-  #mobile-camera-pad {
-    position: absolute;
-    pointer-events: auto;
-    touch-action: none;
-  }
-
-  #mobile-joystick {
-    bottom: max(1rem, calc(env(safe-area-inset-bottom) + 0.5rem));
-    left: max(1rem, env(safe-area-inset-left));
-    width: 6.5rem;
-    height: 6.5rem;
-    border: 2px solid rgb(255 255 255 / 28%);
-    border-radius: 50%;
-    background: rgb(10 14 18 / 34%);
-    box-shadow: inset 0 0 0 0.65rem rgb(0 0 0 / 14%);
-  }
-
-  #mobile-joystick::after {
-    position: absolute;
-    inset: 1.55rem;
-    border: 1px solid rgb(255 255 255 / 18%);
-    border-radius: 50%;
-    content: '';
-  }
-
-  #mobile-joystick-thumb {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    width: 2.35rem;
-    height: 2.35rem;
-    margin: -1.175rem 0 0 -1.175rem;
-    border: 2px solid #f0c54a;
-    border-radius: 50%;
-    background: rgb(83 106 60 / 82%);
-    box-shadow: 0 2px 8px rgb(0 0 0 / 35%);
-    transform: translate(0, 0);
-    transform-origin: center;
-  }
-
-  #mobile-camera-pad {
-    top: 25%;
-    right: 0;
-    bottom: 0;
-    width: 48%;
-  }
-
-  #mobile-camera-zoom {
-    position: absolute;
-    right: max(1rem, env(safe-area-inset-right));
-    bottom: max(1rem, calc(env(safe-area-inset-bottom) + 0.5rem));
-    display: grid;
-    gap: 0.35rem;
-    pointer-events: auto;
-  }
-
-  #mobile-camera-zoom button {
-    width: 2.7rem;
-    height: 2.7rem;
-    border: 2px solid #101820;
-    border-radius: 50%;
-    color: #f0c54a;
-    background: rgb(39 48 45 / 88%);
-    box-shadow: 2px 2px 0 #101820;
-    font: 700 1.5rem/1 sans-serif;
-    pointer-events: auto;
-    touch-action: manipulation;
-  }
 }

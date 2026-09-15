@@ -1,4 +1,4 @@
-import { LineRenderer, PlayerHealthBar, Transform } from './components.js';
+import { PlayerHealthBar, Transform } from './components.js';
 import { loadPlayer, spawnFallbackPlayer } from './player-factory.js';
 
 const CAMERA_STORAGE_KEY = 'webgl-rpg-player-camera';
@@ -62,11 +62,3 @@ export function addPlayerHealthBar(world, playerEntity, hp = 1, maxHp = 1) {
 }
 
 // Adiciona um marcador de movimento (linha) que segue o jogador, indicando a direção do movimento.
-export function addMovementMarker(world, playerEntity) {
-  const lineEntity = world.createEntity();
-  world.addComponent(lineEntity, new LineRenderer({
-    sourceEntity: playerEntity,
-    radius: 0.4,
-    thickness: 0.07,
-  }));
-}

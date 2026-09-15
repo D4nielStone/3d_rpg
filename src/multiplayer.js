@@ -4,7 +4,6 @@ import {
   NameTag,
   NetworkIdentity,
   NetworkTransform,
-  MoveTarget,
   OutlineRenderer,
   Transform,
 } from './components.js';
@@ -210,10 +209,6 @@ export class MultiplayerSystem {
         transform.position = [...message.position];
         transform.rotation = [...message.rotation];
       }
-      const moveTarget = this.localEntity
-        ? this.world.getComponent(this.localEntity, MoveTarget)
-        : null;
-      if (moveTarget) moveTarget.position = null;
       this.attackTargetEntity = null;
       this.localStateRestored = false;
       this.localPlayerDead = false;
@@ -227,12 +222,8 @@ export class MultiplayerSystem {
       const transform = this.localEntity
         ? this.world.getComponent(this.localEntity, Transform)
         : null;
-      const moveTarget = this.localEntity
-        ? this.world.getComponent(this.localEntity, MoveTarget)
-        : null;
       if (transform && Array.isArray(message.position)) transform.position = [...message.position];
       if (transform && Array.isArray(message.rotation)) transform.rotation = [...message.rotation];
-      if (moveTarget) moveTarget.position = null;
       this.localStateRestored = true;
       return;
     }
@@ -241,12 +232,8 @@ export class MultiplayerSystem {
       const transform = this.localEntity
         ? this.world.getComponent(this.localEntity, Transform)
         : null;
-      const moveTarget = this.localEntity
-        ? this.world.getComponent(this.localEntity, MoveTarget)
-        : null;
       if (transform && Array.isArray(message.position)) transform.position = [...message.position];
       if (transform && Array.isArray(message.rotation)) transform.rotation = [...message.rotation];
-      if (moveTarget) moveTarget.position = null;
       this.onChat({
         type: 'system',
         text: 'Acesso bloqueado: alcance o nível 3 para entrar em uma área superior.',
@@ -259,12 +246,8 @@ export class MultiplayerSystem {
       const transform = this.localEntity
         ? this.world.getComponent(this.localEntity, Transform)
         : null;
-      const moveTarget = this.localEntity
-        ? this.world.getComponent(this.localEntity, MoveTarget)
-        : null;
       if (transform && Array.isArray(message.position)) transform.position = [...message.position];
       if (transform && Array.isArray(message.rotation)) transform.rotation = [...message.rotation];
-      if (moveTarget) moveTarget.position = null;
       return;
     }
 
@@ -272,12 +255,8 @@ export class MultiplayerSystem {
       const transform = this.localEntity
         ? this.world.getComponent(this.localEntity, Transform)
         : null;
-      const moveTarget = this.localEntity
-        ? this.world.getComponent(this.localEntity, MoveTarget)
-        : null;
       if (transform && Array.isArray(message.position)) transform.position = [...message.position];
       if (transform && Array.isArray(message.rotation)) transform.rotation = [...message.rotation];
-      if (moveTarget) moveTarget.position = null;
       this.onChat({
         type: 'system',
         text: `Colisão com: ${message.collider?.name ?? message.collider?.id ?? 'objeto sem nome'}.`,
@@ -446,11 +425,9 @@ export class MultiplayerSystem {
     if (!this.attackTargetEntity) return;
     const targetTransform = world.getComponent(this.attackTargetEntity, Transform);
     const playerTransform = world.getComponent(this.localEntity, Transform);
-    const moveTarget = world.getComponent(this.localEntity, MoveTarget);
-    if (!targetTransform || !playerTransform || !moveTarget) {
+    if (!targetTransform || !playerTransform) {
       this.attackTargetEntity = null;
       this.onAttackTargetChanged(null);
-      if (moveTarget) moveTarget.position = null;
       return;
     }
 
@@ -460,16 +437,6 @@ export class MultiplayerSystem {
     const attackDistance = this.combatMode === 'melee' ? COMBAT_DISTANCE : RANGED_ATTACK_DISTANCE;
     if (distance > 0.001) {
       playerTransform.rotation[1] = Math.atan2(deltaX, deltaZ);
-    }
-
-    if (distance > attackDistance) {
-      moveTarget.position = [
-        targetTransform.position[0] - deltaX / distance * attackDistance,
-        targetTransform.position[1],
-        targetTransform.position[2] - deltaZ / distance * attackDistance,
-      ];
-    } else {
-      moveTarget.position = null;
     }
 
     if (distance <= attackDistance && time - this.lastAttackRequestAt >= 200) {

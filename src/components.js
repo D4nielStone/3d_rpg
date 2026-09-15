@@ -207,19 +207,6 @@ export class AnimationPlayer {
   }
 }
 
-export class PlayerController {
-  constructor({ speed = 3 } = {}) {
-    this.speed = Math.max(0, Number(speed) || 0);
-  }
-}
-
-export class MoveTarget {
-  constructor() {
-    this.position = null;
-    this.path = null;
-  }
-}
-
 export class NetworkIdentity {
   constructor({ peerId, isLocal = false } = {}) {
     this.peerId = peerId;
@@ -677,39 +664,3 @@ export class DirectionalLightRenderer {
   }
 }
 
-export class LineRenderer {
-  // radius controla o tamanho base; thickness controla a largura do anel.
-  constructor({
-    sourceEntity,
-    color = [0.12, 0.58, 1],
-    glowColor = [0.02, 0.2, 0.72],
-    highlightColor = [0.55, 0.9, 1],
-    radius = 0.4,
-    thickness = 0.07,
-    segments = 40,
-  } = {}) {
-    this.sourceEntity = sourceEntity;
-    this.color = color;
-    this.glowColor = glowColor;
-    this.highlightColor = highlightColor;
-    this.radius = radius;
-    this.thickness = thickness;
-    this.segments = segments;
-    this.target = null;
-    this.vertices = new Float32Array();
-    this.colors = new Float32Array();
-    this.indices = new Uint16Array();
-    this.positionBuffer = null;
-    this.colorBuffer = null;
-    this.indexBuffer = null;
-    this.dirty = true;
-  }
-
-  getRadius(transform = null) {
-    const scale = transform?.scale ?? [1, 1, 1];
-    const width = Number(scale[0]) || 1;
-    const depth = Number(scale[2]) || 1;
-    const scaleFactor = Math.max(1, Math.max(Math.abs(width), Math.abs(depth)));
-    return Number(this.radius) * scaleFactor;
-  }
-}

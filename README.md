@@ -85,10 +85,6 @@ world.addComponent(entity, meshRenderer);
 
 Os sistemas consultam as entidades pelos componentes necessarios e atualizam ou desenham cada uma.
 
-## Movimentacao
-
-Clique no terreno para criar um destino. Um circulo azul marca a posicao e o jogador segue ate ela usando o `MovementSystem`. Pressione `Space` para cancelar o destino e remover o marcador. A camera orbital acompanha o `Transform` do jogador.
-
 ## Multiplayer
 
 O multiplayer usa um relay WebSocket separado. Em um terminal, inicie o relay:

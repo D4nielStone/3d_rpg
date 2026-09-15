@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { MeshRenderer, OutlineRenderer, ShadowRenderer, SwordRenderer, Texture, Transform, Water, LineRenderer, EnemyAreaRenderer, DirectionalLightRenderer } from './components.js';
+import { MeshRenderer, OutlineRenderer, ShadowRenderer, SwordRenderer, Texture, Transform, Water, EnemyAreaRenderer, DirectionalLightRenderer } from './components.js';
 
 function colorFrom(value, fallback = [1, 1, 1]) {
   const channels = Array.isArray(value) ? value : fallback;
@@ -343,19 +343,6 @@ export class ThreeRenderSystem {
     for (const entity of world.query(Transform, ShadowRenderer)) {
       const object = this.entityObjects.get(entity);
       if (object) configureShadowState(object, { castShadow: true, receiveShadow: true });
-    }
-    for (const entity of world.query(LineRenderer)) {
-      const line = world.getComponent(entity, LineRenderer);
-      let object = this.entityObjects.get(`line-${entity}`);
-      if (object) this.root.remove(object);
-      if (!line.indices?.length) continue;
-      const geometry = new THREE.BufferGeometry();
-      geometry.setAttribute('position', new THREE.BufferAttribute(line.vertices, 3));
-      geometry.setAttribute('color', new THREE.BufferAttribute(line.colors, 3));
-      geometry.setIndex(new THREE.BufferAttribute(line.indices, 1));
-      object = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide, depthWrite: false, depthTest: false }));
-      this.root.add(object);
-      this.entityObjects.set(`line-${entity}`, object);
     }
     for (const entity of world.query(Transform, OutlineRenderer)) {
       const outline = world.getComponent(entity, OutlineRenderer);

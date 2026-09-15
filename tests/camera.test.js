@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { Camera } from '../src/camera.js';
 import { handleCameraWheel } from '../src/three-game-setup.js';
 
-test('preserva o clique para mover e orbita a camera em gestos de trackpad', () => {
+test('orbita a camera em gestos de trackpad', () => {
   const calls = [];
   const camera = {
     rotateOrbit: (...args) => calls.push(['rotateOrbit', ...args]),

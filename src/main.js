@@ -13,7 +13,6 @@ import { getMultiplayerHttpUrl, getMultiplayerUrl } from './multiplayer-url.js';
 import { DEFAULT_MAP_CONFIG } from './map-customization.js';
 import { normalizeMapConfig, readSavedMapConfig } from './map-config.js';
 import {
-  addMovementMarker,
   addPlayerHealthBar,
   addPlayerNameTag,
   followPlayer,
@@ -177,7 +176,7 @@ function createMultiplayer(game, playerEntity, enemyAssets, soundPlayer, mapConf
     world: game.world,
     input: game.input,
     onStatus: (message) => {
-      status.textContent = `${message} Clique para mover; Space cancela.`;
+      status.textContent = message;
     },
     onPlayerState: (player) => {
       if (previousPlayerHp !== null && player.hp < previousPlayerHp) {
@@ -191,7 +190,7 @@ function createMultiplayer(game, playerEntity, enemyAssets, soundPlayer, mapConf
       ui.updatePlayerIdentity({ nickname: player.nickname ?? 'Guest', level: player.level ?? 1 });
       updatePlayerAttributes(player);
       updateCombatMode(player.combatMode, game.world, playerEntity);
-      status.textContent = `Área: ${player.area?.name ?? 'Área dos Ratos'} (Nível ${player.area?.level ?? 1}). Clique para mover; Space cancela.`;
+      status.textContent = `Área: ${player.area?.name ?? 'Área dos Ratos'} (Nível ${player.area?.level ?? 1}).`;
     },
     onDeath: () => deathScreen.classList.remove('death-screen-hidden'),
     onRespawn: () => deathScreen.classList.add('death-screen-hidden'),
@@ -237,7 +236,6 @@ function createMultiplayer(game, playerEntity, enemyAssets, soundPlayer, mapConf
         model: enemy.model ?? enemyType?.model,
       });
     },
-    onAttackTargetChanged: (entity) => game.PlayerPathSystem.setCombatTarget(entity),
   });
   chat.connect((message) => multiplayer.sendChat(message));
   combatModeButtons.forEach((button) => {
@@ -319,9 +317,8 @@ async function start(identity = {}) {
   addPlayerHealthBar(game.world, playerEntity, 20, 20);
 
   updateLoading('Finalizando cena...');
-  // Configura o sistema de seguir o jogador e adiciona um marcador de movimento
+  // Configura o sistema de seguir o jogador.
   followPlayer(game, playerEntity);
-  addMovementMarker(game.world, playerEntity);
 
 
 
@@ -342,7 +339,7 @@ async function start(identity = {}) {
   await multiplayerSystem.connect();
   status.textContent = usedFallback
     ? 'Modelo 3D indisponível; usando modelo de fallback.'
-    : 'WebGL ativo: clique para mover. Espaço cancela o destino.';
+    : 'WebGL ativo.';
   finishLoading();
   startGameLoop({ ...game, multiplayerSystem });
 }

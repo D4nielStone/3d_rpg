@@ -2,9 +2,7 @@ import { Camera } from './camera.js';
 import { World } from './ecs.js';
 import { normalizeMapConfig } from './map-config.js';
 import {
-  PlayerPathSystem,
   AnimationSystem,
-  MovementSystem,
   NetworkInterpolationSystem,
   SoundListenerSystem,
   SoundPlayerSystem,
@@ -15,7 +13,6 @@ import { NameTagSystem } from './name-tags.js';
 import { EnemyHoverSystem } from './enemy-hover.js';
 import { customizeMap } from './map-customization.js';
 import { ThreeRenderSystem } from './three-renderer.js';
-import { createMobileControls } from './mobile-controls.js';
 
 export function handleCameraWheel(camera, event) {
   const hasTrackpadPan = Math.abs(event.deltaX) > 0.5 || (event.shiftKey && Math.abs(event.deltaY) > 0.5);
@@ -71,7 +68,6 @@ export async function createGame(canvas, mapConfig = null) {
     far: Number(normalizedMapConfig?.scene?.fog?.far ?? 850),
   };
   const input = new InputState();
-  createMobileControls({ input, camera });
   const renderSystem = new ThreeRenderSystem(
     canvas,
     camera,
@@ -113,11 +109,9 @@ export async function createGame(canvas, mapConfig = null) {
     textureManager,
     input,
     animationSystem: new AnimationSystem(),
-    movementSystem: new MovementSystem(input, mapConfig, camera),
     networkInterpolationSystem: new NetworkInterpolationSystem(),
     soundListenerSystem: new SoundListenerSystem(),
     soundPlayerSystem: new SoundPlayerSystem(),
-    PlayerPathSystem: new PlayerPathSystem(canvas, camera, normalizedMapConfig),
     nameTagSystem: new NameTagSystem(canvas, camera),
     enemyHoverSystem: new EnemyHoverSystem(canvas, camera),
     renderSystem,

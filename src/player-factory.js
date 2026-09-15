@@ -2,11 +2,9 @@ import { loadAsset } from './asset-loader.js';
 import {
   MeshRenderer,
   AnimationPlayer,
-  MoveTarget,
   NetworkIdentity,
   NetworkTransform,
   NameTag,
-  PlayerController,
   ShadowRenderer,
   Texture,
   Transform,
@@ -33,14 +31,6 @@ function createPatternTexture() {
   return textureCanvas;
 }
 
-function addController(world, entity) {
-  // Componentes comuns a jogador local e fallback ficam centralizados aqui.
-  world.addComponent(entity, new Transform());
-  world.addComponent(entity, new AnimationPlayer());
-  world.addComponent(entity, new PlayerController());
-  world.addComponent(entity, new MoveTarget());
-}
-
 export function spawnFallbackPlayer(world, definition = {}) {
   const entity = world.createEntity();
   world.addComponent(entity, new Transform({
@@ -49,8 +39,6 @@ export function spawnFallbackPlayer(world, definition = {}) {
     scale: normalizePlayerScale(definition.scale),
   }));
   world.addComponent(entity, new AnimationPlayer());
-  world.addComponent(entity, new PlayerController({ speed: definition.speed }));
-  world.addComponent(entity, new MoveTarget());
   world.addComponent(entity, new MeshRenderer({
     vertices: cubeVertices,
     colors: cubeColors,
@@ -89,8 +77,6 @@ export async function loadPlayer(world, textureManager, definition = {}, assetDe
     rotation: definition.rotation,
     scale: normalizePlayerScale(definition.scale),
   }));
-  world.addComponent(entity, new PlayerController({ speed: definition.speed }));
-  world.addComponent(entity, new MoveTarget());
   world.addComponent(entity, asset.mesh ?? asset);
   world.addComponent(entity, new AnimationPlayer({
     animations: asset.animations,
