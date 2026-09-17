@@ -1,7 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import {
   getConnectionIdentity,
-  isVector,
   isChatMessage,
   getUserLabel,
   sendSystemMessage,
@@ -262,11 +261,21 @@ export function registerConnectionHandler({
         }
 
         if (player.dead) return;
-        if (message.type !== 'state' || !isVector(message.position) || !isVector(message.rotation)) {
+        if (!isMovementCommand(message)) {
           logger.warn('Mensagem inválida ignorada', { peerId, type: message.type });
           return;
         }
-        if (isWaterPosition(message.position, state.publishedMapConfig)) {
+        const angle = normalizeAngle(message.angle);
+        const magnitude = Math.max(0, Math.min(1, message.magnitude));
+        const physicsPosition = state.physics.movePlayer(
+          playerId,
+          player.position,
+          angle,
+          getPlayerSpeed(state.publishedMapConfig) * magnitude,
+          0.05,
+        );
+        if (isWaterPosition(physicsPosition, state.publishedMapConfig)) {
+          state.physics.teleportPlayer(playerId, player.position);
           socket.send(JSON.stringify({
             type: 'water-blocked',
             position: [...player.position],
@@ -274,25 +283,6 @@ export function registerConnectionHandler({
           }));
           sendSystemMessage(socket, 'Não é possível caminhar sobre a água.');
           return;
-        }
-        const physicsPosition = state.physics.movePlayer(
-          playerId,
-          player.position,
-          message.position,
-          0.05,
-        );
-        if (Math.hypot(
-          physicsPosition[0] - message.position[0],
-          physicsPosition[2] - message.position[2],
-        ) > 0.05) {
-          const collider = state.physics.lastCollision;
-          socket.send(JSON.stringify({
-            type: 'collision-corrected',
-            position: [...physicsPosition],
-            rotation: [...player.rotation],
-            collider: collider ? { id: collider.id, name: collider.name } : null,
-          }));
-          message.position = physicsPosition;
         }
         const destinationArea = state.findPlayerArea(physicsPosition);
         player.area = destinationArea
@@ -302,7 +292,9 @@ export function registerConnectionHandler({
             level: destinationArea.areaLevel,
           }
           : { id: 'open-world', name: 'Mundo aberto', level: 0 };
-        player.setTransform(physicsPosition, message.rotation);
+
+
+        player.setTransform(physicsPosition, getMovementRotation(player.rotation, angle, magnitude));
         queuePlayerSave(playerId, player);
         broadcastSnapshot();
       } catch (error) {
@@ -311,4 +303,27 @@ export function registerConnectionHandler({
     });
 
   });
+}
+
+function isMovementCommand(message) {
+  return message?.type === 'movement'
+    && Number.isFinite(message.angle)
+    && Number.isFinite(message.magnitude)
+    && Math.abs(message.angle) <= Math.PI * 4
+    && message.magnitude >= 0
+    && message.magnitude <= 1;
+}
+
+function normalizeAngle(angle) {
+  return Math.atan2(Math.sin(angle), Math.cos(angle));
+}
+
+export function getMovementRotation(currentRotation, angle, magnitude) {
+  return magnitude > 0 ? [0, angle, 0] : [...currentRotation];
+}
+
+export function getPlayerSpeed(mapConfig) {
+  const configuredSpeed = Number(mapConfig?.player?.speed);
+  if (!Number.isFinite(configuredSpeed)) return 3;
+  return Math.max(0, Math.min(20, configuredSpeed));
 }

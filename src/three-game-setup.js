@@ -67,7 +67,7 @@ export async function createGame(canvas, mapConfig = null) {
     near: Number(normalizedMapConfig?.scene?.fog?.near ?? 180),
     far: Number(normalizedMapConfig?.scene?.fog?.far ?? 850),
   };
-  const input = new InputState();
+  const input = new InputState(window, canvas);
   const renderSystem = new ThreeRenderSystem(
     canvas,
     camera,

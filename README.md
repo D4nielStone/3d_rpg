@@ -85,6 +85,10 @@ world.addComponent(entity, meshRenderer);
 
 Os sistemas consultam as entidades pelos componentes necessarios e atualizam ou desenham cada uma.
 
+## Movimento autoritativo
+
+O teclado converte WASD em um comando `{ angle, magnitude }`. O mesmo contrato pode receber eixos de gamepad no futuro. O cliente nunca envia coordenadas do jogador: o relay valida o comando, avanca o corpo usando Cannon e distribui a posicao resultante nos snapshots.
+
 ## Multiplayer
 
 O multiplayer usa um relay WebSocket separado. Em um terminal, inicie o relay:
@@ -99,7 +103,7 @@ Em outro terminal, inicie o Vite:
 npm run dev
 ```
 
-Abra a URL do Vite em duas abas ou navegadores. Cada cliente envia seu `Transform`; o `MultiplayerSystem` cria entidades remotas com `NetworkIdentity` e `NetworkTransform`, e o `NetworkInterpolationSystem` suaviza os snapshots antes da renderizacao. Se o relay nao estiver ativo, o jogo continua funcionando localmente.
+Abra a URL do Vite em duas abas ou navegadores. O `MultiplayerSystem` cria entidades remotas com `NetworkIdentity` e `NetworkTransform`, e o `NetworkInterpolationSystem` suaviza os snapshots antes da renderizacao. O movimento depende do relay autoritativo.
 
 O painel de chat usa a mesma conexao multiplayer. Digite a mensagem no campo no canto inferior direito e pressione `Enviar` ou `Enter`. O relay retransmite mensagens com ate 200 caracteres para todos os jogadores conectados.
 

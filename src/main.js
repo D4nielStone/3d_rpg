@@ -175,6 +175,8 @@ function createMultiplayer(game, playerEntity, enemyAssets, soundPlayer, mapConf
     url: url?.toString() ?? '',
     world: game.world,
     input: game.input,
+    camera: game.camera,
+    canvas,
     onStatus: (message) => {
       status.textContent = message;
     },

@@ -7,7 +7,7 @@ import { ConvexGeometry } from 'three/examples/jsm/geometries/ConvexGeometry.js'
 import { AnimationMixer, LoopOnce, LoopRepeat } from 'three';
 import { createEditorGizmos } from './editor-gizmos.js';
 import { normalizeTerrainForExport, isTerrainRemoved } from './terrain-state.js';
-import { normalizeVector, normalizeColor, colorToHex, uniqueEntityName, normalizeCollision, createPrimitiveObject, listEditorEntities } from './editor-utils.js';
+import { normalizeVector, normalizeColor, colorToHex, uniqueEntityName, normalizeCollision, createCollisionSurface, createPrimitiveObject, listEditorEntities } from './editor-utils.js';
 import { configureTerrainMesh, applyTerrainBrushToGround } from './editor-terrain.js';
 import { readSavedMapConfig, saveMapConfig } from '../map-config.js';
 import { getMultiplayerHttpUrl } from '../multiplayer-url.js';
@@ -277,7 +277,7 @@ function updateLightingInspector() {
   directionalCastShadowInput.checked = lighting.directional.castShadow !== false;
   updateSceneAmbientLight();
 }
-function entitySnapshot(entity) { normalizeEntityTransform(entity); normalizeEntityMaterials(entity); normalizeEntityAnimation(entity); normalizeCollision(entity); normalizeEntityShadows(entity); return { id: entity.id, name: entity.name, assetId: entity.assetId, primitive: entity.primitive ?? null, type: entity.type ?? null, light: entity.type === 'pointLight' ? { ...normalizePointLight(entity).light, color: [...entity.light.color] } : null, position: [...entity.position], rotation: [...entity.rotation], scale: [...entity.scale], receiveLight: entity.receiveLight, castShadow: entity.castShadow, materials: entity.materials.map((material) => ({ ...material, diffuseColor: [...material.diffuseColor], texture: material.texture ?? null })), animation: { ...entity.animation }, collision: { ...entity.collision } }; }
+function entitySnapshot(entity) { normalizeEntityTransform(entity); normalizeEntityMaterials(entity); normalizeEntityAnimation(entity); normalizeCollision(entity); normalizeEntityShadows(entity); if (entity.collision.enabled && entity.collision.shape === 'model') entity.collision.surface = createCollisionSurface(entity.object); return { id: entity.id, name: entity.name, assetId: entity.assetId, primitive: entity.primitive ?? null, type: entity.type ?? null, light: entity.type === 'pointLight' ? { ...normalizePointLight(entity).light, color: [...entity.light.color] } : null, position: [...entity.position], rotation: [...entity.rotation], scale: [...entity.scale], receiveLight: entity.receiveLight, castShadow: entity.castShadow, materials: entity.materials.map((material) => ({ ...material, diffuseColor: [...material.diffuseColor], texture: material.texture ?? null })), animation: { ...entity.animation }, collision: { ...entity.collision } }; }
 function captureState() { return exportConfig(); }
 function pushHistory() { history.push(captureState()); if (history.length > 20) history.shift(); future.length = 0; }
 async function undo() { const state = history.pop(); if (!state) return; future.push(captureState()); await loadWorld(state); setStatus('Alteração desfeita'); }

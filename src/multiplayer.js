@@ -7,16 +7,23 @@ import {
   OutlineRenderer,
   Transform,
 } from './components.js';
+import { PLAYER_HEIGHT, sampleTerrainHeight, TERRAIN_BASE_Y } from '../shared/terrain-height.js';
 
 const MESSAGE_LIMIT = 32;
 const COMBAT_DISTANCE = 1;
 const RANGED_ATTACK_DISTANCE = 5;
+
+function normalizeAngle(angle) {
+  return Math.atan2(Math.sin(angle), Math.cos(angle));
+}
 
 export class MultiplayerSystem {
   constructor({
     url,
     world,
     input = null,
+    camera = null,
+    canvas = null,
     createRemoteEntity,
     createEnemyEntity = () => null,
     onStatus = () => {},
@@ -36,6 +43,8 @@ export class MultiplayerSystem {
     this.url = url;
     this.world = world;
     this.input = input;
+    this.camera = camera;
+    this.canvas = canvas;
     this.createRemoteEntity = createRemoteEntity;
     this.createEnemyEntity = createEnemyEntity;
     this.onStatus = onStatus;
@@ -58,6 +67,7 @@ export class MultiplayerSystem {
     this.enemyEntities = new Map();
     this.defeatedEnemyIds = new Set();
     this.lastSentAt = 0;
+    this.lastMovementCommand = null;
     this.pendingState = null;
     this.welcomeReceived = false;
     this.localStateRestored = false;
@@ -67,10 +77,16 @@ export class MultiplayerSystem {
     this.attackTargetEntity = null;
     this.onAttackTargetChanged(null);
     this.lastAttackRequestAt = 0;
+    this.lastFrameTime = null;
+    this.localVerticalVelocity = 0;
+    this.clickDestination = null;
   }
 
   setLocalEntity(entity) {
     this.localEntity = entity;
+    if (!this.world.getComponent(entity, NetworkTransform)) {
+      this.world.addComponent(entity, new NetworkTransform({ interpolation: 8 }));
+    }
     if (this.localPeerId) {
       this.world.addComponent(entity, new NetworkIdentity({
         peerId: this.localPeerId,
@@ -326,9 +342,16 @@ export class MultiplayerSystem {
     const transform = this.localEntity
       ? this.world.getComponent(this.localEntity, Transform)
       : null;
+    const networkTransform = this.localEntity
+      ? this.world.getComponent(this.localEntity, NetworkTransform)
+      : null;
     if (transform && Array.isArray(player.position) && Array.isArray(player.rotation)) {
       transform.position = [...player.position];
       transform.rotation = [...player.rotation];
+      if (networkTransform) {
+        networkTransform.targetPosition = null;
+        networkTransform.targetRotation = null;
+      }
     }
     this.localStateRestored = true;
     this.localPlayerDead = Boolean(player.dead);
@@ -402,6 +425,8 @@ export class MultiplayerSystem {
   }
 
   update(world, time) {
+    const deltaSeconds = this.lastFrameTime === null ? 1 / 60 : Math.min((time - this.lastFrameTime) * 0.001, 0.1);
+    this.lastFrameTime = time;
     this.applySnapshot(world);
     this.updateAttackTarget(world, time);
     if (!this.socket || this.socket.readyState !== WebSocket.OPEN || !this.localEntity) return;
@@ -411,14 +436,65 @@ export class MultiplayerSystem {
     }
     if (time - this.lastSentAt < 50) return;
 
+    const click = this.input?.consumeClick?.();
+    if (click && this.camera && this.canvas) {
+      this.clickDestination = this.camera.screenToGround(click[0], click[1], this.canvas);
+    }
+    const keyboardMovement = this.input?.getMovementCommand?.() ?? { angle: 0, magnitude: 0 };
+    let movement = keyboardMovement;
+    let movementIsWorldSpace = false;
+    if (movement.magnitude <= 0 && this.clickDestination) {
+      const transform = this.world.getComponent(this.localEntity, Transform);
+      const deltaX = this.clickDestination[0] - transform.position[0];
+      const deltaZ = this.clickDestination[2] - transform.position[2];
+      const distance = Math.hypot(deltaX, deltaZ);
+      if (distance <= 0.2) {
+        this.clickDestination = null;
+      } else {
+        movement = { angle: Math.atan2(deltaX, deltaZ), magnitude: 1 };
+        movementIsWorldSpace = true;
+      }
+    }
+    const worldAngle = movementIsWorldSpace || !this.camera
+      ? movement.angle
+      : normalizeAngle(this.camera.yaw - Math.PI - movement.angle);
+    const command = {
+      angle: movement.magnitude > 0 ? worldAngle : 0,
+      magnitude: movement.magnitude,
+    };
+    const commandChanged = !this.lastMovementCommand
+      || command.angle !== this.lastMovementCommand.angle
+      || command.magnitude !== this.lastMovementCommand.magnitude;
+    if (!commandChanged && command.magnitude === 0) {
+      this.socket.send(JSON.stringify({ type: 'movement', ...command }));
+      this.lastSentAt = time;
+      return;
+    }
+
+    this.socket.send(JSON.stringify({ type: 'movement', ...command }));
+    this.lastMovementCommand = command;
+    this.lastSentAt = time;
+  }
+
+  updateLocalSecondaryPhysics(world, deltaSeconds) {
+    if (!this.localEntity || this.localPlayerDead || this.respawnPending) return;
     const transform = world.getComponent(this.localEntity, Transform);
     if (!transform) return;
-    this.socket.send(JSON.stringify({
-      type: 'state',
-      position: transform.position,
-      rotation: transform.rotation,
-    }));
-    this.lastSentAt = time;
+    const terrain = this.camera?.terrain ?? null;
+    const groundY = terrain ? (sampleTerrainHeight(terrain, transform.position[0], transform.position[2]) ?? TERRAIN_BASE_Y) + PLAYER_HEIGHT / 2 : TERRAIN_BASE_Y + PLAYER_HEIGHT / 2;
+    const isGrounded = transform.position[1] <= groundY + 0.06;
+    if (isGrounded) {
+      transform.position[1] = groundY;
+      this.localVerticalVelocity = 0;
+      return;
+    }
+
+    this.localVerticalVelocity -= 9.81 * deltaSeconds;
+    transform.position[1] += this.localVerticalVelocity * deltaSeconds;
+    if (transform.position[1] <= groundY) {
+      transform.position[1] = groundY;
+      this.localVerticalVelocity = 0;
+    }
   }
 
   updateAttackTarget(world, time) {
@@ -452,11 +528,17 @@ export class MultiplayerSystem {
       if (player.peerId === this.localPeerId) {
         this.localPlayerDead = Boolean(player.dead);
         this.combatMode = player.combatMode ?? 'melee';
-        if ((!this.localStateRestored || player.dead) && Array.isArray(player.position) && Array.isArray(player.rotation)) {
+        if (Array.isArray(player.position) && Array.isArray(player.rotation)) {
           const transform = world.getComponent(this.localEntity, Transform);
           if (transform) {
-            transform.position = [...player.position];
-            transform.rotation = [...player.rotation];
+            const networkTransform = world.getComponent(this.localEntity, NetworkTransform);
+            if (this.localStateRestored && networkTransform) {
+              networkTransform.targetPosition = [...player.position];
+              networkTransform.targetRotation = [...player.rotation];
+            } else {
+              transform.position = [...player.position];
+              transform.rotation = [...player.rotation];
+            }
           }
           this.localStateRestored = true;
         }

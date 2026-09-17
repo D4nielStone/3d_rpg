@@ -47,8 +47,41 @@ export function normalizeCollision(entity) {
     scale: normalizeVector(collision.scale, [1, 1, 1]).map((value) => Math.max(0.01, Math.abs(value))),
     friction: Math.min(1, Math.max(0, Number(collision.friction ?? 0.3) || 0)),
     restitution: Math.min(1, Math.max(0, Number(collision.restitution ?? 0) || 0)),
+    surface: collision.surface && typeof collision.surface === 'object' ? collision.surface : null,
   };
   return entity;
+}
+
+export function createCollisionSurface(object, segments = 32) {
+  if (!object) return null;
+  object.updateMatrixWorld(true);
+  const bounds = new THREE.Box3().setFromObject(object);
+  if (!Number.isFinite(bounds.min.x) || bounds.max.x <= bounds.min.x || bounds.max.z <= bounds.min.z) return null;
+  const columns = Math.max(2, Math.floor(Number(segments) || 32) + 1);
+  const rows = columns;
+  const raycaster = new THREE.Raycaster();
+  const origin = new THREE.Vector3();
+  const direction = new THREE.Vector3(0, -1, 0);
+  const heights = [];
+  for (let row = 0; row < rows; row += 1) {
+    const z = THREE.MathUtils.lerp(bounds.min.z, bounds.max.z, row / (rows - 1));
+    for (let column = 0; column < columns; column += 1) {
+      const x = THREE.MathUtils.lerp(bounds.min.x, bounds.max.x, column / (columns - 1));
+      origin.set(x, bounds.max.y + 0.01, z);
+      raycaster.set(origin, direction);
+      const hit = raycaster.intersectObject(object, true).find((intersection) => intersection.object.isMesh);
+      heights.push(hit ? hit.point.y : bounds.min.y);
+    }
+  }
+  return {
+    minX: bounds.min.x,
+    maxX: bounds.max.x,
+    minZ: bounds.min.z,
+    maxZ: bounds.max.z,
+    columns,
+    rows,
+    heights,
+  };
 }
 
 export function createPrimitiveObject(type) {
