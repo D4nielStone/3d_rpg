@@ -223,46 +223,7 @@ function addGroundCollider(
   world,
   playerMaterial,
 ) {
-  const groundMaterial =
-    new CANNON.Material('ground');
-
-  groundMaterial.friction = 0;
-  groundMaterial.restitution = 0;
-
-  const body = new CANNON.Body({
-    mass: 0,
-    type: CANNON.Body.STATIC,
-    material: groundMaterial,
-  });
-
-  body.addShape(
-    new CANNON.Box(
-      new CANNON.Vec3(
-        1000,
-        0.1,
-        1000,
-      ),
-    ),
-  );
-
-  body.position.set(
-    0,
-    -0.8,
-    0,
-  );
-
-  world.addBody(body);
-
-  world.addContactMaterial(
-    new CANNON.ContactMaterial(
-      playerMaterial,
-      groundMaterial,
-      {
-        friction: 0,
-        restitution: 0,
-      },
-    ),
-  );
+  return;
 }
 
 export class PhysicsWorld {
@@ -296,7 +257,18 @@ export class PhysicsWorld {
     this.surfaceColliders =
       (mapConfig?.entities ?? [])
         .filter((entity) => entity.collision?.enabled && entity.collision?.surface)
-        .map((entity) => entity.collision.surface)
+        .map((entity) => {
+          const surface = entity.collision.surface;
+          const position = Array.isArray(entity.position) ? entity.position : [0, 0, 0];
+          const offset = Array.isArray(entity.collision.offset) ? entity.collision.offset : [0, 0, 0];
+          return {
+            ...surface,
+            minX: Number(surface.minX) + (Number(position[0]) || 0) + (Number(offset[0]) || 0),
+            maxX: Number(surface.maxX) + (Number(position[0]) || 0) + (Number(offset[0]) || 0),
+            minZ: Number(surface.minZ) + (Number(position[2]) || 0) + (Number(offset[2]) || 0),
+            maxZ: Number(surface.maxZ) + (Number(position[2]) || 0) + (Number(offset[2]) || 0),
+          };
+        })
         .filter(Boolean);
 
     this.staticColliders =
@@ -576,13 +548,15 @@ const step = Math.min(
       terrainHeight !== null
         ? terrainHeight +
           PLAYER_HEIGHT / 2
-        : TERRAIN_BASE_Y +
-          PLAYER_HEIGHT / 2;
+        : null;
 
     const surfaceHeight = samplePlayerSurfaceHeight(this.surfaceColliders, desired);
-    const surfaceGroundY = surfaceHeight === null
-      ? groundY
-      : Math.max(groundY, surfaceHeight + PLAYER_HEIGHT / 2);
+    const surfaceGroundY =
+      groundY === null
+        ? (surfaceHeight === null ? null : surfaceHeight + PLAYER_HEIGHT / 2)
+        : surfaceHeight === null
+          ? groundY
+          : Math.max(groundY, surfaceHeight + PLAYER_HEIGHT / 2);
 
     const stepCollider = findTraversableStep(
       intendedPosition,
@@ -646,17 +620,10 @@ const step = Math.min(
 
         body.velocity.y = 0;
       } else if (
+        groundY !== null &&
         terrainHeight !== null &&
         desired[1] <=
           groundY + 0.1
-      ) {
-        body.position.y =
-          groundY;
-
-        body.velocity.y = 0;
-      } else if (
-        terrainHeight === null &&
-        desired[1] <= groundY
       ) {
         body.position.y =
           groundY;

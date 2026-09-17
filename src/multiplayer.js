@@ -481,20 +481,27 @@ export class MultiplayerSystem {
     const transform = world.getComponent(this.localEntity, Transform);
     if (!transform) return;
     const terrain = this.camera?.terrain ?? null;
-    const groundY = terrain ? (sampleTerrainHeight(terrain, transform.position[0], transform.position[2]) ?? TERRAIN_BASE_Y) + PLAYER_HEIGHT / 2 : TERRAIN_BASE_Y + PLAYER_HEIGHT / 2;
-    const isGrounded = transform.position[1] <= groundY + 0.06;
-    if (isGrounded) {
-      transform.position[1] = groundY;
-      this.localVerticalVelocity = 0;
+    const terrainHeight = terrain ? sampleTerrainHeight(terrain, transform.position[0], transform.position[2]) : null;
+    const groundY = terrainHeight !== null ? terrainHeight + PLAYER_HEIGHT / 2 : null;
+    if (groundY !== null) {
+      const isGrounded = transform.position[1] <= groundY + 0.06;
+      if (isGrounded) {
+        transform.position[1] = groundY;
+        this.localVerticalVelocity = 0;
+        return;
+      }
+
+      this.localVerticalVelocity -= 9.81 * deltaSeconds;
+      transform.position[1] += this.localVerticalVelocity * deltaSeconds;
+      if (transform.position[1] <= groundY) {
+        transform.position[1] = groundY;
+        this.localVerticalVelocity = 0;
+      }
       return;
     }
 
     this.localVerticalVelocity -= 9.81 * deltaSeconds;
     transform.position[1] += this.localVerticalVelocity * deltaSeconds;
-    if (transform.position[1] <= groundY) {
-      transform.position[1] = groundY;
-      this.localVerticalVelocity = 0;
-    }
   }
 
   updateAttackTarget(world, time) {

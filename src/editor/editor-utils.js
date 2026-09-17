@@ -52,11 +52,33 @@ export function normalizeCollision(entity) {
   return entity;
 }
 
-export function createCollisionSurface(object, segments = 32) {
+export function offsetCollisionSurface(surface, position = [0, 0, 0], offset = [0, 0, 0]) {
+  if (!surface || typeof surface !== 'object') return null;
+  const next = { ...surface };
+  const originX = Number(position[0]) || 0;
+  const originZ = Number(position[2]) || 0;
+  const offsetY = Number(offset[1]) || 0;
+  const offsetX = Number(offset[0]) || 0;
+  const offsetZ = Number(offset[2]) || 0;
+  next.minX = Number(surface.minX) + originX + offsetX;
+  next.maxX = Number(surface.maxX) + originX + offsetX;
+  next.minZ = Number(surface.minZ) + originZ + offsetZ;
+  next.maxZ = Number(surface.maxZ) + originZ + offsetZ;
+  next.heights = Array.isArray(surface.heights)
+    ? surface.heights.map((height) => Number(height) + offsetY)
+    : surface.heights;
+  return next;
+}
+
+export function createCollisionSurface(object, segments = 32, collisionScale = [1, 1, 1]) {
   if (!object) return null;
   object.updateMatrixWorld(true);
   const bounds = new THREE.Box3().setFromObject(object);
   if (!Number.isFinite(bounds.min.x) || bounds.max.x <= bounds.min.x || bounds.max.z <= bounds.min.z) return null;
+  const scale = normalizeVector(collisionScale, [1, 1, 1]).map((value) => Math.max(0.01, Math.abs(value)));
+  const centerX = (bounds.min.x + bounds.max.x) / 2;
+  const centerY = (bounds.min.y + bounds.max.y) / 2;
+  const centerZ = (bounds.min.z + bounds.max.z) / 2;
   const columns = Math.max(2, Math.floor(Number(segments) || 32) + 1);
   const rows = columns;
   const raycaster = new THREE.Raycaster();
@@ -74,13 +96,13 @@ export function createCollisionSurface(object, segments = 32) {
     }
   }
   return {
-    minX: bounds.min.x,
-    maxX: bounds.max.x,
-    minZ: bounds.min.z,
-    maxZ: bounds.max.z,
+    minX: centerX + (bounds.min.x - centerX) * scale[0],
+    maxX: centerX + (bounds.max.x - centerX) * scale[0],
+    minZ: centerZ + (bounds.min.z - centerZ) * scale[2],
+    maxZ: centerZ + (bounds.max.z - centerZ) * scale[2],
     columns,
     rows,
-    heights,
+    heights: heights.map((height) => centerY + (height - centerY) * scale[1]),
   };
 }
 
