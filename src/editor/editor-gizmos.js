@@ -35,16 +35,10 @@ function createAxisGuides() {
   return guides;
 }
 
-// Compatível com versões antigas (TransformControls é o próprio Object3D)
-// e novas (o gizmo visual fica em controls.getHelper()).
-function getGizmoVisual(controls) {
-  return typeof controls.getHelper === 'function' ? controls.getHelper() : controls;
-}
-
 function applyBlenderGizmoStyle(controls) {
   controls.setSize(1.25);
 
-  const visual = getGizmoVisual(controls);
+  const visual = controls.getHelper();
   if (typeof visual.traverse !== 'function') return;
 
   visual.traverse((child) => {
@@ -59,7 +53,7 @@ function applyBlenderGizmoStyle(controls) {
 
 export function createEditorGizmos({ camera, canvas, scene, onDraggingChanged, onObjectChange }) {
   const controls = new TransformControls(camera, canvas);
-  const gizmoVisual = getGizmoVisual(controls);
+  const gizmoVisual = controls.getHelper();
   const guides = createAxisGuides();
   const worldPosition = new THREE.Vector3();
   let mode = 'select';
