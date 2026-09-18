@@ -207,6 +207,60 @@ test('jogador mantém a cápsula acima da borda mais alta da superfície', () =>
   assert.ok(position[1] >= 1.1);
 });
 
+test('jogador segue o relevo central sem convexificar cavidades', () => {
+  const physics = new PhysicsWorld({
+    entities: [{
+      id: 'concave-model',
+      position: [0, 0, 0],
+      scale: [1, 1, 1],
+      collision: {
+        enabled: true,
+        shape: 'model',
+        surface: {
+          minX: -2,
+          maxX: 2,
+          minZ: -2,
+          maxZ: 2,
+          columns: 2,
+          rows: 2,
+          heights: [2, 0, 2, 0],
+        },
+      },
+    }],
+  });
+
+  const position = physics.movePlayer('concave-player', [0, 0, 0], 0, 0, 0.05);
+
+  assert.ok(position[1] < 1.9, `O relevo foi convexificado em y=${position[1]}`);
+});
+
+test('jogador nao recebe chao em celula vazia do modelo', () => {
+  const physics = new PhysicsWorld({
+    entities: [{
+      id: 'model-gap',
+      position: [0, 0, 0],
+      collision: {
+        enabled: true,
+        shape: 'model',
+        surface: {
+          minX: -2,
+          maxX: 2,
+          minZ: -2,
+          maxZ: 2,
+          columns: 2,
+          rows: 2,
+          heights: [4, 4, 4, 4],
+          valid: [true, false, true, false],
+        },
+      },
+    }],
+  });
+
+  const position = physics.movePlayer('gap-player', [0, 0, 0], 0, 0, 0.05);
+
+  assert.ok(position[1] < 0, `A célula vazia virou chão em y=${position[1]}`);
+});
+
 test('jogador bate na parede vertical do modelo importado', () => {
   const physics = new PhysicsWorld({
     entities: [{

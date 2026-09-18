@@ -6,6 +6,7 @@ export function sampleCollisionSurface(surface, x, z) {
   const columns = Math.floor(Number(surface?.columns));
   const rows = Math.floor(Number(surface?.rows));
   const heights = surface?.heights;
+  const valid = surface?.valid;
   if (!Number.isFinite(minX) || !Number.isFinite(maxX) || maxX <= minX
     || !Number.isFinite(minZ) || !Number.isFinite(maxZ) || maxZ <= minZ
     || !Number.isInteger(columns) || columns < 2 || !Number.isInteger(rows) || rows < 2
@@ -18,6 +19,9 @@ export function sampleCollisionSurface(surface, x, z) {
   const top = Math.min(rows - 1, Math.floor(gridZ));
   const right = Math.min(columns - 1, left + 1);
   const bottom = Math.min(rows - 1, top + 1);
+  if (Array.isArray(valid) && valid.length === columns * rows
+    && ![top * columns + left, top * columns + right, bottom * columns + left, bottom * columns + right]
+      .every((index) => valid[index] === true)) return null;
   const fractionX = gridX - left;
   const fractionZ = gridZ - top;
   const value = (row, column) => Number(heights[row * columns + column]);

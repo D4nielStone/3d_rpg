@@ -207,17 +207,10 @@ function findTraversableStep(position, radius, colliders) {
 }
 
 function samplePlayerSurfaceHeight(surfaceColliders, position, radius = 0.35) {
-  const offsets = [
-    [0, 0],
-    [radius, 0],
-    [-radius, 0],
-    [0, radius],
-    [0, -radius],
-  ];
-  return surfaceColliders.reduce((highest, surface) => offsets.reduce((surfaceHighest, [offsetX, offsetZ]) => {
-    const height = sampleCollisionSurface(surface, position[0] + offsetX, position[2] + offsetZ);
-    return height === null ? surfaceHighest : Math.max(surfaceHighest, height);
-  }, highest), null);
+  return surfaceColliders.reduce((highest, surface) => {
+    const height = sampleCollisionSurface(surface, position[0], position[2]);
+    return height === null ? highest : Math.max(highest ?? height, height);
+  }, null);
 }
 
 function addGroundCollider(

@@ -85,6 +85,7 @@ export function createCollisionSurface(object, segments = 32, collisionScale = [
   const origin = new THREE.Vector3();
   const direction = new THREE.Vector3(0, -1, 0);
   const heights = [];
+  const valid = [];
   for (let row = 0; row < rows; row += 1) {
     const z = THREE.MathUtils.lerp(bounds.min.z, bounds.max.z, row / (rows - 1));
     for (let column = 0; column < columns; column += 1) {
@@ -93,6 +94,7 @@ export function createCollisionSurface(object, segments = 32, collisionScale = [
       raycaster.set(origin, direction);
       const hit = raycaster.intersectObject(object, true).find((intersection) => intersection.object.isMesh);
       heights.push(hit ? hit.point.y : bounds.min.y);
+      valid.push(Boolean(hit));
     }
   }
   return {
@@ -103,6 +105,7 @@ export function createCollisionSurface(object, segments = 32, collisionScale = [
     columns,
     rows,
     heights: heights.map((height) => centerY + (height - centerY) * scale[1]),
+    valid,
     mesh: createCollisionMesh(object),
   };
 }
