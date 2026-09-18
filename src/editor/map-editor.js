@@ -35,6 +35,7 @@ import { buildDefaultWorldConfig, resolveWorldConfig } from './editor-scene-conf
 import { configureTerrainMesh, applyTerrainBrushToGround } from './editor-terrain.js';
 import { createEditorScene } from './editor-scene.js';
 import { createWorldController } from './editor-world.js';
+import { bindEditorEvents } from './editor-events.js';
 import { readSavedMapConfig, saveMapConfig } from '../map-config.js';
 import { getMultiplayerHttpUrl } from '../multiplayer-url.js';
 import {
@@ -307,6 +308,7 @@ const raycaster = editorScene.raycaster;
 const pointer = editorScene.pointer;
 const hover = editorScene.hover;
 let gizmoDragging = false;
+let terrainBrushActive = false;
 const gizmos = createEditorGizmos({
   camera,
   canvas,
@@ -1026,6 +1028,69 @@ async function loadWorld(config) {
 async function loadSavedWorld() {
   return worldController.loadSavedWorld();
 }
+
+const editorEventContext = {
+  setMode, setStatus, setPanelOpen, setInspectorTab, setComponentTab,
+  updateEnemyTypeField, updateEnemyAreaField, updateVector, updateSummary,
+  renderSounds, renderEnemyAreas, renderEnemyTypes, renderEntities, updateInspector,
+  updateTerrainInspector, updateSceneAtmosphere, updateSceneAmbientLight, updateLightingInspector,
+  updatePlayerInspector, readPlayerInspector, refreshPlayerPreview, applyToGame, undo, redo,
+  loadWorld, registerAsset, instantiateAsset, assetFormat, readFileAsDataUrl, addEntity,
+  createEntity, createPrimitive, createPointLight, createEnemyArea, createEnemyType,
+  duplicateSelectedEntity, removeEntity, updateEnemyAreaInspector, selectedEnemyArea,
+  selectedEntity, pushHistory, setTerrainRemoved,
+  applyTerrainBrushToGround: (point) => applyTerrainBrushToGround(ground, terrainConfig, point),
+  updateCollisionVisual, renderSceneTree, updateAnimationInspector, setAnimationPlaying,
+  stopAnimation, applyEntityAnimation, syncPlayerFromPreview, renderMeshList,
+  normalizeCollision, normalizeEntityMaterials, applyEntityMaterials, configureTerrainMesh,
+  download, exportConfig, loadSavedWorld, listEditorEntities, newId, clearCollisionVisual,
+  selectEntity, selectEnemyArea, materialIndexForObject, resize, lights: [],
+  entityNameInput: document.querySelector('#entity-name'),
+  collisionEnabledInput: document.querySelector('#collision-enabled'),
+  collisionShapeInput: document.querySelector('#collision-shape'),
+  collisionBodyTypeInput: document.querySelector('#collision-body-type'),
+  selectedEntityLabel, entityInspector, emptyInspector, playerPreviewInspector,
+  pointLightInspector, meshCount, meshList, animationPlayButton, animationPauseButton,
+  animationStopButton, animationSelect, animationLoopInput, animationSpeedInput,
+  animationSpeedValue, componentTabs, soundType, soundUrl, soundList, status, canvas,
+  ground, raycaster, pointer, camera, entityGroup, coordinates, hover,
+  orbit, collisionFrictionInput, collisionRestitutionInput,
+  entityLightIntensityValue, entityLightDistanceValue, terrainWidthInput, terrainDepthInput,
+  terrainSegmentsInput, terrainAmplitudeInput, terrainFrequencyInput, terrainColorInput,
+  terrainBrushRadiusInput, terrainBrushStrengthInput, ambientColorInput, ambientIntensityInput,
+  directionalIntensityInput, directionalCastShadowInput, directionalInputs, directionalValues,
+  skyColorInput, fogColorInput, fogNearInput, fogFarInput, terrainWidthValue, terrainDepthValue,
+  terrainSegmentsValue, terrainAmplitudeValue, terrainFrequencyValue, terrainBrushRadiusValue,
+  terrainBrushStrengthValue, ambientIntensityValue, directionalIntensityValue, sceneTree,
+  panelToggles,
+  entityDiffuseColorInput: document.querySelector('#entity-diffuse-color'),
+  entityTextureFileInput: document.querySelector('#entity-texture-file'),
+  entityReceiveLightInput: document.querySelector('#entity-receive-light'),
+  entityCastShadowInput: document.querySelector('#entity-cast-shadow'),
+  entityLightColorInput: document.querySelector('#entity-light-color'),
+  entityLightIntensityInput: document.querySelector('#entity-light-intensity'),
+  entityLightDistanceInput: document.querySelector('#entity-light-distance'),
+};
+Object.defineProperties(editorEventContext, {
+  entities: { get: () => entities, set: (value) => { entities = value; } },
+  assets: { get: () => assets, set: (value) => { assets = value; } },
+  sounds: { get: () => sounds, set: (value) => { sounds = value; } },
+  enemyAreas: { get: () => enemyAreas, set: (value) => { enemyAreas = value; } },
+  enemyTypes: { get: () => enemyTypes, set: (value) => { enemyTypes = value; } },
+  terrainConfig: { get: () => terrainConfig, set: (value) => { terrainConfig = value; } },
+  lighting: { get: () => lighting, set: (value) => { lighting = value; } },
+  skyColor: { get: () => skyColor, set: (value) => { skyColor = value; } },
+  fog: { get: () => fog, set: (value) => { fog = value; } },
+  player: { get: () => player, set: (value) => { player = value; } },
+  selectedEntityId: { get: () => selectedEntityId, set: (value) => { selectedEntityId = value; } },
+  selectedEnemyAreaId: { get: () => selectedEnemyAreaId, set: (value) => { selectedEnemyAreaId = value; } },
+  mode: { get: () => mode, set: (value) => { mode = value; } },
+  terrainRemoved: { get: () => terrainRemoved, set: (value) => { terrainRemoved = Boolean(value); } },
+  terrainBrushActive: { get: () => terrainBrushActive, set: (value) => { terrainBrushActive = value; } },
+  gizmoDragging: { get: () => gizmoDragging, set: (value) => { gizmoDragging = value; } },
+  selectedMaterialIndex: { get: () => selectedMaterialIndex, set: (value) => { selectedMaterialIndex = value; } },
+});
+bindEditorEvents(editorEventContext);
 
 makeVectorFields(); makeAreaVectorFields(); normalizeSkyColor(); normalizeFog(); updateSceneAtmosphere(); normalizeLighting(); updateLightingInspector(); renderEnemyAreas(); await loadSavedWorld(); resize(); setMode('select');
 let lastFrameTime = performance.now();

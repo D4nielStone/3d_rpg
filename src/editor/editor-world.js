@@ -20,6 +20,8 @@ export function createWorldController(getters, setters = {}) {
     return getter();
   };
 
+  const getCallback = (key) => (typeof getters[key] === 'function' ? getters[key] : undefined);
+
   const set = (key, value) => {
     const setter = setters[key];
     if (typeof setter === 'function') setter(value);
@@ -137,12 +139,15 @@ export function createWorldController(getters, setters = {}) {
       ground.userData.removed = get('terrainRemoved');
     }
 
-    normalizeSkyColor(config?.scene?.skyColor);
-    normalizeFog(config?.scene?.fog);
-    const updateSceneAtmosphere = get('updateSceneAtmosphere');
+    const nextSkyColor = normalizeSkyColor(config?.scene?.skyColor);
+    set('skyColor', nextSkyColor);
+    const nextFog = normalizeFog(config?.scene?.fog);
+    set('fog', nextFog);
+    const updateSceneAtmosphere = getCallback('updateSceneAtmosphere');
     if (typeof updateSceneAtmosphere === 'function') updateSceneAtmosphere();
-    normalizeLighting(config?.lighting);
-    const updateLightingInspector = get('updateLightingInspector');
+    const nextLighting = normalizeLighting(config?.lighting);
+    set('lighting', nextLighting);
+    const updateLightingInspector = getCallback('updateLightingInspector');
     if (typeof updateLightingInspector === 'function') updateLightingInspector();
 
     const nextSounds = normalizeSounds(config?.sounds);
@@ -186,31 +191,31 @@ export function createWorldController(getters, setters = {}) {
           Number(definition.light?.distance ?? 18),
         );
         object.add(new THREE.Mesh(new THREE.SphereGeometry(0.16, 12, 8), new THREE.MeshBasicMaterial({ color: new THREE.Color(...(definition.light?.color ?? [1, 0.7, 0.45])) })));
-        const addEntity = get('addEntity');
+        const addEntity = getCallback('addEntity');
         if (typeof addEntity === 'function') addEntity({ ...definition, object }, object);
       } else {
         const asset = assets.find((item) => item.id === definition.assetId);
-        const instantiateAsset = get('instantiateAsset');
+        const instantiateAsset = getCallback('instantiateAsset');
         if (asset && typeof instantiateAsset === 'function') {
           await instantiateAsset({ ...asset, _definition: definition });
         } else if (definition.primitive) {
-          const createPrimitiveObject = get('createPrimitiveObject');
+          const createPrimitiveObject = getCallback('createPrimitiveObject');
           if (typeof createPrimitiveObject === 'function') {
             const object = createPrimitiveObject(definition.primitive);
-            const addEntity = get('addEntity');
+            const addEntity = getCallback('addEntity');
             if (object && typeof addEntity === 'function') addEntity({ ...definition, name: definition.name ?? 'Entidade', object }, object);
           }
         } else {
-          const addEntity = get('addEntity');
+          const addEntity = getCallback('addEntity');
           if (typeof addEntity === 'function') addEntity({ ...definition, object: null });
         }
       }
     }
 
-    const refreshPlayerPreview = get('refreshPlayerPreview');
+    const refreshPlayerPreview = getCallback('refreshPlayerPreview');
     if (typeof refreshPlayerPreview === 'function') await refreshPlayerPreview();
 
-    const selectEntity = get('selectEntity');
+    const selectEntity = getCallback('selectEntity');
     if (typeof selectEntity === 'function') selectEntity(null);
     updateSummary();
   }
@@ -242,7 +247,7 @@ export function createWorldController(getters, setters = {}) {
     link.download = 'main-world.world';
     link.click();
     URL.revokeObjectURL(link.href);
-    const setStatus = get('setStatus');
+    const setStatus = getCallback('setStatus');
     if (typeof setStatus === 'function') setStatus('Cena .world exportada');
   }
 
@@ -257,12 +262,12 @@ export function createWorldController(getters, setters = {}) {
     });
     const result = await response.json().catch(() => null);
     if (!response.ok) {
-      const setStatus = get('setStatus');
+      const setStatus = getCallback('setStatus');
       if (typeof setStatus === 'function') setStatus(result?.error ?? `Não foi possível aplicar o mundo (HTTP ${response.status})`);
       return;
     }
     try { saveMapConfig(config); } catch {}
-    const setStatus = get('setStatus');
+    const setStatus = getCallback('setStatus');
     if (typeof setStatus === 'function') setStatus('Mundo aplicado no jogo');
   }
 

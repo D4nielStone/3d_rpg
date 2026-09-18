@@ -226,7 +226,11 @@ async function createWorldEntities(world, config, textureManager) {
       if (definition.castShadow !== false) world.addComponent(entity, new ShadowRenderer());
       continue;
     }
-    const asset = assets.get(definition.assetId);
+    const asset = assets.get(definition.assetId) ?? (
+      definition.model
+        ? { url: definition.model, format: definition.modelFormat }
+        : null
+    );
     if (!asset?.url || asset.url.startsWith('blob:') || asset.url.startsWith('local:')) continue;
     try {
       const loaded = await loadAsset(asset.url, asset.format, textureManager, asset.dependencies);
