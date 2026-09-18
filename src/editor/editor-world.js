@@ -178,6 +178,7 @@ export function createWorldController(getters, setters = {}) {
 
     const assets = get('assets') ?? [];
     for (const definition of config?.entities ?? []) {
+      if (!definition || typeof definition !== 'object') continue;
       if (definition.type === 'pointLight') {
         const object = new THREE.PointLight(
           new THREE.Color(...(definition.light?.color ?? [1, 0.7, 0.45])).getHex(),
