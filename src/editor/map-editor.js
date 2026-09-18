@@ -417,6 +417,10 @@ function renderEnemyAreaVisuals() {
 }
 // Adiciona uma entidade à cena, normalizando seus dados e aplicando transformações e materiais.
 function addEntity(entity, object = null, animations = []) {
+  if (!entity || typeof entity !== 'object') {
+    console.warn('Ignorando entidade inválida ao carregar a cena.', entity);
+    return;
+  }
   entity.name = uniqueEntityName(entity.name, entities, entity.id);
   normalizeEntityTransform(entity);
   normalizeEntityAnimation(entity);
