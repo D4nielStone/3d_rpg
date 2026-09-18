@@ -207,6 +207,96 @@ test('jogador mantém a cápsula acima da borda mais alta da superfície', () =>
   assert.ok(position[1] >= 1.1);
 });
 
+test('jogador bate na parede vertical do modelo importado', () => {
+  const physics = new PhysicsWorld({
+    entities: [{
+      id: 'model-wall',
+      position: [0, 0, 0],
+      rotation: [0, 0, 0],
+      collision: {
+        enabled: true,
+        shape: 'model',
+        surface: {
+          minX: -2,
+          maxX: 2,
+          minZ: -2,
+          maxZ: 2,
+          columns: 2,
+          rows: 2,
+          heights: [0, 0, 0, 0],
+          mesh: {
+            vertices: [0, 0, -2, 0, 2, -2, 0, 0, 2, 0, 2, 2],
+            indices: [0, 1, 2, 1, 3, 2],
+          },
+        },
+      },
+    }],
+  });
+  let position = [-1, 1, 0];
+
+  for (let index = 0; index < 20; index += 1) {
+    position = physics.movePlayer('wall-player', position, Math.PI / 2, 3, 0.05);
+  }
+
+  assert.ok(position[0] < 0, `O jogador atravessou a parede em x=${position[0]}`);
+});
+
+test('jogador nao atravessa modelo em alta velocidade', () => {
+  const physics = new PhysicsWorld({
+    entities: [{
+      id: 'thin-model-wall',
+      position: [0, 0, 0],
+      collision: {
+        enabled: true,
+        shape: 'model',
+        surface: {
+          minX: -2,
+          maxX: 2,
+          minZ: -2,
+          maxZ: 2,
+          columns: 2,
+          rows: 2,
+          heights: [0, 0, 0, 0],
+          mesh: {
+            vertices: [0, 0, -2, 0, 2, -2, 0, 0, 2, 0, 2, 2],
+            indices: [0, 1, 2, 1, 3, 2],
+          },
+        },
+      },
+    }],
+  });
+
+  const position = physics.movePlayer('fast-wall-player', [-1, 1, 0], Math.PI / 2, 60, 0.05);
+
+  assert.ok(position[0] < 0, `O jogador atravessou o modelo em x=${position[0]}`);
+});
+
+test('jogador nao sobe uma parede representada como superficie inclinada', () => {
+  const physics = new PhysicsWorld({
+    entities: [{
+      id: 'steep-model',
+      position: [0, 0, 0],
+      collision: {
+        enabled: true,
+        shape: 'model',
+        surface: {
+          minX: -2,
+          maxX: 2,
+          minZ: -2,
+          maxZ: 2,
+          columns: 2,
+          rows: 2,
+          heights: [0, 4, 0, 4],
+        },
+      },
+    }],
+  });
+
+  const position = physics.movePlayer('steep-player', [-1, 0, 0], Math.PI / 2, 3, 0.05);
+
+  assert.ok(position[0] < -0.8, `O jogador subiu a superficie inclinada em x=${position[0]}`);
+});
+
 test('parar o movimento preserva o ultimo yaw', () => {
   assert.deepEqual(getMovementRotation([0, Math.PI / 2, 0], 0, 0), [0, Math.PI / 2, 0]);
   assert.deepEqual(getMovementRotation([0, 0, 0], Math.PI / 2, 1), [0, Math.PI / 2, 0]);

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { normalizeVector, normalizeColor, normalizeCollision, createCollisionSurface, offsetCollisionSurface } from './editor-utils.js';
+import { normalizeVector, normalizeColor, normalizeCollision, createCollisionSurface } from './editor-utils.js';
 import { normalizePointLight } from './editor-scene-state.js';
 
 export function normalizeEntityTransform(entity) {
@@ -102,7 +102,14 @@ export function entitySnapshot(entity) {
 
   if (entity.collision.enabled && entity.collision.shape === 'model') {
     const surface = createCollisionSurface(entity.object, 32, entity.collision.scale);
-    entity.collision.surface = offsetCollisionSurface(surface, entity.position, entity.collision.offset);
+    if (surface) {
+      surface.minX -= entity.position[0];
+      surface.maxX -= entity.position[0];
+      surface.minZ -= entity.position[2];
+      surface.maxZ -= entity.position[2];
+      surface.heights = surface.heights.map((height) => height - entity.position[1]);
+    }
+    entity.collision.surface = surface;
   }
 
   return {

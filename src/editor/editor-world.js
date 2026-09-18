@@ -12,6 +12,7 @@ import {
 } from './editor-scene-state.js';
 import { buildDefaultWorldConfig, resolveWorldConfig } from './editor-scene-config.js';
 import { readSavedMapConfig, saveMapConfig } from '../map-config.js';
+import { entitySnapshot } from './editor-entity-utils.js';
 
 export function createWorldController(getters, setters = {}) {
   const get = (key) => {
@@ -99,7 +100,9 @@ export function createWorldController(getters, setters = {}) {
         animation: { ...(player?.animation ?? {}) },
       },
       assets: (assets ?? []).map(({ id, name, url, source, format, dependencies }) => ({ id, name, url, source, format, dependencies })),
-      entities: (entities ?? []).filter((entity) => !entity.isPlayerPreview).map(({ object, ...entity }) => ({ ...entity })),
+      entities: (entities ?? [])
+        .filter((entity) => !entity.isPlayerPreview)
+        .map((entity) => entitySnapshot(entity)),
       enemyTypes: (enemyTypes ?? []).map((type, index) => normalizeEnemyType({ ...type, gold: { ...type.gold }, itemDrops: [...(type.itemDrops ?? [])] }, index)),
       enemyAreas: (enemyAreas ?? []).map((area) => ({ ...normalizeEnemyArea(area), center: [...area.center] })),
     };

@@ -13,6 +13,7 @@ import {
 } from './movement.js';
 
 const MAX_STEP_HEIGHT = 0.65;
+const MAX_SURFACE_SLOPE = Math.PI / 4;
 
 function addCapsule(body, scale = [1, 1, 1]) {
   const radius = Math.max(
@@ -294,6 +295,36 @@ export class PhysicsWorld {
       }
 
       if (entity.collision.surface) {
+        const mesh = entity.collision.surface.mesh;
+        if (!Array.isArray(mesh?.vertices) || !Array.isArray(mesh?.indices)
+          || mesh.vertices.length < 9 || mesh.indices.length < 3) continue;
+
+        const body = new CANNON.Body({ mass: 0, type: CANNON.Body.STATIC });
+        const material = new CANNON.Material(`static-${entity.id ?? 'collider'}`);
+        material.friction = Math.min(1, Math.max(0, Number(entity.collision.friction ?? 0.3) || 0));
+        material.restitution = Math.min(1, Math.max(0, Number(entity.collision.restitution ?? 0) || 0));
+        body.material = material;
+        body.addShape(new CANNON.Trimesh(mesh.vertices, mesh.indices));
+
+        const offset = entity.collision.offset ?? [0, 0, 0];
+        body.position.set(
+          (Number(entity.position?.[0]) || 0) + (Number(offset[0]) || 0),
+          (Number(entity.position?.[1]) || 0) + (Number(offset[1]) || 0),
+          (Number(entity.position?.[2]) || 0) + (Number(offset[2]) || 0),
+        );
+        body.quaternion.setFromEuler(...(entity.rotation ?? [0, 0, 0]));
+        this.world.addBody(body);
+        this.staticBodies.set(body, {
+          id: entity.id ?? null,
+          name: entity.name ?? entity.id ?? 'objeto sem nome',
+        });
+        this.world.addContactMaterial(new CANNON.ContactMaterial(this.playerMaterial, material, {
+          friction: material.friction,
+          restitution: material.restitution,
+        }));
+      }
+
+      if (entity.collision.surface) {
         continue;
       }
 
@@ -526,10 +557,14 @@ const step = Math.min(
   ),
   0.1,
 );
-    stepPhysicsWorld(
-      this.world,
-      step,
+    const physicsSubSteps = Math.max(
+      1,
+      Math.ceil(Math.hypot(speed * step, speed * step) / 0.05),
     );
+    const physicsStep = step / physicsSubSteps;
+    for (let index = 0; index < physicsSubSteps; index += 1) {
+      stepPhysicsWorld(this.world, physicsStep, physicsStep, 1);
+    }
 
     const desired = [
       body.position.x,
@@ -603,12 +638,15 @@ const step = Math.min(
 
       body.velocity.x = 0;
       body.velocity.z = 0;
+    } else if (!canTraverseSurface(this.surfaceColliders, previous, desired)) {
+      body.position.set(previous[0], previous[1], previous[2]);
+      body.velocity.x = 0;
+      body.velocity.z = 0;
     } else {
-      body.position.x =
-        desired[0];
-
-      body.position.z =
-        desired[2];
+      if (!hasBlockingStaticContact(this.world, body, this.staticBodies)) {
+        body.position.x = desired[0];
+        body.position.z = desired[2];
+      }
 
       if (
         surfaceHeight !== null &&
@@ -697,4 +735,37 @@ const step = Math.min(
 
     body.wakeUp();
   }
+}
+
+function canTraverseSurface(surfaceColliders, from, to) {
+  const distance = Math.hypot(to[0] - from[0], to[2] - from[2]);
+  const steps = Math.max(2, Math.ceil(distance / 0.1));
+  const maxHeightDelta = Math.tan(MAX_SURFACE_SLOPE) * (distance / steps);
+  let previousHeight = samplePlayerSurfaceHeight(surfaceColliders, from);
+
+  for (let index = 1; index <= steps; index += 1) {
+    const progress = index / steps;
+    const position = [
+      from[0] + (to[0] - from[0]) * progress,
+      from[1],
+      from[2] + (to[2] - from[2]) * progress,
+    ];
+    const height = samplePlayerSurfaceHeight(surfaceColliders, position);
+    if (height !== null && previousHeight !== null
+      && Math.abs(height - previousHeight) > maxHeightDelta) {
+      return false;
+    }
+    if (height !== null) previousHeight = height;
+  }
+
+  return true;
+}
+
+function hasBlockingStaticContact(world, body, staticBodies) {
+  return (world.contacts ?? []).some((contact) => {
+    const otherBody = contact.bi === body ? contact.bj : contact.bj === body ? contact.bi : null;
+    if (!otherBody || !staticBodies.has(otherBody)) return false;
+    const normalY = contact.bi === body ? contact.ni.y : -contact.ni.y;
+    return Math.abs(normalY) < Math.cos(MAX_SURFACE_SLOPE);
+  });
 }

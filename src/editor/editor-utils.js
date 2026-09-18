@@ -103,7 +103,39 @@ export function createCollisionSurface(object, segments = 32, collisionScale = [
     columns,
     rows,
     heights: heights.map((height) => centerY + (height - centerY) * scale[1]),
+    mesh: createCollisionMesh(object),
   };
+}
+
+export function createCollisionMesh(object) {
+  if (!object) return null;
+  object.updateMatrixWorld(true);
+  const inverseRoot = new THREE.Matrix4().copy(object.matrixWorld).invert();
+  const vertices = [];
+  const indices = [];
+
+  object.traverse((child) => {
+    if (!child.isMesh || !child.geometry?.attributes?.position) return;
+    const position = child.geometry.attributes.position;
+    const vertexOffset = vertices.length / 3;
+    const localMatrix = new THREE.Matrix4().multiplyMatrices(inverseRoot, child.matrixWorld);
+    const point = new THREE.Vector3();
+    for (let index = 0; index < position.count; index += 1) {
+      point.fromBufferAttribute(position, index).applyMatrix4(localMatrix);
+      vertices.push(point.x, point.y, point.z);
+    }
+    const indexAttribute = child.geometry.index;
+    if (indexAttribute) {
+      for (let index = 0; index < indexAttribute.count; index += 1) {
+        indices.push(vertexOffset + indexAttribute.getX(index));
+      }
+    } else {
+      for (let index = 0; index < position.count; index += 1) indices.push(vertexOffset + index);
+    }
+  });
+
+  if (vertices.length < 9 || indices.length < 3) return null;
+  return { vertices, indices };
 }
 
 export function createPrimitiveObject(type) {
