@@ -137,6 +137,14 @@ function addCapsule(body, scale = [1, 1, 1]) {
         translation: [0, -cylinderHeight * 0.5, 0],
       }),
     );
+  } else {
+    body.addShape(
+      createColliderDesc({
+        type: 'ball',
+        radius,
+        translation: [0, 0, 0],
+      }),
+    );
   }
 }
 
@@ -508,6 +516,8 @@ export class PhysicsWorld {
 
     body.velocity.z =
       inputZ * safeSpeed;
+
+    this.step(safeDelta);
 
     return [
       body.position.x,

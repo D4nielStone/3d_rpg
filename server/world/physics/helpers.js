@@ -141,6 +141,7 @@ export class World {
     this.solver = { iterations: 10, tolerance: 0.001 };
     this.bodies = [];
     this.contacts = [];
+    this.contactMaterials = [];
   }
 
   addBody(body) {
@@ -155,7 +156,7 @@ export class World {
   }
 
   addContactMaterial(material) {
-    this.contacts.push(material);
+    this.contactMaterials.push(material);
     return material;
   }
 
@@ -163,6 +164,7 @@ export class World {
     if (!Number.isFinite(Number(fixedTimeStep)) || Number(fixedTimeStep) <= 0) return;
 
     const delta = Number(deltaSeconds) || 0;
+    this.contacts = [];
     for (const body of this.bodies) {
       if (body.type === Body.STATIC) continue;
       if (this.allowSleep && body.sleepState === Body.SLEEPING) continue;
@@ -175,8 +177,100 @@ export class World {
       if (Math.abs(body.velocity.x) < 1e-6) body.velocity.x = 0;
       if (Math.abs(body.velocity.y) < 1e-6) body.velocity.y = 0;
       if (Math.abs(body.velocity.z) < 1e-6) body.velocity.z = 0;
+
+      for (const staticBody of this.bodies) {
+        if (staticBody.type !== Body.STATIC) continue;
+        const collision = resolveStaticCollision(body, staticBody);
+        if (collision) this.contacts.push({ bi: body, bj: staticBody });
+      }
     }
   }
+}
+
+function getShapeBounds(body, shapeEntry) {
+  const shape = shapeEntry.shape;
+  const translation = shape.translation ?? [0, 0, 0];
+  const center = [
+    body.position.x + Number(translation[0] ?? 0),
+    body.position.y + Number(translation[1] ?? 0),
+    body.position.z + Number(translation[2] ?? 0),
+  ];
+
+  if (shape.type === 'cuboid') {
+    const halfExtents = shape.halfExtents ?? [0.5, 0.5, 0.5];
+    return {
+      min: center.map((value, index) => value - Math.abs(Number(halfExtents[index]) || 0.5)),
+      max: center.map((value, index) => value + Math.abs(Number(halfExtents[index]) || 0.5)),
+    };
+  }
+
+  if (shape.type === 'cylinder') {
+    const radius = Math.abs(Number(shape.radius) || 0.5);
+    const halfHeight = Math.abs(Number(shape.height) || 1) * 0.5;
+    return {
+      min: [center[0] - radius, center[1] - halfHeight, center[2] - radius],
+      max: [center[0] + radius, center[1] + halfHeight, center[2] + radius],
+    };
+  }
+
+  if (shape.type === 'ball') {
+    const radius = Math.abs(Number(shape.radius) || 0.5);
+    return {
+      min: center.map((value) => value - radius),
+      max: center.map((value) => value + radius),
+    };
+  }
+
+  if (shape.type === 'trimesh' || (Array.isArray(shape.vertices) && Array.isArray(shape.indices))) {
+    const vertices = shape.vertices ?? [];
+    if (vertices.length < 3) return null;
+    const min = [Infinity, Infinity, Infinity];
+    const max = [-Infinity, -Infinity, -Infinity];
+    for (let index = 0; index < vertices.length; index += 3) {
+      for (let axis = 0; axis < 3; axis += 1) {
+        const value = center[axis] + Number(vertices[index + axis] ?? 0);
+        min[axis] = Math.min(min[axis], value);
+        max[axis] = Math.max(max[axis], value);
+      }
+    }
+    return { min, max };
+  }
+
+  return null;
+}
+
+function getBodyBounds(body) {
+  const bounds = body.shapes
+    .map((shapeEntry) => getShapeBounds(body, shapeEntry))
+    .filter(Boolean);
+  if (bounds.length === 0) return null;
+
+  return {
+    min: [0, 1, 2].map((axis) => Math.min(...bounds.map((item) => item.min[axis]))),
+    max: [0, 1, 2].map((axis) => Math.max(...bounds.map((item) => item.max[axis]))),
+  };
+}
+
+function resolveStaticCollision(dynamicBody, staticBody) {
+  const dynamicBounds = getBodyBounds(dynamicBody);
+  const staticBounds = getBodyBounds(staticBody);
+  if (!dynamicBounds || !staticBounds) return false;
+
+  const overlap = [0, 1, 2].map((axis) => Math.min(
+    dynamicBounds.max[axis] - staticBounds.min[axis],
+    staticBounds.max[axis] - dynamicBounds.min[axis],
+  ));
+  if (overlap.some((value) => value <= 0)) return false;
+
+  const axis = overlap.indexOf(Math.min(...overlap));
+  const dynamicCenter = (dynamicBounds.min[axis] + dynamicBounds.max[axis]) * 0.5;
+  const staticCenter = (staticBounds.min[axis] + staticBounds.max[axis]) * 0.5;
+  const direction = dynamicCenter >= staticCenter ? 1 : -1;
+  dynamicBody.position[axis === 0 ? 'x' : axis === 1 ? 'y' : 'z'] += overlap[axis] * direction;
+
+  const velocityKey = axis === 0 ? 'x' : axis === 1 ? 'y' : 'z';
+  if (dynamicBody.velocity[velocityKey] * direction < 0) dynamicBody.velocity[velocityKey] = 0;
+  return true;
 }
 
 export function createPhysicsVector(x = 0, y = 0, z = 0) {
