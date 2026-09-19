@@ -21,7 +21,10 @@ import {
   EnemyAreaRenderer,
   SoundListener,
   SoundPlayer,
+  Rigidbody,
 } from './components.js';
+import { PhysicsWorld } from '../server/world/physics.js';
+import { sampleTerrainHeight } from '../shared/terrain-height.js';
 
 function shortestAngleDelta(target, current) {
   return Math.atan2(Math.sin(target - current), Math.cos(target - current));
@@ -75,6 +78,78 @@ export class SoundPlayerSystem {
 function setAudioParam(param, value) {
   param?.setValueAtTime?.(value, param.context?.currentTime ?? 0);
   if (param && !param.setValueAtTime) param.value = value;
+}
+
+function getStaticBounds(entity) {
+  if (!entity?.collision?.enabled || !Array.isArray(entity.position)) return null;
+  const scale = entity.scale ?? [1, 1, 1];
+  const collisionScale = entity.collision.scale ?? [1, 1, 1];
+  const offset = entity.collision.offset ?? [0, 0, 0];
+  const halfExtents = [0, 1, 2].map((index) => Math.max(
+    0.01,
+    Math.abs(Number(scale[index]) || 1) * Math.abs(Number(collisionScale[index]) || 1) * 0.5,
+  ));
+  const center = [0, 1, 2].map((index) => entity.position[index] + (Number(offset[index]) || 0));
+  return {
+    minX: center[0] - halfExtents[0],
+    maxX: center[0] + halfExtents[0],
+    minY: center[1] - halfExtents[1],
+    maxY: center[1] + halfExtents[1],
+    minZ: center[2] - halfExtents[2],
+    maxZ: center[2] + halfExtents[2],
+  };
+}
+export class PhysicsSystem {
+  constructor(physicsWorld) {
+    if (physicsWorld && typeof physicsWorld.step === 'function' && typeof physicsWorld.movePlayer === 'function') {
+      this.physicsWorld = physicsWorld;
+      return;
+    }
+
+    this.physicsWorld = new PhysicsWorld(physicsWorld ?? null);
+  }
+
+  update(world, deltaSeconds) {
+    const step = Math.min(
+      Math.max(Number(deltaSeconds) || 0, 0),
+      0.1,
+    );
+
+    if (!step) return;
+
+    // 1. Envia intenção/movimento para a camada de física.
+    for (const entity of world.query(Transform, Rigidbody)) {
+      const transform = world.getComponent(entity, Transform);
+      const body = world.getComponent(entity, Rigidbody);
+
+      if (!body?.physicsId) continue;
+
+      this.physicsWorld.movePlayer(
+        body.physicsId,
+        transform.position,
+        transform.rotation?.[1] ?? 0,
+        body.speed ?? 0,
+        step,
+      );
+    }
+
+    // 2. A camada de física aplica gravidade e colisões.
+    this.physicsWorld.step(step);
+
+    // 3. Recupera a posição física resultante.
+    for (const entity of world.query(Transform, Rigidbody)) {
+      const transform = world.getComponent(entity, Transform);
+      const body = world.getComponent(entity, Rigidbody);
+
+      if (!body?.physicsId) continue;
+
+      const position = this.physicsWorld.getPlayerPosition(body.physicsId);
+
+      if (!position) continue;
+
+      transform.position = position;
+    }
+  }
 }
 
 export class NetworkInterpolationSystem {

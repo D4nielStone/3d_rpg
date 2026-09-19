@@ -106,14 +106,16 @@ export function createCollisionSurface(object, segments = 32, collisionScale = [
     rows,
     heights: heights.map((height) => centerY + (height - centerY) * scale[1]),
     valid,
-    mesh: createCollisionMesh(object),
+    mesh: createCollisionMesh(object, scale),
   };
 }
 
-export function createCollisionMesh(object) {
+export function createCollisionMesh(object, collisionScale = [1, 1, 1]) {
   if (!object) return null;
   object.updateMatrixWorld(true);
   const inverseRoot = new THREE.Matrix4().copy(object.matrixWorld).invert();
+  const rootScale = [object.scale.x, object.scale.y, object.scale.z];
+  const meshScale = rootScale.map((value, index) => value * (Number(collisionScale[index]) || 1));
   const vertices = [];
   const indices = [];
 
@@ -125,6 +127,11 @@ export function createCollisionMesh(object) {
     const point = new THREE.Vector3();
     for (let index = 0; index < position.count; index += 1) {
       point.fromBufferAttribute(position, index).applyMatrix4(localMatrix);
+      point.set(
+        point.x * meshScale[0],
+        point.y * meshScale[1],
+        point.z * meshScale[2],
+      );
       vertices.push(point.x, point.y, point.z);
     }
     const indexAttribute = child.geometry.index;
@@ -139,6 +146,18 @@ export function createCollisionMesh(object) {
 
   if (vertices.length < 9 || indices.length < 3) return null;
   return { vertices, indices };
+}
+
+export function createCollisionSurfaceGeometry(surface) {
+  const mesh = surface?.mesh ?? surface;
+  if (!mesh || !Array.isArray(mesh.vertices) || !Array.isArray(mesh.indices)) return null;
+  if (mesh.vertices.length < 9 || mesh.indices.length < 3) return null;
+
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(mesh.vertices, 3));
+  geometry.setIndex(mesh.indices);
+  geometry.computeVertexNormals();
+  return geometry;
 }
 
 export function createPrimitiveObject(type) {

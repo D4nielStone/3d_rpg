@@ -32,7 +32,7 @@ test('converte WASD em angulo e magnitude', () => {
   assert.deepEqual(input.getMovementCommand(), { angle: Math.PI / 2, magnitude: 1 });
 });
 
-test('Cannon avanca o jogador usando o angulo recebido', () => {
+test('a camada de física avança o jogador usando o angulo recebido', () => {
   const physics = new PhysicsWorld({
     terrain: {
       width: 4,
@@ -349,6 +349,51 @@ test('jogador nao sobe uma parede representada como superficie inclinada', () =>
   const position = physics.movePlayer('steep-player', [-1, 0, 0], Math.PI / 2, 3, 0.05);
 
   assert.ok(position[0] < -0.8, `O jogador subiu a superficie inclinada em x=${position[0]}`);
+});
+
+test('jogador nao atravessa um vao entre superficies inclinadas', () => {
+  const physics = new PhysicsWorld({
+    entities: [
+      {
+        id: 'left-ramp',
+        position: [-2, 0, 0],
+        collision: {
+          enabled: true,
+          shape: 'model',
+          surface: {
+            minX: -4,
+            maxX: -0.5,
+            minZ: -1,
+            maxZ: 1,
+            columns: 2,
+            rows: 2,
+            heights: [0, 0, 0, 0],
+          },
+        },
+      },
+      {
+        id: 'right-ramp',
+        position: [2, 0, 0],
+        collision: {
+          enabled: true,
+          shape: 'model',
+          surface: {
+            minX: 0.5,
+            maxX: 4,
+            minZ: -1,
+            maxZ: 1,
+            columns: 2,
+            rows: 2,
+            heights: [0, 0, 0, 0],
+          },
+        },
+      },
+    ],
+  });
+
+  const position = physics.movePlayer('gap-player', [-1.5, 1, 0], 0, 3, 0.05);
+
+  assert.ok(position[0] < 0.2, `O jogador atravessou o vão entre inclinações em x=${position[0]}`);
 });
 
 test('parar o movimento preserva o ultimo yaw', () => {

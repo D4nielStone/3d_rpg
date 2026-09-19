@@ -14,6 +14,7 @@ import {
   uniqueEntityName,
   normalizeCollision,
   createCollisionSurface,
+  createCollisionSurfaceGeometry,
   offsetCollisionSurface,
   createPrimitiveObject,
   listEditorEntities,
@@ -326,6 +327,11 @@ function clearCollisionVisual(entity) {
   disposeObject(visual);
 }
 function createCollisionSurfaceVisual(surface, material) {
+  if (surface?.mesh) {
+    const geometry = createCollisionSurfaceGeometry(surface);
+    if (geometry) return new THREE.LineSegments(new THREE.EdgesGeometry(geometry), material);
+  }
+
   const columns = Math.floor(Number(surface?.columns));
   const rows = Math.floor(Number(surface?.rows));
   const heights = surface?.heights;

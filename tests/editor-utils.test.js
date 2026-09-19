@@ -1,7 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { normalizeVector, normalizeColor, colorToHex, uniqueEntityName, listEditorEntities } from '../src/editor/editor-utils.js';
+import {
+  normalizeVector,
+  normalizeColor,
+  colorToHex,
+  uniqueEntityName,
+  listEditorEntities,
+  createPrimitiveObject,
+  createCollisionMesh,
+  createCollisionSurfaceGeometry,
+} from '../src/editor/editor-utils.js';
 
 test('normalizeVector usa fallback para valores inválidos', () => {
   assert.deepEqual(normalizeVector([1, 2], [0, 0, 0]), [1, 2, 0]);
@@ -30,4 +39,28 @@ test('listEditorEntities inclui terreno e luz direcional como entidades editáve
   assert.deepEqual(list.map((entity) => entity.type), ['terrain', 'directionalLight', 'entity']);
   assert.equal(list[0].name, 'Terreno');
   assert.equal(list[1].name, 'Luz direta');
+});
+
+test('malha de colisao preserva a escala do modelo', () => {
+  const object = createPrimitiveObject('box');
+  object.scale.set(2, 3, 4);
+
+  const mesh = createCollisionMesh(object);
+  const xCoordinates = mesh.vertices.filter((_, index) => index % 3 === 0);
+  const yCoordinates = mesh.vertices.filter((_, index) => index % 3 === 1);
+  const zCoordinates = mesh.vertices.filter((_, index) => index % 3 === 2);
+
+  assert.equal(Math.max(...xCoordinates), 1);
+  assert.equal(Math.max(...yCoordinates), 1.5);
+  assert.equal(Math.max(...zCoordinates), 2);
+});
+
+test('geometria visual do colisor usa triangulos do modelo em vez da grelha aproximada', () => {
+  const object = createPrimitiveObject('box');
+  const mesh = createCollisionMesh(object);
+  const geometry = createCollisionSurfaceGeometry({ mesh, columns: 4, rows: 4, minX: -1, maxX: 1, minZ: -1, maxZ: 1 });
+
+  assert.ok(geometry);
+  assert.equal(geometry.index.count, mesh.indices.length);
+  assert.equal(geometry.attributes.position.count, mesh.vertices.length / 3);
 });

@@ -18,7 +18,7 @@ export default defineConfig({
       output: {
         manualChunks(id) {
           if (id.includes('/node_modules/three/')) return 'three';
-          if (id.includes('/node_modules/cannon-es/')) return 'physics';
+          if (id.includes('/node_modules/@dimforge/rapier3d/')) return 'physics';
           return undefined;
         },
       },

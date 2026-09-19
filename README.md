@@ -87,7 +87,7 @@ Os sistemas consultam as entidades pelos componentes necessarios e atualizam ou 
 
 ## Movimento autoritativo
 
-O teclado converte WASD em um comando `{ angle, magnitude }`. O mesmo contrato pode receber eixos de gamepad no futuro. O cliente nunca envia coordenadas do jogador: o relay valida o comando, avanca o corpo usando Cannon e distribui a posicao resultante nos snapshots.
+O teclado converte WASD em um comando `{ angle, magnitude }`. O mesmo contrato pode receber eixos de gamepad no futuro. O cliente nunca envia coordenadas do jogador: o relay valida o comando, avanca o corpo usando a camada de física centralizada e distribui a posicao resultante nos snapshots.
 
 ## Multiplayer
 

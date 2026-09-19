@@ -1,4 +1,4 @@
-import { AnimationPlayer, DirectionalLightRenderer, MeshRenderer, ShadowRenderer, Texture, Transform } from './components.js';
+import { AnimationPlayer, DirectionalLightRenderer, MeshRenderer, Rigidbody, ShadowRenderer, Texture, Transform } from './components.js';
 import { loadAsset } from './asset-loader.js';
 import { createWater } from './water.js';
 import { readSavedMapConfig } from './map-config.js';
@@ -30,6 +30,22 @@ const TERRAIN_COLORS = {
   stone: [0.467, 0.49, 0.475],
   enemy: [0.435, 0.357, 0.192],
 };
+
+function addConfiguredRigidbody(world, entity, definition) {
+  if (definition.collision?.bodyType !== 'rigidBody') return;
+  const scale = definition.scale ?? [1, 1, 1];
+  const collisionScale = definition.collision.scale ?? [1, 1, 1];
+  const halfExtents = [0, 1, 2].map((index) => Math.max(
+    0.01,
+    Math.abs(Number(scale[index]) || 1) * Math.abs(Number(collisionScale[index]) || 1) * 0.5,
+  ));
+  world.addComponent(entity, new Rigidbody({
+    halfExtents,
+    offset: definition.collision.offset,
+    gravity: definition.collision.gravity,
+    mass: definition.collision.mass,
+  }));
+}
 
 function createPrimitiveMesh(type) {
   const positions = [];
@@ -223,6 +239,7 @@ async function createWorldEntities(world, config, textureManager) {
       const configuredMaterial = definition.materials?.[0]?.diffuseColor;
       if (Array.isArray(configuredMaterial)) material.diffuseColor = [...configuredMaterial];
       world.addComponent(entity, mesh);
+      addConfiguredRigidbody(world, entity, definition);
       if (definition.castShadow !== false) world.addComponent(entity, new ShadowRenderer());
       continue;
     }
@@ -247,6 +264,7 @@ async function createWorldEntities(world, config, textureManager) {
       loaded.mesh.receiveLight = definition.receiveLight !== false;
       loaded.mesh.castShadow = definition.castShadow !== false;
       world.addComponent(entity, loaded.mesh);
+      addConfiguredRigidbody(world, entity, definition);
       if (definition.castShadow !== false) world.addComponent(entity, new ShadowRenderer());
       if (loaded.texture) world.addComponent(entity, loaded.texture);
       if (loaded.animations?.length) {

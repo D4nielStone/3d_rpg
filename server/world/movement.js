@@ -1,4 +1,4 @@
-import * as CANNON from 'cannon-es';
+import { Vec3, createMovementVector } from './physics/helpers.js';
 
 export function getMovementVelocity(
   angle,
@@ -28,15 +28,8 @@ export function getMovementVelocity(
   const velocity =
     safeSpeed * safeMagnitude;
 
-  return new CANNON.Vec3(
-    Math.sin(safeAngle) *
-      velocity,
-
-    0,
-
-    Math.cos(safeAngle) *
-      velocity,
-  );
+  const vector = createMovementVector(safeAngle, velocity, 1);
+  return new Vec3(vector.x, vector.y, vector.z);
 }
 
 export function applyMovementVelocity(

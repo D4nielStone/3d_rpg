@@ -99,6 +99,7 @@ export function entitySnapshot(entity) {
   normalizeEntityAnimation(entity);
   normalizeCollision(entity);
   normalizeEntityShadows(entity);
+  applyEntityTransform(entity);
 
   if (entity.collision.enabled && entity.collision.shape === 'model') {
     const surface = createCollisionSurface(entity.object, 32, entity.collision.scale);

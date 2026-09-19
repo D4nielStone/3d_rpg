@@ -3,6 +3,7 @@ import { SoundListener } from './components.js';
 export function startGameLoop({
   world,
   animationSystem,
+  physicsSystem,
   networkInterpolationSystem,
   soundListenerSystem,
   soundPlayerSystem,
@@ -18,6 +19,7 @@ export function startGameLoop({
     previousTime = time;
 
     // A ordem importa: movimento local, rede, interpolacao, marcador e renderizacao.
+    physicsSystem.update(world, deltaSeconds);
     animationSystem.update(world, deltaSeconds);
     multiplayerSystem.update(world, time);
     networkInterpolationSystem.update(world, deltaSeconds);

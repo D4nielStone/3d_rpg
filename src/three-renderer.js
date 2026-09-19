@@ -56,7 +56,16 @@ export class ThreeRenderSystem {
     this.sourceCamera = camera;
     this.camera = new THREE.PerspectiveCamera(45, 1, 0.1, 1000);
     camera.setRenderCamera(this.camera);
-    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
+    try {
+      this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
+    } catch (error) {
+      const message = 'Erro ao carregar contexto webgl.';
+      throw new Error(message, { cause: error });
+    }
+    canvas.addEventListener('webglcontextlost', (event) => {
+      event.preventDefault();
+      console.error('El contexto WebGL se perdio; recarga la pagina para intentar recuperarlo.');
+    });
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;

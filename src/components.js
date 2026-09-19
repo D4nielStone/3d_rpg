@@ -6,6 +6,22 @@ export class Transform {
   }
 }
 
+export class Rigidbody {
+  constructor({
+    halfExtents = [0.5, 0.5, 0.5],
+    offset = [0, 0, 0],
+    gravity = 9.81,
+    mass = 1,
+  } = {}) {
+    this.halfExtents = [...halfExtents].map((value) => Math.max(0.01, Math.abs(Number(value)) || 0.01));
+    this.offset = [...offset].map((value) => Number(value) || 0);
+    this.gravity = Math.max(0, Number(gravity) || 0);
+    this.mass = Math.max(0.001, Number(mass) || 0.001);
+    this.velocity = [0, 0, 0];
+    this.grounded = false;
+  }
+}
+
 export class SoundListener {
   constructor({ context = null } = {}) {
     const AudioContextClass = globalThis.AudioContext ?? globalThis.webkitAudioContext;

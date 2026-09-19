@@ -1,23 +1,99 @@
-import * as CANNON from 'cannon-es';
+import {
+  Vec3,
+  Quaternion,
+  Material,
+  ContactMaterial,
+  SAPBroadphase,
+  Box,
+  Sphere,
+  Cylinder,
+  Trimesh,
+  Body,
+  World,
+  createColliderDesc,
+  createPhysicsVector,
+  createPhysicsWorld,
+  createMovementVector,
+  createRigidBodyDesc,
+  stepPhysicsSimulation,
+} from './physics/helpers.js';
 import { normalizePlayerScale } from '../../shared/player-size.js';
-import {
-  canTraverseTerrain,
-  PLAYER_HEIGHT,
-  sampleTerrainHeight,
-  TERRAIN_BASE_Y,
-} from '../../shared/terrain-height.js';
-import { sampleCollisionSurface } from '../../shared/collision-surface.js';
-import {
-  applyMovementVelocity,
-  stepPhysicsWorld,
-} from './movement.js';
 
-const MAX_STEP_HEIGHT = 0.65;
-const MAX_SURFACE_SLOPE = Math.PI / 4;
+const FIXED_TIME_STEP = 1 / 60;
+const MAX_SUB_STEPS = 3;
+
+const PLAYER_MASS = 1;
+const PLAYER_LINEAR_DAMPING = 0;
+const PLAYER_ANGULAR_DAMPING = 1;
+
+const DEFAULT_FRICTION = 0;
+const DEFAULT_RESTITUTION = 0;
+
+function toFiniteNumber(value, fallback = 0) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+}
+
+function getVector3(value, fallback = [0, 0, 0]) {
+  if (!Array.isArray(value)) {
+    return [...fallback];
+  }
+
+  return [
+    toFiniteNumber(value[0], fallback[0]),
+    toFiniteNumber(value[1], fallback[1]),
+    toFiniteNumber(value[2], fallback[2]),
+  ];
+}
+
+function getCollisionScale(entity) {
+  const scale = entity?.collision?.scale ?? [1, 1, 1];
+
+  return [
+    Math.max(0.01, Math.abs(toFiniteNumber(scale[0], 1))),
+    Math.max(0.01, Math.abs(toFiniteNumber(scale[1], 1))),
+    Math.max(0.01, Math.abs(toFiniteNumber(scale[2], 1))),
+  ];
+}
+
+function getEntityScale(entity) {
+  const scale = entity?.scale ?? [1, 1, 1];
+
+  return [
+    Math.max(0.01, Math.abs(toFiniteNumber(scale[0], 1))),
+    Math.max(0.01, Math.abs(toFiniteNumber(scale[1], 1))),
+    Math.max(0.01, Math.abs(toFiniteNumber(scale[2], 1))),
+  ];
+}
+
+function getCombinedScale(entity) {
+  const scale = getEntityScale(entity);
+  const collisionScale = getCollisionScale(entity);
+
+  return [
+    scale[0] * collisionScale[0],
+    scale[1] * collisionScale[1],
+    scale[2] * collisionScale[2],
+  ];
+}
+
+function createMaterial(name, friction, restitution) {
+  return {
+    name,
+    friction: Math.min(
+      1,
+      Math.max(0, toFiniteNumber(friction, DEFAULT_FRICTION)),
+    ),
+    restitution: Math.min(
+      1,
+      Math.max(0, toFiniteNumber(restitution, DEFAULT_RESTITUTION)),
+    ),
+  };
+}
 
 function addCapsule(body, scale = [1, 1, 1]) {
   const radius = Math.max(
-    0.25,
+    0.2,
     Math.min(
       Math.abs(scale[0] ?? 1),
       Math.abs(scale[2] ?? 1),
@@ -35,422 +111,255 @@ function addCapsule(body, scale = [1, 1, 1]) {
   );
 
   body.addShape(
-    new CANNON.Cylinder(
+    createColliderDesc({
+      type: 'cylinder',
       radius,
-      radius,
-      cylinderHeight || 0.001,
-      12,
-    ),
+      height: Math.max(cylinderHeight, 0.001),
+      translation: [0, 0, 0],
+      friction: 0,
+      restitution: 0,
+    }),
   );
 
   if (cylinderHeight > 0) {
     body.addShape(
-      new CANNON.Sphere(radius),
-      new CANNON.Vec3(
-        0,
-        cylinderHeight * 0.5,
-        0,
-      ),
+      createColliderDesc({
+        type: 'ball',
+        radius,
+        translation: [0, cylinderHeight * 0.5, 0],
+      }),
     );
 
     body.addShape(
-      new CANNON.Sphere(radius),
-      new CANNON.Vec3(
-        0,
-        -cylinderHeight * 0.5,
-        0,
-      ),
+      createColliderDesc({
+        type: 'ball',
+        radius,
+        translation: [0, -cylinderHeight * 0.5, 0],
+      }),
     );
   }
 }
 
-function getCollisionScale(entity) {
-  const scale = entity?.collision?.scale ?? [1, 1, 1];
+function scaleTrimeshVertices(vertices, scale) {
+  const result = new Array(vertices.length);
 
-  return scale.map((value) =>
-    Math.max(
-      0.01,
-      Math.abs(Number(value) || 1),
-    ),
-  );
+  for (let index = 0; index < vertices.length; index += 3) {
+    result[index] =
+      toFiniteNumber(vertices[index], 0) *
+      scale[0];
+
+    result[index + 1] =
+      toFiniteNumber(vertices[index + 1], 0) *
+      scale[1];
+
+    result[index + 2] =
+      toFiniteNumber(vertices[index + 2], 0) *
+      scale[2];
+  }
+
+  return result;
 }
 
-function getStaticColliderBounds(entity) {
+function createTrimeshShape(mesh, scale) {
   if (
-    !entity?.collision?.enabled ||
-    !Array.isArray(entity.position)
+    !Array.isArray(mesh?.vertices) ||
+    !Array.isArray(mesh?.indices)
   ) {
     return null;
   }
 
-  const scale = entity.scale ?? [1, 1, 1];
-  const collisionScale = getCollisionScale(entity);
-  const offset = entity.collision.offset ?? [0, 0, 0];
-
-  const halfX = Math.max(
-    0.05,
-    Math.abs(Number(scale[0]) || 1) *
-      collisionScale[0] *
-      0.5,
-  );
-
-  const halfY = Math.max(
-    0.05,
-    Math.abs(Number(scale[1]) || 1) *
-      collisionScale[1] *
-      0.5,
-  );
-
-  const halfZ = Math.max(
-    0.05,
-    Math.abs(Number(scale[2]) || 1) *
-      collisionScale[2] *
-      0.5,
-  );
-
-  return {
-    minX:
-      entity.position[0] +
-      (Number(offset[0]) || 0) -
-      halfX,
-
-    maxX:
-      entity.position[0] +
-      (Number(offset[0]) || 0) +
-      halfX,
-
-    minY:
-      entity.position[1] +
-      (Number(offset[1]) || 0) -
-      halfY,
-
-    maxY:
-      entity.position[1] +
-      (Number(offset[1]) || 0) +
-      halfY,
-
-    minZ:
-      entity.position[2] +
-      (Number(offset[2]) || 0) -
-      halfZ,
-
-    maxZ:
-      entity.position[2] +
-      (Number(offset[2]) || 0) +
-      halfZ,
-    surface: entity.collision.surface ?? null,
-  };
-}
-
-function collidesWithStaticColliders(
-  from,
-  to,
-  radius,
-  colliders,
-) {
-  const dx = to[0] - from[0];
-  const dz = to[2] - from[2];
-
-  const steps = Math.max(
-    2,
-    Math.ceil(Math.hypot(dx, dz) / 0.15),
-  );
-
-  for (let step = 1; step <= steps; step += 1) {
-    const progress = step / steps;
-
-    const x =
-      from[0] +
-      dx * progress;
-
-    const z =
-      from[2] +
-      dz * progress;
-
-    const blocked = colliders.find((collider) => {
-      if (!collider) return false;
-
-      if (
-        collider.maxY <= from[1] + 0.1 &&
-        collider.maxY - collider.minY <= 0.5
-      ) {
-        return false;
-      }
-
-      return (
-        x >= collider.minX - radius &&
-        x <= collider.maxX + radius &&
-        z >= collider.minZ - radius &&
-        z <= collider.maxZ + radius
-      ) && collider.maxY - (from[1] - PLAYER_HEIGHT / 2) > MAX_STEP_HEIGHT;
-    });
-
-    if (blocked) {
-        return true;
-    }
+  if (
+    mesh.vertices.length < 9 ||
+    mesh.indices.length < 3 ||
+    mesh.vertices.length % 3 !== 0
+  ) {
+    return null;
   }
 
-  return false;
+  const vertices = scaleTrimeshVertices(
+    mesh.vertices,
+    scale,
+  );
+
+  const indices = mesh.indices
+    .map((value) => Math.trunc(Number(value)))
+    .filter((value) => Number.isInteger(value));
+
+  if (indices.length < 3) {
+    return null;
+  }
+
+  return new Trimesh(vertices, indices);
 }
 
-function findTraversableStep(position, radius, colliders) {
-  const footHeight = position[1] - PLAYER_HEIGHT / 2;
-  return colliders.find((collider) => (
-    collider
-    && collider.maxY > footHeight
-    && collider.maxY - footHeight <= MAX_STEP_HEIGHT
-    && position[0] >= collider.minX - radius
-    && position[0] <= collider.maxX + radius
-    && position[2] >= collider.minZ - radius
-    && position[2] <= collider.maxZ + radius
-  )) ?? null;
+function addBoxShape(body, scale) {
+  body.addShape(
+    createColliderDesc({
+      type: 'cuboid',
+      halfExtents: [
+        Math.max(0.05, scale[0] * 0.5),
+        Math.max(0.05, scale[1] * 0.5),
+        Math.max(0.05, scale[2] * 0.5),
+      ],
+    }),
+  );
 }
 
-function samplePlayerSurfaceHeight(surfaceColliders, position, radius = 0.35) {
-  return surfaceColliders.reduce((highest, surface) => {
-    const height = sampleCollisionSurface(surface, position[0], position[2]);
-    return height === null ? highest : Math.max(highest ?? height, height);
-  }, null);
+function setBodyTransform(body, entity) {
+  const position = getVector3(
+    entity?.position,
+    [0, 0, 0],
+  );
+
+  const offset = getVector3(
+    entity?.collision?.offset,
+    [0, 0, 0],
+  );
+
+  const rotation = getVector3(
+    entity?.rotation,
+    [0, 0, 0],
+  );
+
+  body.position.set(
+    position[0] + offset[0],
+    position[1] + offset[1],
+    position[2] + offset[2],
+  );
+
+  body.quaternion.setFromEuler(
+    rotation[0],
+    rotation[1],
+    rotation[2],
+  );
 }
 
-function addGroundCollider(
-  world,
-  playerMaterial,
-) {
-  return;
+function getCollisionShape(entity) {
+  const shape = entity?.collision?.shape;
+
+  if (shape === 'trimesh') {
+    return 'trimesh';
+  }
+
+  if (shape === 'capsule') {
+    return 'capsule';
+  }
+
+  return 'box';
 }
 
 export class PhysicsWorld {
   constructor(mapConfig = null) {
-    this.world = new CANNON.World({
-      gravity: new CANNON.Vec3(
-        0,
-        -9.81,
-        0,
-      ),
+    this.world = new World({
+      gravity: new Vec3(0, -9.81, 0),
     });
 
-    this.world.broadphase =
-      new CANNON.SAPBroadphase(
-        this.world,
-      );
+    this.world.broadphase = new SAPBroadphase(this.world);
 
-    this.world.allowSleep = true;
+    this.world.allowSleep = false;
 
-    this.world.defaultContactMaterial.friction = 0;
-    this.world.defaultContactMaterial.restitution = 0;
+    this.world.defaultContactMaterial.friction =
+      DEFAULT_FRICTION;
 
-    this.playerMaterial =
-      new CANNON.Material('player');
+    this.world.defaultContactMaterial.restitution =
+      DEFAULT_RESTITUTION;
 
-    this.bodies = new Map();
-    this.lastCollision = null;
+    this.world.defaultContactMaterial.contactEquationStiffness =
+      1e7;
+
+    this.world.defaultContactMaterial.contactEquationRelaxation =
+      3;
+
+    this.world.solver.iterations = 10;
+    this.world.solver.tolerance = 0.001;
+
+    this.playerMaterial = new Material('player');
 
     this.staticBodies = new Map();
+    this.bodies = new Map();
+    this.playerInputs = new Map();
 
-    this.surfaceColliders =
-      (mapConfig?.entities ?? [])
-        .filter((entity) => entity.collision?.enabled && entity.collision?.surface)
-        .map((entity) => {
-          const surface = entity.collision.surface;
-          const position = Array.isArray(entity.position) ? entity.position : [0, 0, 0];
-          const offset = Array.isArray(entity.collision.offset) ? entity.collision.offset : [0, 0, 0];
-          return {
-            ...surface,
-            minX: Number(surface.minX) + (Number(position[0]) || 0) + (Number(offset[0]) || 0),
-            maxX: Number(surface.maxX) + (Number(position[0]) || 0) + (Number(offset[0]) || 0),
-            minZ: Number(surface.minZ) + (Number(position[2]) || 0) + (Number(offset[2]) || 0),
-            maxZ: Number(surface.maxZ) + (Number(position[2]) || 0) + (Number(offset[2]) || 0),
-          };
-        })
-        .filter(Boolean);
-
-    this.staticColliders =
-      (mapConfig?.entities ?? [])
-        .map((entity) =>
-          getStaticColliderBounds(entity),
-        )
-        .filter((collider) => collider && !collider.surface);
+    this.lastCollision = null;
+    this.lastDeltaSeconds = FIXED_TIME_STEP;
 
     this.playerScale =
       normalizePlayerScale(
         mapConfig?.player?.scale,
       );
 
-    this.terrain =
-      mapConfig?.terrain ?? null;
+    this.buildStaticColliders(
+      mapConfig,
+    );
+  }
 
+  buildStaticColliders(mapConfig) {
     for (
       const entity of mapConfig?.entities ?? []
     ) {
-      if (!entity.collision?.enabled) {
+      if (!entity?.collision?.enabled) {
         continue;
       }
 
-      if (entity.collision.surface) {
-        const mesh = entity.collision.surface.mesh;
-        if (!Array.isArray(mesh?.vertices) || !Array.isArray(mesh?.indices)
-          || mesh.vertices.length < 9 || mesh.indices.length < 3) continue;
-
-        const body = new CANNON.Body({ mass: 0, type: CANNON.Body.STATIC });
-        const material = new CANNON.Material(`static-${entity.id ?? 'collider'}`);
-        material.friction = Math.min(1, Math.max(0, Number(entity.collision.friction ?? 0.3) || 0));
-        material.restitution = Math.min(1, Math.max(0, Number(entity.collision.restitution ?? 0) || 0));
-        body.material = material;
-        body.addShape(new CANNON.Trimesh(mesh.vertices, mesh.indices));
-
-        const offset = entity.collision.offset ?? [0, 0, 0];
-        body.position.set(
-          (Number(entity.position?.[0]) || 0) + (Number(offset[0]) || 0),
-          (Number(entity.position?.[1]) || 0) + (Number(offset[1]) || 0),
-          (Number(entity.position?.[2]) || 0) + (Number(offset[2]) || 0),
-        );
-        body.quaternion.setFromEuler(...(entity.rotation ?? [0, 0, 0]));
-        this.world.addBody(body);
-        this.staticBodies.set(body, {
-          id: entity.id ?? null,
-          name: entity.name ?? entity.id ?? 'objeto sem nome',
-        });
-        this.world.addContactMaterial(new CANNON.ContactMaterial(this.playerMaterial, material, {
-          friction: material.friction,
-          restitution: material.restitution,
-        }));
-      }
-
-      if (entity.collision.surface) {
-        continue;
-      }
-
-      const scale =
-        entity.scale ?? [1, 1, 1];
-
-      const collisionScale =
-        getCollisionScale(entity);
-
-      const body =
-        new CANNON.Body({
-          mass: 0,
-          type: CANNON.Body.STATIC,
-        });
+      const body = new Body({
+        mass: 0,
+        type: Body.STATIC,
+        allowSleep: true,
+      });
 
       const material =
-        new CANNON.Material(
+        createMaterial(
           `static-${entity.id ?? 'collider'}`,
+          entity.collision.friction,
+          entity.collision.restitution,
         );
-
-      material.friction =
-        Math.min(
-          1,
-          Math.max(
-            0,
-            Number(
-              entity.collision.friction ?? 0.3,
-            ) || 0,
-          ),
-        );
-
-      material.restitution =
-        Math.min(
-          1,
-          Math.max(
-            0,
-            Number(
-              entity.collision.restitution ?? 0,
-            ) || 0,
-          ),
-        );
-
-      if (
-        Math.abs(
-          Number(scale[1]) || 1,
-        ) *
-          collisionScale[1] <=
-        0.5
-      ) {
-        material.friction = 0;
-      }
 
       body.material = material;
 
-      if (
-        entity.collision.shape ===
-        'capsule'
-      ) {
+      const shapeType =
+        getCollisionShape(entity);
+
+      const scale =
+        getCombinedScale(entity);
+
+      let shape = null;
+
+      if (shapeType === 'trimesh') {
+        shape = createTrimeshShape(
+          entity.collision.surface?.mesh ??
+          entity.collision.mesh,
+          scale,
+        );
+
+        if (!shape) {
+          continue;
+        }
+
+        body.addShape(shape);
+      } else if (shapeType === 'capsule') {
         addCapsule(
           body,
-          scale.map(
-            (value, index) =>
-              value *
-              collisionScale[index],
-          ),
+          scale,
         );
       } else {
-        body.addShape(
-          new CANNON.Box(
-            new CANNON.Vec3(
-              Math.max(
-                0.05,
-                Math.abs(
-                  scale[0] ?? 1,
-                ) *
-                  collisionScale[0] *
-                  0.5,
-              ),
-
-              Math.max(
-                0.05,
-                Math.abs(
-                  scale[1] ?? 1,
-                ) *
-                  collisionScale[1] *
-                  0.5,
-              ),
-
-              Math.max(
-                0.05,
-                Math.abs(
-                  scale[2] ?? 1,
-                ) *
-                  collisionScale[2] *
-                  0.5,
-              ),
-            ),
-          ),
-
+        addBoxShape(
+          body,
+          scale,
         );
       }
 
-      const offset =
-        entity.collision.offset ??
-        [0, 0, 0];
-
-      body.position.set(
-        entity.position[0] +
-          (Number(offset[0]) || 0),
-
-        entity.position[1] +
-          (Number(offset[1]) || 0),
-
-        entity.position[2] +
-          (Number(offset[2]) || 0),
+      setBodyTransform(
+        body,
+        entity,
       );
 
-      body.quaternion.setFromEuler(
-        ...(entity.rotation ?? [
-          0,
-          0,
-          0,
-        ]),
+      this.world.addBody(
+        body,
       );
-
-      this.world.addBody(body);
 
       this.staticBodies.set(
         body,
         {
-          id:
-            entity.id ?? null,
-
+          id: entity.id ?? null,
           name:
             entity.name ??
             entity.id ??
@@ -459,24 +368,80 @@ export class PhysicsWorld {
       );
 
       this.world.addContactMaterial(
-        new CANNON.ContactMaterial(
+        new ContactMaterial(
           this.playerMaterial,
           material,
           {
-            friction:
-              material.friction,
-
-            restitution:
-              material.restitution,
+            friction: 0,
+            restitution: 0,
+            contactEquationStiffness: 1e7,
+            contactEquationRelaxation: 3,
           },
         ),
       );
     }
+  }
 
-    addGroundCollider(
-      this.world,
-      this.playerMaterial,
+  createPlayerBody(id, position) {
+    const body = new Body({
+      mass: PLAYER_MASS,
+      fixedRotation: true,
+      allowSleep: false,
+      linearDamping: PLAYER_LINEAR_DAMPING,
+      angularDamping: PLAYER_ANGULAR_DAMPING,
+    });
+
+    addCapsule(
+      body,
+      this.playerScale,
     );
+
+    body.material =
+      this.playerMaterial;
+
+    body.position.set(
+      toFiniteNumber(position?.[0]),
+      toFiniteNumber(position?.[1]),
+      toFiniteNumber(position?.[2]),
+    );
+
+    body.velocity.set(
+      0,
+      0,
+      0,
+    );
+
+    body.angularVelocity.set(
+      0,
+      0,
+      0,
+    );
+
+    this.world.addBody(
+      body,
+    );
+
+    this.bodies.set(
+      id,
+      body,
+    );
+
+    return body;
+  }
+
+  getPlayerBody(id, position = [0, 0, 0]) {
+    let body =
+      this.bodies.get(id);
+
+    if (!body) {
+      body =
+        this.createPlayerBody(
+          id,
+          position,
+        );
+    }
+
+    return body;
   }
 
   movePlayer(
@@ -484,212 +449,247 @@ export class PhysicsWorld {
     from,
     angle,
     speed = 3,
-    deltaSeconds = 1 / 60,
+    deltaSeconds = FIXED_TIME_STEP,
   ) {
     this.lastCollision = null;
 
-    let body =
-      this.bodies.get(id);
-
-    if (!body) {
-      body =
-        new CANNON.Body({
-          mass: 1,
-          fixedRotation: true,
-          allowSleep: false,
-        });
-
-      addCapsule(
-        body,
-        this.playerScale,
-      );
-
-      body.material =
-        this.playerMaterial;
-
-      body.linearDamping = 0;
-      body.angularDamping = 1;
-
-      this.world.addBody(body);
-
-      this.bodies.set(
+    const body =
+      this.getPlayerBody(
         id,
-        body,
+        from,
       );
 
-      body.position.set(
-        from[0],
-        from[1],
-        from[2],
+    const safeAngle =
+      Number.isFinite(Number(angle))
+        ? Number(angle)
+        : 0;
+
+    const safeSpeed =
+      Math.max(
+        0,
+        toFiniteNumber(
+          speed,
+          0,
+        ),
       );
-    }
+
+    const inputX =
+      Math.sin(safeAngle);
+
+    const inputZ =
+      Math.cos(safeAngle);
+
+    const safeDelta =
+      Math.min(
+        0.1,
+        Math.max(
+          0,
+          toFiniteNumber(
+            deltaSeconds,
+            FIXED_TIME_STEP,
+          ),
+        ),
+      );
+
+    this.playerInputs.set(
+      id,
+      {
+        x: inputX,
+        z: inputZ,
+        speed: safeSpeed,
+        deltaSeconds: safeDelta,
+      },
+    );
 
     body.wakeUp();
 
-    const previous = [
+    body.velocity.x =
+      inputX * safeSpeed;
+
+    body.velocity.z =
+      inputZ * safeSpeed;
+
+    return [
       body.position.x,
       body.position.y,
       body.position.z,
     ];
-    const intendedPosition = [
-      previous[0] + Math.sin(angle) * speed * deltaSeconds,
-      previous[1],
-      previous[2] + Math.cos(angle) * speed * deltaSeconds,
-    ];
-applyMovementVelocity(
-  body,
-  angle,
-  speed,
-  1,
-);
+  }
 
-const step = Math.min(
-  Math.max(
-    Number(deltaSeconds) || 1 / 60,
-    1 / 120,
-  ),
-  0.1,
-);
-    const physicsSubSteps = Math.max(
-      1,
-      Math.ceil(Math.hypot(speed * step, speed * step) / 0.05),
-    );
-    const physicsStep = step / physicsSubSteps;
-    for (let index = 0; index < physicsSubSteps; index += 1) {
-      stepPhysicsWorld(this.world, physicsStep, physicsStep, 1);
+  stopPlayer(id) {
+    const body =
+      this.bodies.get(id);
+
+    if (!body) {
+      return;
     }
 
-    const desired = [
-      body.position.x,
-      body.position.y,
-      body.position.z,
-    ];
+    body.velocity.x = 0;
+    body.velocity.z = 0;
 
-    const terrainHeight =
-      sampleTerrainHeight(
-        this.terrain,
-        desired[0],
-        desired[2],
-      );
-
-    const groundY =
-      terrainHeight !== null
-        ? terrainHeight +
-          PLAYER_HEIGHT / 2
-        : null;
-
-    const surfaceHeight = samplePlayerSurfaceHeight(this.surfaceColliders, desired);
-    const surfaceGroundY =
-      groundY === null
-        ? (surfaceHeight === null ? null : surfaceHeight + PLAYER_HEIGHT / 2)
-        : surfaceHeight === null
-          ? groundY
-          : Math.max(groundY, surfaceHeight + PLAYER_HEIGHT / 2);
-
-    const stepCollider = findTraversableStep(
-      intendedPosition,
-      0.35,
-      this.staticColliders,
+    this.playerInputs.delete(
+      id,
     );
 
-    if (stepCollider) {
-      body.position.set(
-        intendedPosition[0],
-        stepCollider.maxY + PLAYER_HEIGHT / 2,
-        intendedPosition[2],
-      );
-      body.velocity.set(0, 0, 0);
-    } else if (
-      collidesWithStaticColliders(
-        previous,
-        desired,
-        0.35,
-        this.staticColliders,
-      )
-    ) {
-      body.position.set(
-        previous[0],
-        previous[1],
-        previous[2],
+    body.wakeUp();
+  }
+
+  updatePlayerVelocity(
+    id,
+    angle,
+    speed = 0,
+  ) {
+    const body =
+      this.bodies.get(id);
+
+    if (!body) {
+      return;
+    }
+
+    const safeAngle =
+      Number.isFinite(Number(angle))
+        ? Number(angle)
+        : 0;
+
+    const safeSpeed =
+      Math.max(
+        0,
+        toFiniteNumber(
+          speed,
+          0,
+        ),
       );
 
-      body.velocity.x = 0;
-      body.velocity.z = 0;
-    } else if (
-      terrainHeight !== null &&
-      !canTraverseTerrain(
-        this.terrain,
-        previous,
-        desired,
-      )
+    body.velocity.x =
+      Math.sin(safeAngle) *
+      safeSpeed;
+
+    body.velocity.z =
+      Math.cos(safeAngle) *
+      safeSpeed;
+
+    body.wakeUp();
+  }
+
+  applyPlayerInputs() {
+    for (
+      const [id, input]
+      of this.playerInputs
     ) {
-      body.position.set(
-        previous[0],
-        previous[1],
-        previous[2],
+      const body =
+        this.bodies.get(id);
+
+      if (!body) {
+        continue;
+      }
+
+      body.velocity.x =
+        input.x *
+        input.speed;
+
+      body.velocity.z =
+        input.z *
+        input.speed;
+
+      body.wakeUp();
+    }
+  }
+
+  step(deltaSeconds = FIXED_TIME_STEP) {
+    const safeDelta =
+      Math.min(
+        0.1,
+        Math.max(
+          0,
+          toFiniteNumber(
+            deltaSeconds,
+            FIXED_TIME_STEP,
+          ),
+        ),
       );
 
-      body.velocity.x = 0;
-      body.velocity.z = 0;
-    } else if (!canTraverseSurface(this.surfaceColliders, previous, desired)) {
-      body.position.set(previous[0], previous[1], previous[2]);
-      body.velocity.x = 0;
-      body.velocity.z = 0;
-    } else {
-      if (!hasBlockingStaticContact(this.world, body, this.staticBodies)) {
-        body.position.x = desired[0];
-        body.position.z = desired[2];
+    this.lastDeltaSeconds =
+      safeDelta;
+
+    this.applyPlayerInputs();
+
+    this.world.step(
+      FIXED_TIME_STEP,
+      safeDelta,
+      MAX_SUB_STEPS,
+    );
+
+    this.lastCollision =
+      this.findPlayerCollision();
+  }
+
+  findPlayerCollision() {
+    for (
+      const contact
+      of this.world.contacts ?? []
+    ) {
+      let playerBody = null;
+      let staticBody = null;
+
+      if (
+        this.bodies.has(
+          contact.bi,
+        ) &&
+        this.staticBodies.has(
+          contact.bj,
+        )
+      ) {
+        playerBody =
+          contact.bi;
+
+        staticBody =
+          contact.bj;
+      } else if (
+        this.bodies.has(
+          contact.bj,
+        ) &&
+        this.staticBodies.has(
+          contact.bi,
+        )
+      ) {
+        playerBody =
+          contact.bj;
+
+        staticBody =
+          contact.bi;
       }
 
       if (
-        surfaceHeight !== null &&
-        desired[1] <=
-          surfaceGroundY + 0.1
+        !playerBody ||
+        !staticBody
       ) {
-        body.position.y =
-          surfaceGroundY;
-
-        body.velocity.y = 0;
-      } else if (
-        groundY !== null &&
-        terrainHeight !== null &&
-        desired[1] <=
-          groundY + 0.1
-      ) {
-        body.position.y =
-          groundY;
-
-        body.velocity.y = 0;
-      } else {
-        body.position.y =
-          desired[1];
+        continue;
       }
-    }
-
-    for (
-      const contact of
-        this.world.contacts ?? []
-    ) {
-      const otherBody =
-        contact.bi === body
-          ? contact.bj
-          : contact.bj === body
-            ? contact.bi
-            : null;
 
       const collider =
-        otherBody
-          ? this.staticBodies.get(
-              otherBody,
-            )
-          : null;
+        this.staticBodies.get(
+          staticBody,
+        );
 
-      if (collider) {
-        this.lastCollision =
-          collider;
-
-        break;
+      if (!collider) {
+        continue;
       }
+
+      return {
+        ...collider,
+        playerBody,
+      };
+    }
+
+    return null;
+  }
+
+  getPlayerPosition(id) {
+    const body =
+      this.bodies.get(id);
+
+    if (!body) {
+      return null;
     }
 
     return [
@@ -699,6 +699,46 @@ const step = Math.min(
     ];
   }
 
+  getPlayerVelocity(id) {
+    const body =
+      this.bodies.get(id);
+
+    if (!body) {
+      return null;
+    }
+
+    return [
+      body.velocity.x,
+      body.velocity.y,
+      body.velocity.z,
+    ];
+  }
+
+  getPlayerBodyState(id) {
+    const body =
+      this.bodies.get(id);
+
+    if (!body) {
+      return null;
+    }
+
+    return {
+      position: [
+        body.position.x,
+        body.position.y,
+        body.position.z,
+      ],
+      velocity: [
+        body.velocity.x,
+        body.velocity.y,
+        body.velocity.z,
+      ],
+      sleeping:
+        body.sleepState ===
+        Body.SLEEPING,
+    };
+  }
+
   teleportPlayer(
     id,
     position,
@@ -706,15 +746,23 @@ const step = Math.min(
     const body =
       this.bodies.get(id);
 
-    if (!body) return;
+    if (!body) {
+      return;
+    }
 
     body.position.set(
-      position[0],
-      position[1],
-      position[2],
+      toFiniteNumber(position?.[0]),
+      toFiniteNumber(position?.[1]),
+      toFiniteNumber(position?.[2]),
     );
 
     body.velocity.set(
+      0,
+      0,
+      0,
+    );
+
+    body.angularVelocity.set(
       0,
       0,
       0,
@@ -726,39 +774,47 @@ const step = Math.min(
       0,
     );
 
+    body.torque.set(
+      0,
+      0,
+      0,
+    );
+
     body.wakeUp();
   }
-}
 
-function canTraverseSurface(surfaceColliders, from, to) {
-  const distance = Math.hypot(to[0] - from[0], to[2] - from[2]);
-  const steps = Math.max(2, Math.ceil(distance / 0.1));
-  const maxHeightDelta = Math.tan(MAX_SURFACE_SLOPE) * (distance / steps);
-  let previousHeight = samplePlayerSurfaceHeight(surfaceColliders, from);
+  removePlayer(id) {
+    const body =
+      this.bodies.get(id);
 
-  for (let index = 1; index <= steps; index += 1) {
-    const progress = index / steps;
-    const position = [
-      from[0] + (to[0] - from[0]) * progress,
-      from[1],
-      from[2] + (to[2] - from[2]) * progress,
-    ];
-    const height = samplePlayerSurfaceHeight(surfaceColliders, position);
-    if (height !== null && previousHeight !== null
-      && Math.abs(height - previousHeight) > maxHeightDelta) {
-      return false;
+    if (!body) {
+      return;
     }
-    if (height !== null) previousHeight = height;
+
+    this.world.removeBody(
+      body,
+    );
+
+    this.bodies.delete(
+      id,
+    );
+
+    this.playerInputs.delete(
+      id,
+    );
   }
 
-  return true;
-}
+  getStaticColliderInfo(body) {
+    return this.staticBodies.get(
+      body,
+    ) ?? null;
+  }
 
-function hasBlockingStaticContact(world, body, staticBodies) {
-  return (world.contacts ?? []).some((contact) => {
-    const otherBody = contact.bi === body ? contact.bj : contact.bj === body ? contact.bi : null;
-    if (!otherBody || !staticBodies.has(otherBody)) return false;
-    const normalY = contact.bi === body ? contact.ni.y : -contact.ni.y;
-    return Math.abs(normalY) < Math.cos(MAX_SURFACE_SLOPE);
-  });
+  get playerCount() {
+    return this.bodies.size;
+  }
+
+  get colliderCount() {
+    return this.staticBodies.size;
+  }
 }

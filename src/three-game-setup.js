@@ -4,6 +4,7 @@ import { normalizeMapConfig } from './map-config.js';
 import {
   AnimationSystem,
   NetworkInterpolationSystem,
+  PhysicsSystem,
   SoundListenerSystem,
   SoundPlayerSystem,
 } from './systems.js';
@@ -109,6 +110,7 @@ export async function createGame(canvas, mapConfig = null) {
     textureManager,
     input,
     animationSystem: new AnimationSystem(),
+    physicsSystem: new PhysicsSystem(normalizedMapConfig),
     networkInterpolationSystem: new NetworkInterpolationSystem(),
     soundListenerSystem: new SoundListenerSystem(),
     soundPlayerSystem: new SoundPlayerSystem(),
