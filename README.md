@@ -1,148 +1,91 @@
 # WebGL RPG
-<img width="1365" height="631" alt="image" src="https://github.com/user-attachments/assets/f28e71fa-cca1-49ea-ab7c-cd449874f7c9" />
 
-Projeto simples de renderizacao 3D com WebGL, Vite e ECS.
+Jogo 3D de navegador com renderização em WebGL, ECS, física e multiplayer autoritativo. O projeto foi desenvolvido com auxílio de inteligência artificial como parte do processo de implementação e refinamento.
+
+## Visão geral
+
+- Mundo 3D em Three.js e WebGL
+- Sistema ECS para entidades, componentes e consultas
+- Física centralizada para colisão e movimento
+- Multiplayer em relay WebSocket com autenticação e estado persistido
+- Editor de mapa e configuração local
 
 ## Requisitos
 
-- Node.js instalado
-- Navegador com suporte a WebGL
+- Node.js 18+
+- Navegador moderno com suporte a WebGL
 
-## Configuracao
+## Iniciar localmente
 
-Dentro da pasta do projeto, instale as dependencias:
+Instale as dependências:
 
 ```bash
 npm install
 ```
 
-No PowerShell do Windows, caso `npm` seja bloqueado pela politica de scripts, use:
+Em Windows, se necessário:
 
 ```powershell
 npm.cmd install
 ```
 
-## Executar em desenvolvimento
-
-Inicie o servidor local:
+Inicie o ambiente de desenvolvimento:
 
 ```bash
 npm run dev
 ```
 
-No Windows, use `npm.cmd run dev` se necessario.
+Ou no PowerShell:
 
-Abra a URL exibida pelo Vite, normalmente:
+```powershell
+npm.cmd run dev
+```
+
+Acesse a URL mostrada pelo Vite, normalmente:
 
 ```text
 http://localhost:5173/
 ```
 
-## Gerar build
-
-Para criar a versao de producao:
+## Build e preview
 
 ```bash
 npm run build
-```
-
-Para testar o build localmente:
-
-```bash
 npm run preview
 ```
 
-## Estrutura principal
-
-```text
-src/
-  main.js          Inicializacao da aplicacao e loop principal
-  game-setup.js    Criacao do WebGL, mundo ECS e sistemas
-  player-factory.js Criacao de jogadores locais e remotos
-  game-loop.js     Ordem de atualizacao e renderizacao por frame
-  ecs.js           Entidades, componentes e consultas do ECS
-  components.js    Transform, MeshRenderer e Texture
-  systems.js       Sistemas de movimento e renderizacao
-  input.js         Estado do teclado
-  camera.js        Camera perspectiva e orbital
-  asset-loader.js  Carregamento de modelos 3D
-  texture-manager.js Gerenciamento de texturas
-  math.js          Operacoes com matrizes
-  webgl.js         Shaders, buffers e texturas WebGL
-  cube.js          Geometria de exemplo
-public/models/     Modelos 3D usados pela aplicacao
-```
-
-## ECS em resumo
-
-Uma entidade recebe componentes no `World`:
-
-```js
-const entity = world.createEntity();
-world.addComponent(entity, new Transform());
-world.addComponent(entity, meshRenderer);
-```
-
-Os sistemas consultam as entidades pelos componentes necessarios e atualizam ou desenham cada uma.
-
-## Movimento autoritativo
-
-O teclado converte WASD em um comando `{ angle, magnitude }`. O mesmo contrato pode receber eixos de gamepad no futuro. O cliente nunca envia coordenadas do jogador: o relay valida o comando, avanca o corpo usando a camada de física centralizada e distribui a posicao resultante nos snapshots.
-
 ## Multiplayer
 
-O multiplayer usa um relay WebSocket separado. Em um terminal, inicie o relay:
+Em um terminal:
 
 ```bash
 npm run multiplayer
 ```
 
-Em outro terminal, inicie o Vite:
+Em outro terminal:
 
 ```bash
 npm run dev
 ```
 
-Abra a URL do Vite em duas abas ou navegadores. O `MultiplayerSystem` cria entidades remotas com `NetworkIdentity` e `NetworkTransform`, e o `NetworkInterpolationSystem` suaviza os snapshots antes da renderizacao. O movimento depende do relay autoritativo.
+## Documentação
 
-O painel de chat usa a mesma conexao multiplayer. Digite a mensagem no campo no canto inferior direito e pressione `Enviar` ou `Enter`. O relay retransmite mensagens com ate 200 caracteres para todos os jogadores conectados.
+- [docs/README.md](docs/README.md) — índice geral da documentação
+- [docs/CONFIGURACAO.md](docs/CONFIGURACAO.md) — configuração do ambiente e deploy
+- [docs/ecs.md](docs/ecs.md) — arquitetura ECS
+- [docs/fisica.md](docs/fisica.md) — física e colisão
+- [docs/renderizacao.md](docs/renderizacao.md) — renderização e câmera
+- [docs/multiplayer.md](docs/multiplayer.md) — servidor, autenticação e sincronização
 
-O relay registra conexoes, desconexoes, mensagens de chat e mensagens invalidas no terminal com nivel (`INFO`, `WARN` ou `ERROR`), timestamp ISO e contexto JSON. A entrada e a saida de cada usuario tambem aparecem no chat como mensagens do servidor.
-
-### Jogador convidado
-
-O cliente cria um `guestId` anonimo e o guarda no `localStorage`. O relay usa esse identificador para persistir vida, mana, XP, dinheiro, inventario, posicao e rotacao em PostgreSQL. A tabela `players` e criada automaticamente na primeira inicializacao. Assim, um jogador sem conta recupera o estado ao recarregar a pagina ou reconectar.
-
-Limpar os dados do site ou trocar de navegador cria um novo jogador convidado. Esse identificador nao substitui autenticacao: quem conseguir copia-lo pode recuperar o mesmo jogador. Configure `DATABASE_URL` com a string de conexao do banco (no Render, use o Internal Database URL do PostgreSQL). Sem essa variavel, o relay nao inicia.
-
-A URL do Web Service do Render e a URL do relay, nao a pagina do jogo. Abrir essa URL diretamente mostra o status JSON do servidor; o jogo deve ser publicado separadamente como Static Site.
-
-### Publicar o relay no Render
-
-O arquivo `render.yaml` ja configura o relay como um Web Service Node. No Render, escolha **New > Blueprint** e conecte o repositorio. O Render executara `npm ci`, iniciara `npm run multiplayer` e verificara `/health`.
-
-Depois do deploy, copie a URL do servico, por exemplo `https://webgl-rpg-multiplayer.onrender.com`. No deploy do frontend, defina a variavel de build `VITE_MULTIPLAYER_URL` com o endereco WebSocket correspondente:
+## Estrutura principal
 
 ```text
-wss://webgl-rpg-multiplayer.onrender.com
+src/          Código do cliente e da lógica do jogo
+server/       Relay multiplayer e lógica do backend
+shared/       Regras comuns entre cliente e servidor
+docs/         Documentação do projeto
 ```
 
-Se o frontend tambem estiver no Render, crie um **Static Site** com `npm ci && npm run build`, diretorio publicado `dist` e essa mesma variavel em **Environment**. O relay usa a variavel `PORT` fornecida pelo Render automaticamente.
+## Observação sobre IA
 
-Depois de criar ou alterar `VITE_MULTIPLAYER_URL`, faca um novo deploy do Static Site, pois variaveis `VITE_*` sao incorporadas durante o build. Use **a URL do servico do relay**, e nao a URL do frontend, sem porta e sem barra final:
-
-```text
-VITE_MULTIPLAYER_URL=wss://webgl-rpg-multiplayer.onrender.com
-```
-
-O cliente tambem converte automaticamente `https://` para `wss://` e tenta reconectar a cada 3 segundos. Sem essa variavel em producao, o jogo exibira uma mensagem de configuracao em vez de tentar `frontend.onrender.com:5174`.
-
-## Adicionar um modelo
-
-Coloque o modelo em `public/models/` e carregue-o pelo caminho publico correspondente:
-
-```js
-const asset = await loadAsset('/models/meu-modelo.glb');
-```
-
-O arquivo precisa ser acessivel pelo servidor Vite. Para modelos com texturas, use o `TextureManager` existente no projeto.
+Este projeto foi criado e iterado com ajuda de inteligência artificial para geração de estrutura, lógica e documentação. A arquitetura final foi revisada e ajustada para manter o código funcional e coerente com o objetivo do jogo.
