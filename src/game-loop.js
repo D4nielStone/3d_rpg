@@ -4,6 +4,7 @@ export function startGameLoop({
   world,
   animationSystem,
   physicsSystem,
+  rayCastingSystem,
   networkInterpolationSystem,
   soundListenerSystem,
   soundPlayerSystem,
@@ -23,6 +24,7 @@ export function startGameLoop({
     animationSystem.update(world, deltaSeconds);
     multiplayerSystem.update(world, time);
     networkInterpolationSystem.update(world, deltaSeconds);
+    rayCastingSystem?.update(world);
     soundListenerSystem.update(world);
     const listener = world.query(SoundListener)[0];
     const listenerComponent = listener ? world.getComponent(listener, SoundListener) : null;

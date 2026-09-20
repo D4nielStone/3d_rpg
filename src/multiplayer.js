@@ -461,15 +461,6 @@ export class MultiplayerSystem {
       angle: movement.magnitude > 0 ? worldAngle : 0,
       magnitude: movement.magnitude,
     };
-    const commandChanged = !this.lastMovementCommand
-      || command.angle !== this.lastMovementCommand.angle
-      || command.magnitude !== this.lastMovementCommand.magnitude;
-    if (!commandChanged && command.magnitude === 0) {
-      this.socket.send(JSON.stringify({ type: 'movement', ...command }));
-      this.lastSentAt = time;
-      return;
-    }
-
     this.socket.send(JSON.stringify({ type: 'movement', ...command }));
     this.lastMovementCommand = command;
     this.lastSentAt = time;

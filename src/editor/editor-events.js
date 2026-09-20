@@ -216,6 +216,24 @@ export function bindEditorEvents(context) {
     setStatus('Tipo de inimigo criado');
   });
 
+  document.querySelector('#delete-enemy-type-button').addEventListener('click', () => {
+    const type = selectedEnemyType();
+    if (!type) return;
+    pushHistory();
+    context.enemyTypes = context.enemyTypes.filter((item) => item.id !== type.id);
+    const replacement = context.enemyTypes[0]?.id ?? 'rat';
+    context.enemyAreas.forEach((area) => {
+      if (area.enemyType === type.id) area.enemyType = replacement;
+    });
+    context.selectedEnemyTypeId = null;
+    renderEnemyTypes();
+    updateEnemyTypeInspector();
+    updateEnemyAreaInspector();
+    renderEnemyAreas();
+    updateSummary();
+    setStatus('Tipo de inimigo excluído');
+  });
+
   document.querySelectorAll('[data-enemy-type-field]').forEach((input) => input.addEventListener('change', () => updateEnemyTypeField(input)));
   document.querySelector('#delete-enemy-area-button').addEventListener('click', () => {
     if (!context.selectedEnemyAreaId) return;

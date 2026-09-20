@@ -162,6 +162,19 @@ export class World {
     return material;
   }
 
+  castRay(origin, direction, maxDistance) {
+    const ray = new RAPIER.Ray(
+      { x: origin.x, y: origin.y, z: origin.z },
+      { x: direction.x, y: direction.y, z: direction.z },
+    );
+    return this.rapierWorld.castRay(
+      ray,
+      maxDistance,
+      true,
+      RAPIER.QueryFilterFlags.EXCLUDE_DYNAMIC,
+    );
+  }
+
   step(fixedTimeStep, deltaSeconds = 0, maxSubSteps = 1) {
     if (!Number.isFinite(Number(fixedTimeStep)) || Number(fixedTimeStep) <= 0) return;
 

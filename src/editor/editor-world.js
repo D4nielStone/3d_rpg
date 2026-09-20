@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { normalizeVector } from './editor-utils.js';
 import {
+  defaultEnemyTypes,
   normalizeSounds,
   normalizeEnemyArea,
   normalizeEnemyType,
@@ -137,7 +138,7 @@ export function createWorldController(getters, setters = {}) {
       ...asset,
       format: asset.format ?? asset.name?.split('?')[0].split('.').pop().toLowerCase() ?? 'glb',
     })));
-    set('enemyTypes', (Array.isArray(config?.enemyTypes) ? config.enemyTypes : []).map((type, index) => normalizeEnemyType({ ...type, gold: { ...type.gold }, itemDrops: [...(type.itemDrops ?? [])] }, index)));
+    set('enemyTypes', (Array.isArray(config?.enemyTypes) ? config.enemyTypes : defaultEnemyTypes).map((type, index) => normalizeEnemyType({ ...type, gold: { ...type.gold }, itemDrops: [...(type.itemDrops ?? [])] }, index)));
     set('enemyAreas', (Array.isArray(config?.enemyAreas) ? config.enemyAreas : []).map((area) => normalizeEnemyArea({ ...area })));
 
     const entityGroup = get('entityGroup');

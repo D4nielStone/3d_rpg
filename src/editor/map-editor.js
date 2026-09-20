@@ -23,6 +23,7 @@ import {
   defaultSkyColor,
   defaultFog,
   normalizeSounds,
+  defaultEnemyTypes,
   normalizeEnemyArea,
   normalizeEnemyType,
   normalizeLighting,
@@ -685,7 +686,8 @@ function updateEnemyTypeInspector() {
   document.querySelector('#enemy-type-id').value = type.id;
   document.querySelector('#enemy-type-name').value = type.name;
   const modelSelect = document.querySelector('#enemy-type-model');
-  modelSelect.replaceChildren(...assets.map((asset) => new Option(asset.name, asset.url)));
+  modelSelect.replaceChildren(new Option('Modelo padrão do rato', ''));
+  modelSelect.append(...assets.map((asset) => new Option(asset.name, asset.url)));
   if (type.model && !assets.some((asset) => asset.url === type.model)) modelSelect.append(new Option(type.model, type.model));
   modelSelect.value = type.model;
   ['level', 'maxHp', 'speed', 'defense', 'damage', 'experience', 'scale'].forEach((field) => { document.querySelector(`#enemy-type-${field}`).value = type[field]; });
@@ -716,6 +718,10 @@ function createEnemyType() {
   const type = normalizeEnemyType({ id: newId('enemy'), name: 'Novo inimigo', model: assets[0]?.url ?? '', gold: { min: 0, max: 0 }, itemDrops: [] });
   enemyTypes.push(type); selectedEnemyTypeId = type.id; renderEnemyTypes(); updateEnemyTypeInspector(); updateSummary();
 }
+function ensureDefaultEnemyType() {
+  if (enemyTypes.some((type) => type.id === 'rat')) return;
+  enemyTypes.push(normalizeEnemyType({ ...defaultEnemyTypes[0], gold: { ...defaultEnemyTypes[0].gold }, itemDrops: [] }));
+}
 function updateEnemyAreaInspector() {
   const area = selectedEnemyArea(); const inspector = document.querySelector('#enemy-area-inspector'); inspector.hidden = !area; if (!area) return;
   document.querySelector('#enemy-area-id').value = area.id;
@@ -725,7 +731,10 @@ function updateEnemyAreaInspector() {
   typeSelect.value = area.enemyType;
   document.querySelectorAll('[data-area-field]:not(#enemy-area-type)').forEach((input) => { input.value = area[input.dataset.areaField]; });
 }
-function createEnemyArea() { return normalizeEnemyArea({ id: newId('enemy-area'), center: [0, 0, 0], width: 25, depth: 25, maxEnemies: 5, enemyType: 'rat', areaLevel: 1, spawnIntervalMs: 3000 }); }
+function createEnemyArea() {
+  ensureDefaultEnemyType();
+  return normalizeEnemyArea({ id: newId('enemy-area'), center: [0, 0, 0], width: 25, depth: 25, maxEnemies: 5, enemyType: 'rat', areaLevel: 1, spawnIntervalMs: 3000 });
+}
 function updateEnemyAreaField(input) {
   const area = selectedEnemyArea(); if (!area) return; pushHistory(); const field = input.dataset.areaField; const value = field === 'enemyType' ? input.value.trim() || 'rat' : Number(input.value); area[field] = field === 'enemyType' ? value : (Number.isFinite(value) ? value : 0); normalizeEnemyArea(area); updateEnemyAreaInspector(); renderEnemyAreaVisuals(); updateSummary();
 }
@@ -948,7 +957,7 @@ const editorEventContext = {
   updatePlayerInspector, readPlayerInspector, refreshPlayerPreview, applyToGame, undo, redo,
   loadWorld, registerAsset, instantiateAsset, assetFormat, readFileAsDataUrl, addEntity,
   createEntity, createPrimitive, createPointLight, createEnemyArea, createEnemyType,
-  duplicateSelectedEntity, removeEntity, updateEnemyAreaInspector, selectedEnemyArea,
+  duplicateSelectedEntity, removeEntity, updateEnemyAreaInspector, selectedEnemyArea, selectedEnemyType,
   selectedEntity, pushHistory,
   updateCollisionVisual, renderSceneTree, updateAnimationInspector, setAnimationPlaying,
   stopAnimation, applyEntityAnimation, syncPlayerFromPreview, renderMeshList,
@@ -990,6 +999,7 @@ Object.defineProperties(editorEventContext, {
   player: { get: () => player, set: (value) => { player = value; } },
   selectedEntityId: { get: () => selectedEntityId, set: (value) => { selectedEntityId = value; } },
   selectedEnemyAreaId: { get: () => selectedEnemyAreaId, set: (value) => { selectedEnemyAreaId = value; } },
+  selectedEnemyTypeId: { get: () => selectedEnemyTypeId, set: (value) => { selectedEnemyTypeId = value; } },
   mode: { get: () => mode, set: (value) => { mode = value; } },
   gizmoDragging: { get: () => gizmoDragging, set: (value) => { gizmoDragging = value; } },
   selectedMaterialIndex: { get: () => selectedMaterialIndex, set: (value) => { selectedMaterialIndex = value; } },

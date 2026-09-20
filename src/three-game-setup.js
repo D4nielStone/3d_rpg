@@ -5,6 +5,7 @@ import {
   AnimationSystem,
   NetworkInterpolationSystem,
   PhysicsSystem,
+  RayCastingSystem,
   SoundListenerSystem,
   SoundPlayerSystem,
 } from './systems.js';
@@ -75,6 +76,7 @@ export async function createGame(canvas, mapConfig = null) {
     lighting,
     fog,
   );
+  const physicsSystem = new PhysicsSystem(normalizedMapConfig);
 
   canvas.addEventListener('wheel', (event) => {
     handleCameraWheel(camera, event);
@@ -109,7 +111,8 @@ export async function createGame(canvas, mapConfig = null) {
     textureManager,
     input,
     animationSystem: new AnimationSystem(),
-    physicsSystem: new PhysicsSystem(normalizedMapConfig),
+    physicsSystem,
+    rayCastingSystem: new RayCastingSystem(physicsSystem),
     networkInterpolationSystem: new NetworkInterpolationSystem(),
     soundListenerSystem: new SoundListenerSystem(),
     soundPlayerSystem: new SoundPlayerSystem(),

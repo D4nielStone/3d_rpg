@@ -22,6 +22,23 @@ export const defaultSkyColor = [0.039, 0.051, 0.047];
 export const defaultFog = { color: [0.63, 0.69, 0.68], near: 180, far: 850 };
 export const defaultSounds = { slash: '', pulse: '', arc: '', 'level-up': '' };
 
+export const defaultEnemyTypes = [{
+  id: 'rat',
+  name: 'Rato',
+  model: '',
+  modelFormat: 'glb',
+  level: 1,
+  maxHp: 3,
+  speed: 1.2,
+  defense: 1,
+  accuracy: 1,
+  damage: 1,
+  experience: 2,
+  scale: 0.35,
+  gold: { min: 3, max: 5 },
+  itemDrops: [],
+}];
+
 export function normalizeSounds(value = {}) {
   return ['slash', 'pulse', 'arc', 'level-up'].reduce((result, name) => ({
     ...result,

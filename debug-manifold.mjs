@@ -1,0 +1,24 @@
+import RAPIER from '@dimforge/rapier3d/rapier.js';
+await RAPIER.init?.();
+const world = new RAPIER.World({ x: 0, y: -10, z: 0 });
+const player = world.createRigidBody(RAPIER.RigidBodyDesc.dynamic());
+player.setTranslation(0, 8, 0, true);
+const playerCollider = world.createCollider(RAPIER.ColliderDesc.cuboid(0.35, 0.7, 0.35), player);
+const box = world.createRigidBody(RAPIER.RigidBodyDesc.fixed());
+box.setTranslation(0, 0, 0, true);
+const boxCollider = world.createCollider(RAPIER.ColliderDesc.cuboid(2, 1, 2), box);
+player.setLinvel({ x: 0, y: -1, z: 0 }, true);
+world.timestep = 0.1;
+world.step();
+world.contactPair(playerCollider, boxCollider, (manifold) => {
+  console.log('type', typeof manifold);
+  console.log('own keys', Object.getOwnPropertyNames(Object.getPrototypeOf(manifold)));
+  console.log('methods', Object.getOwnPropertyNames(manifold).filter((key) => typeof manifold[key] === 'function'));
+  console.log('normal fn?', typeof manifold.normal);
+  console.log('depth fn?', typeof manifold.depth);
+  console.log('points fn?', typeof manifold.points);
+  console.log('numContacts fn?', typeof manifold.numContacts);
+  if (typeof manifold.normal === 'function') console.log('normal result', manifold.normal());
+  if (typeof manifold.depth === 'function') console.log('depth result', manifold.depth());
+  if (typeof manifold.points === 'function') console.log('points result', manifold.points());
+});

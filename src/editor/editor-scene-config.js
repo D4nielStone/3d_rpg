@@ -3,6 +3,7 @@ import {
   defaultLighting,
   defaultSkyColor,
   defaultSounds,
+  defaultEnemyTypes,
 } from './editor-scene-state.js';
 
 export function buildDefaultWorldConfig() {
@@ -45,7 +46,7 @@ export function buildDefaultWorldConfig() {
     },
     assets: [],
     entities: [],
-    enemyTypes: [],
+    enemyTypes: defaultEnemyTypes.map((type) => ({ ...type, gold: { ...type.gold }, itemDrops: [...type.itemDrops] })),
     enemyAreas: [],
   };
 }

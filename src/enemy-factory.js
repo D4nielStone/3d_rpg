@@ -9,6 +9,7 @@ import {
   OutlineRenderer,
   ShadowRenderer,
   Transform,
+  RayCaster,
 } from './components.js';
 import { cubeIndices, cubeVertices } from './cube.js';
 function createRatPart({ size, position, color }) {
@@ -168,6 +169,7 @@ export function addRemoteEnemy(world, enemyAssets, enemy) {
     position: enemy.position,
     scale: [scale, scale, scale],
   }));
+  world.addComponent(entity, new RayCaster());
   world.addComponent(entity, new EnemyIdentity({
     enemyId: enemy.id,
     type: enemy.type,

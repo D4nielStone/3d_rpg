@@ -22,6 +22,8 @@ import {
   SoundListener,
   SoundPlayer,
   Rigidbody,
+  RayCaster,
+  NetworkIdentity,
 } from './components.js';
 import { PhysicsWorld } from '../server/world/physics.js';
 
@@ -121,7 +123,11 @@ export class PhysicsSystem {
       const transform = world.getComponent(entity, Transform);
       const body = world.getComponent(entity, Rigidbody);
 
-      if (!body?.physicsId) continue;
+      if (!body) continue;
+
+      if (!body.physicsId) {
+        body.physicsId = entity;
+      }
 
       this.physicsWorld.movePlayer(
         body.physicsId,
@@ -132,10 +138,7 @@ export class PhysicsSystem {
       );
     }
 
-    // 2. A camada de física aplica gravidade e colisões.
-    this.physicsWorld.step(step);
-
-    // 3. Recupera a posição física resultante.
+    // 2. Recupera a posição física resultante.
     for (const entity of world.query(Transform, Rigidbody)) {
       const transform = world.getComponent(entity, Transform);
       const body = world.getComponent(entity, Rigidbody);
@@ -147,6 +150,55 @@ export class PhysicsSystem {
       if (!position) continue;
 
       transform.position = position;
+    }
+  }
+}
+
+export class RayCastingSystem {
+  constructor(physicsWorld) {
+    this.physicsWorld = physicsWorld?.physicsWorld ?? physicsWorld;
+  }
+
+  update(world) {
+    if (typeof this.physicsWorld?.raycastGround !== 'function') return;
+
+    for (const entity of world.query(Transform, RayCaster)) {
+      const transform = world.getComponent(entity, Transform);
+      const rayCaster = world.getComponent(entity, RayCaster);
+      const identity = world.getComponent(entity, NetworkIdentity);
+      const hit = this.physicsWorld.raycastGround(
+        transform.position[0] + rayCaster.origin[0],
+        transform.position[2] + rayCaster.origin[2],
+        rayCaster.maxDistance,
+      );
+
+      rayCaster.hit = hit;
+      rayCaster.grounded = Boolean(hit);
+      if (!hit) {
+        if (rayCaster.lastGroundPosition) {
+          transform.position[0] = rayCaster.lastGroundPosition[0];
+          transform.position[1] = rayCaster.lastGroundPosition[1];
+          transform.position[2] = rayCaster.lastGroundPosition[2];
+        }
+        continue;
+      }
+
+      const groundHeight = hit.height + rayCaster.heightOffset;
+      const previousGround = rayCaster.lastGroundHeight;
+      if (previousGround !== null && previousGround - groundHeight > rayCaster.maxDrop) {
+        transform.position = [...rayCaster.lastGroundPosition];
+        continue;
+      }
+
+      if (identity?.isLocal) {
+        rayCaster.lastGroundHeight = groundHeight;
+        rayCaster.lastGroundPosition = [...transform.position];
+        continue;
+      }
+
+      transform.position[1] = groundHeight;
+      rayCaster.lastGroundHeight = groundHeight;
+      rayCaster.lastGroundPosition = [...transform.position];
     }
   }
 }

@@ -8,6 +8,7 @@ import {
   ShadowRenderer,
   Texture,
   Transform,
+  RayCaster,
 } from './components.js';
 import { cubeColors, cubeIndices, cubeUVs, cubeVertices } from './cube.js';
 import { normalizePlayerScale } from '../shared/player-size.js';
@@ -37,6 +38,9 @@ export function spawnFallbackPlayer(world, definition = {}) {
     position: definition.position,
     rotation: definition.rotation,
     scale: normalizePlayerScale(definition.scale),
+  }));
+  world.addComponent(entity, new RayCaster({
+    heightOffset: normalizePlayerScale(definition.scale)[1] * 0.5,
   }));
   world.addComponent(entity, new AnimationPlayer());
   world.addComponent(entity, new MeshRenderer({
@@ -76,6 +80,9 @@ export async function loadPlayer(world, textureManager, definition = {}, assetDe
     position: definition.position,
     rotation: definition.rotation,
     scale: normalizePlayerScale(definition.scale),
+  }));
+  world.addComponent(entity, new RayCaster({
+    heightOffset: normalizePlayerScale(definition.scale)[1] * 0.5,
   }));
   world.addComponent(entity, asset.mesh ?? asset);
   world.addComponent(entity, new AnimationPlayer({

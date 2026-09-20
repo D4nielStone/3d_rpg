@@ -324,6 +324,7 @@ export class PhysicsWorld {
             entity.name ??
             entity.id ??
             'objeto sem nome',
+          entity,
         },
       );
 
@@ -554,6 +555,200 @@ export class PhysicsWorld {
     }
   }
 
+  getPlayerHalfExtents() {
+    const [x, y, z] = this.playerScale ?? [0.7, 1.4, 0.7];
+    return {
+      x: Math.abs(Number(x) || 0.35) * 0.5,
+      y: Math.abs(Number(y) || 0.7) * 0.5,
+      z: Math.abs(Number(z) || 0.35) * 0.5,
+    };
+  }
+
+  getStaticBoxBounds(staticBody) {
+    if (!staticBody) {
+      return null;
+    }
+
+    const info =
+      this.staticBodies.get(staticBody) ?? null;
+
+    const entity = info?.entity ?? null;
+    const offset = getVector3(entity?.collision?.offset, [0, 0, 0]);
+    const position = getVector3(entity?.position, [0, 0, 0]);
+    const center = [
+      position[0] + offset[0],
+      position[1] + offset[1],
+      position[2] + offset[2],
+    ];
+
+    const scale = getCombinedScale(entity ?? { scale: [1, 1, 1] });
+    const halfExtents = (staticBody.shapes[0]?.shape?.halfExtents ?? [
+      scale[0] * 0.5,
+      scale[1] * 0.5,
+      scale[2] * 0.5,
+    ]).map((value) => Math.abs(Number(value) || 0.5));
+
+    return {
+      minX: center[0] - halfExtents[0],
+      maxX: center[0] + halfExtents[0],
+      minY: center[1] - halfExtents[1],
+      maxY: center[1] + halfExtents[1],
+      minZ: center[2] - halfExtents[2],
+      maxZ: center[2] + halfExtents[2],
+      center,
+      halfExtents,
+    };
+  }
+
+  sampleSurfaceHeight(entity, x, z) {
+    if (!entity?.collision?.surface) {
+      return null;
+    }
+
+    const surface = entity.collision.surface;
+    const columns = Math.floor(Number(surface.columns));
+    const rows = Math.floor(Number(surface.rows));
+    const heights = Array.isArray(surface.heights) ? surface.heights : [];
+    const valid = Array.isArray(surface.valid) ? surface.valid : [];
+
+    if (!Number.isInteger(columns) || !Number.isInteger(rows) || columns < 2 || rows < 2 || heights.length !== columns * rows) {
+      return null;
+    }
+
+    const minX = Number(surface.minX);
+    const maxX = Number(surface.maxX);
+    const minZ = Number(surface.minZ);
+    const maxZ = Number(surface.maxZ);
+    if (![minX, maxX, minZ, maxZ].every(Number.isFinite) || maxX <= minX || maxZ <= minZ) {
+      return null;
+    }
+
+    const clampedX = Math.min(Math.max(x, minX), maxX);
+    const clampedZ = Math.min(Math.max(z, minZ), maxZ);
+    const u = columns === 1 ? 0 : (clampedX - minX) / (maxX - minX) * (columns - 1);
+    const v = rows === 1 ? 0 : (clampedZ - minZ) / (maxZ - minZ) * (rows - 1);
+    const xIndex = Math.min(columns - 1, Math.max(0, Math.floor(u)));
+    const zIndex = Math.min(rows - 1, Math.max(0, Math.floor(v)));
+    const fx = u - xIndex;
+    const fz = v - zIndex;
+    const cell = [
+      zIndex * columns + xIndex,
+      zIndex * columns + Math.min(columns - 1, xIndex + 1),
+      Math.min(rows - 1, zIndex + 1) * columns + xIndex,
+      Math.min(rows - 1, zIndex + 1) * columns + Math.min(columns - 1, xIndex + 1),
+    ];
+
+    const candidates = cell.map((index) => {
+      if (valid.length === heights.length && valid[index] === false) {
+        return null;
+      }
+      return Number(heights[index]);
+    });
+
+    if (candidates.some((value) => value === null || !Number.isFinite(value))) {
+      return null;
+    }
+
+    const h00 = candidates[0];
+    const h10 = candidates[1];
+    const h01 = candidates[2];
+    const h11 = candidates[3];
+    const first = h00 * (1 - fx) + h10 * fx;
+    const second = h01 * (1 - fx) + h11 * fx;
+    return first * (1 - fz) + second * fz;
+  }
+
+  resolvePlayerCollision(body, previousPosition) {
+    if (!body) {
+      return null;
+    }
+
+    const half = this.getPlayerHalfExtents();
+    const playerMin = {
+      x: body.position.x - half.x,
+      y: body.position.y - half.y,
+      z: body.position.z - half.z,
+    };
+    const playerMax = {
+      x: body.position.x + half.x,
+      y: body.position.y + half.y,
+      z: body.position.z + half.z,
+    };
+
+    let closestCollision = null;
+    let bestOverlap = Infinity;
+
+    for (const [staticBody, info] of this.staticBodies.entries()) {
+      const entity = info?.entity;
+      const bounds = this.getStaticBoxBounds(staticBody);
+      if (!bounds) {
+        continue;
+      }
+
+      const surfaceHeight = entity?.collision?.surface ? this.sampleSurfaceHeight(entity, body.position.x, body.position.z) : null;
+      if (Number.isFinite(surfaceHeight)) {
+        const groundY = surfaceHeight + half.y;
+        const wasAboveGround = Number(previousPosition?.y ?? body.position.y) >= groundY - 0.2;
+        const isWithinBoundsX = body.position.x >= bounds.minX - half.x && body.position.x <= bounds.maxX + half.x;
+        const isWithinBoundsZ = body.position.z >= bounds.minZ - half.z && body.position.z <= bounds.maxZ + half.z;
+        if (isWithinBoundsX && isWithinBoundsZ && body.velocity.y <= 0 && wasAboveGround) {
+          const nextY = Math.max(body.position.y, groundY);
+          const penetration = Math.abs(nextY - body.position.y);
+          if (penetration < bestOverlap) {
+            bestOverlap = penetration;
+            closestCollision = { ...info, playerBody: body, normal: { x: 0, y: 1, z: 0 }, type: 'surface' };
+          }
+          body.position.y = nextY;
+          body.velocity.y = Math.max(0, body.velocity.y);
+        }
+      }
+
+      const overlapX = Math.min(playerMax.x - bounds.minX, bounds.maxX - playerMin.x);
+      const overlapY = Math.min(playerMax.y - bounds.minY, bounds.maxY - playerMin.y);
+      const overlapZ = Math.min(playerMax.z - bounds.minZ, bounds.maxZ - playerMin.z);
+
+      const intersects =
+        playerMin.x < bounds.maxX && playerMax.x > bounds.minX &&
+        playerMin.y < bounds.maxY && playerMax.y > bounds.minY &&
+        playerMin.z < bounds.maxZ && playerMax.z > bounds.minZ;
+
+      if (!intersects) {
+        continue;
+      }
+
+      const axis = [
+        ['x', overlapX],
+        ['y', overlapY],
+        ['z', overlapZ],
+      ].sort((a, b) => a[1] - b[1])[0];
+
+      if (axis[0] === 'y') {
+        const previousAbove = (previousPosition?.y ?? body.position.y) >= bounds.maxY;
+        if (body.velocity.y <= 0 && previousAbove) {
+          body.position.y = bounds.maxY + half.y + 0.01;
+          body.velocity.y = Math.max(0, body.velocity.y);
+        } else {
+          body.position.y = bounds.minY - half.y - 0.01;
+          body.velocity.y = Math.min(0, body.velocity.y);
+        }
+
+        closestCollision = { ...info, playerBody: body, normal: { x: 0, y: axis[0] === 'y' ? 1 : 0, z: 0 }, type: 'box' };
+      } else if (axis[0] === 'x') {
+        const previousLeft = (previousPosition?.x ?? body.position.x) <= bounds.minX;
+        body.position.x = previousLeft ? bounds.minX - half.x - 0.01 : bounds.maxX + half.x + 0.01;
+        body.velocity.x = 0;
+        closestCollision = { ...info, playerBody: body, normal: { x: previousLeft ? -1 : 1, y: 0, z: 0 }, type: 'wall' };
+      } else {
+        const previousBack = (previousPosition?.z ?? body.position.z) <= bounds.minZ;
+        body.position.z = previousBack ? bounds.minZ - half.z - 0.01 : bounds.maxZ + half.z + 0.01;
+        body.velocity.z = 0;
+        closestCollision = { ...info, playerBody: body, normal: { x: 0, y: 0, z: previousBack ? -1 : 1 }, type: 'wall' };
+      }
+    }
+
+    return closestCollision;
+  }
+
   step(deltaSeconds = FIXED_TIME_STEP) {
     const safeDelta =
       Math.min(
@@ -572,6 +767,25 @@ export class PhysicsWorld {
 
     this.applyPlayerInputs();
 
+    for (const body of this.bodies.values()) {
+      if (!body || body.type === Body.STATIC) {
+        continue;
+      }
+
+      const previousPosition = {
+        x: body.position.x,
+        y: body.position.y,
+        z: body.position.z,
+      };
+
+      body.velocity.y -= PLAYER_GRAVITY * safeDelta;
+      body.position.x += body.velocity.x * safeDelta;
+      body.position.y += body.velocity.y * safeDelta;
+      body.position.z += body.velocity.z * safeDelta;
+
+      this.lastCollision = this.resolvePlayerCollision(body, previousPosition) ?? this.lastCollision;
+    }
+
     this.world.step(
       FIXED_TIME_STEP,
       safeDelta,
@@ -579,7 +793,7 @@ export class PhysicsWorld {
     );
 
     this.lastCollision =
-      this.findPlayerCollision();
+      this.lastCollision ?? this.findPlayerCollision();
   }
 
   findPlayerCollision() {
