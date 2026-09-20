@@ -1,10 +1,8 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { configureTerrainMesh } from './editor-terrain.js';
 
 export function createEditorScene({
   canvas,
-  terrainConfig,
   lighting,
   skyColor,
   fog,
@@ -50,23 +48,6 @@ export function createEditorScene({
 
   const worldGroup = new THREE.Group();
   scene.add(worldGroup);
-
-  const terrainGeometry = new THREE.PlaneGeometry(128, 128, 64, 64);
-  terrainGeometry.rotateX(-Math.PI / 2);
-  const terrainPosition = terrainGeometry.attributes.position;
-  for (let index = 0; index < terrainPosition.count; index += 1) {
-    terrainPosition.setY(index, 0.05 * Math.sin(terrainPosition.getX(index) * 0.22) * Math.cos(terrainPosition.getZ(index) * 0.19));
-  }
-  terrainGeometry.computeVertexNormals();
-
-  const ground = new THREE.Mesh(
-    new THREE.PlaneGeometry(128, 128, 64, 64),
-    new THREE.MeshStandardMaterial({ color: terrainConfig.color, roughness: 1 }),
-  );
-  ground.receiveShadow = true;
-  ground.position.set(-0.5, -0.16, -0.5);
-  configureTerrainMesh(ground, terrainConfig);
-  worldGroup.add(ground);
 
   const gridHelper = new THREE.GridHelper(1024, 64, 0x53605a, 0x29312d);
   gridHelper.position.set(-0.5, -0.14, -0.5);
@@ -133,7 +114,6 @@ export function createEditorScene({
     ambientLight,
     directionalLight,
     worldGroup,
-    ground,
     gridHelper,
     enemyAreaVisuals,
     entityGroup,

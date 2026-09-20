@@ -59,13 +59,12 @@
             <button class="mode-button" data-mode="translate" type="button">Mover</button>
             <button class="mode-button" data-mode="rotate" type="button">Rotacionar</button>
             <button class="mode-button" data-mode="scale" type="button">Escalar</button>
-            <button class="mode-button" data-mode="terrain" type="button">Terreno</button>
           </div>
           <span id="map-status" role="status">Pronto para editar</span>
           <span id="map-coordinates">x: 0, y: 0, z: 0</span>
         </div>
         <div class="canvas-wrap"><canvas id="map-canvas" aria-label="Viewport 3D do mundo"></canvas></div>
-        <p class="stage-hint">Selecione uma entidade para editar seus transformes. Use o botão direito ou Mover para navegar pela cena. Use Terreno para deformar o chão.</p>
+        <p class="stage-hint">Selecione uma entidade para editar seus transformes. Use o botão direito ou Mover para navegar pela cena.</p>
       </section>
 
       <aside id="inspector-panel" class="inspector-panel" aria-label="Inspector">
@@ -245,24 +244,6 @@
           <label for="directional-intensity">Intensidade <output id="directional-intensity-value">0.80</output></label>
           <input id="directional-intensity" type="range" min="0" max="1.5" value="0.8" step="0.01" />
           <label class="check-row"><input id="directional-cast-shadow" type="checkbox" checked /> Ligar sombras da luz direcional</label>
-          <div class="transform-heading"><strong>Terreno</strong><span>malha</span></div>
-          <button id="delete-terrain-button" class="danger-button full-button" type="button">Excluir terreno</button>
-          <label for="terrain-color">Cor do terreno</label>
-          <input id="terrain-color" type="color" value="#202522" />
-          <label for="terrain-width">Largura <output id="terrain-width-value">128.00</output></label>
-          <input id="terrain-width" type="range" min="16" max="256" value="128" step="1" />
-          <label for="terrain-depth">Profundidade <output id="terrain-depth-value">128.00</output></label>
-          <input id="terrain-depth" type="range" min="16" max="256" value="128" step="1" />
-          <label for="terrain-segments">Segmentos <output id="terrain-segments-value">64</output></label>
-          <input id="terrain-segments" type="range" min="8" max="128" value="64" step="1" />
-          <label for="terrain-amplitude">Amplitude <output id="terrain-amplitude-value">0.15</output></label>
-          <input id="terrain-amplitude" type="range" min="0" max="1" value="0.15" step="0.01" />
-          <label for="terrain-frequency">Frequência <output id="terrain-frequency-value">0.22</output></label>
-          <input id="terrain-frequency" type="range" min="0.05" max="1" value="0.22" step="0.01" />
-          <label for="terrain-brush-radius">Pincel raio <output id="terrain-brush-radius-value">3.00</output></label>
-          <input id="terrain-brush-radius" type="range" min="0.5" max="12" value="3" step="0.1" />
-          <label for="terrain-brush-strength">Pincel força <output id="terrain-brush-strength-value">0.80</output></label>
-          <input id="terrain-brush-strength" type="range" min="0.1" max="3" value="0.8" step="0.05" />
           <dl class="map-summary"><div><dt>Entidades</dt><dd id="entity-summary-count">0</dd></div></dl>
         </div>
         <div class="panel-section inspector-tab-panel export-preview" data-inspector-panel="world-json"><h2>World JSON</h2><pre id="json-preview">{}</pre></div>

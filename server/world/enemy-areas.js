@@ -17,7 +17,6 @@ export function createEnemyAreas(config = null) {
     areaLevel: area.areaLevel ?? Math.min(index + 1, 2),
     spawnIntervalMs: area.spawnIntervalMs ?? 3000,
     enemyDefinitions: enemyTypes,
-    terrain: config?.terrain ?? null,
   }));
 }
 
@@ -51,12 +50,6 @@ export function isValidMapConfig(config) {
 }
 
 export function isWaterPosition(position, mapConfig) {
-  const terrain = mapConfig?.terrain;
-  if (Number.isInteger(terrain?.columns) && Number.isInteger(terrain?.rows)) {
-    const column = Math.floor(position[0] + terrain.columns / 2);
-    const row = Math.floor(position[2] + terrain.rows / 2);
-    return terrain.cells?.[row]?.[column] === 'water';
-  }
   const water = mapConfig?.water;
   if (!water?.enabled) return false;
   const size = Number(water.size) || 50;

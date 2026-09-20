@@ -7,12 +7,10 @@ import {
   OutlineRenderer,
   Transform,
 } from './components.js';
-import { PLAYER_HEIGHT, sampleTerrainHeight, TERRAIN_BASE_Y } from '../shared/terrain-height.js';
 
 const MESSAGE_LIMIT = 32;
 const COMBAT_DISTANCE = 1;
 const RANGED_ATTACK_DISTANCE = 5;
-const PLAYER_GRAVITY = 24;
 
 function normalizeAngle(angle) {
   return Math.atan2(Math.sin(angle), Math.cos(angle));
@@ -475,34 +473,6 @@ export class MultiplayerSystem {
     this.socket.send(JSON.stringify({ type: 'movement', ...command }));
     this.lastMovementCommand = command;
     this.lastSentAt = time;
-  }
-
-  updateLocalSecondaryPhysics(world, deltaSeconds) {
-    if (!this.localEntity || this.localPlayerDead || this.respawnPending) return;
-    const transform = world.getComponent(this.localEntity, Transform);
-    if (!transform) return;
-    const terrain = this.camera?.terrain ?? null;
-    const terrainHeight = terrain ? sampleTerrainHeight(terrain, transform.position[0], transform.position[2]) : null;
-    const groundY = terrainHeight !== null ? terrainHeight + PLAYER_HEIGHT / 2 : null;
-    if (groundY !== null) {
-      const isGrounded = transform.position[1] <= groundY + 0.06;
-      if (isGrounded) {
-        transform.position[1] = groundY;
-        this.localVerticalVelocity = 0;
-        return;
-      }
-
-      this.localVerticalVelocity -= PLAYER_GRAVITY * deltaSeconds;
-      transform.position[1] += this.localVerticalVelocity * deltaSeconds;
-      if (transform.position[1] <= groundY) {
-        transform.position[1] = groundY;
-        this.localVerticalVelocity = 0;
-      }
-      return;
-    }
-
-    this.localVerticalVelocity -= PLAYER_GRAVITY * deltaSeconds;
-    transform.position[1] += this.localVerticalVelocity * deltaSeconds;
   }
 
   updateAttackTarget(world, time) {

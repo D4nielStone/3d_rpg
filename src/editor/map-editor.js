@@ -6,7 +6,6 @@ import { MTLLoader } from 'three/examples/jsm/loaders/MTLLoader.js';
 import { AnimationMixer, LoopOnce, LoopRepeat } from 'three';
 import { getColliderDescriptors, getCombinedCollisionScale } from '../../shared/collision-shape.js';
 import { createEditorGizmos } from './editor-gizmos.js';
-import { normalizeTerrainForExport, isTerrainRemoved } from './terrain-state.js';
 import {
   normalizeVector,
   normalizeColor,
@@ -20,7 +19,6 @@ import {
   listEditorEntities,
 } from './editor-utils.js';
 import {
-  defaultTerrainConfig,
   defaultLighting,
   defaultSkyColor,
   defaultFog,
@@ -33,7 +31,6 @@ import {
   normalizePointLight,
 } from './editor-scene-state.js';
 import { buildDefaultWorldConfig, resolveWorldConfig } from './editor-scene-config.js';
-import { configureTerrainMesh, applyTerrainBrushToGround } from './editor-terrain.js';
 import { createEditorScene } from './editor-scene.js';
 import { createWorldController } from './editor-world.js';
 import { bindEditorEvents } from './editor-events.js';
@@ -129,21 +126,6 @@ const fogNearInput = document.querySelector('#fog-near');
 const fogNearValue = document.querySelector('#fog-near-value');
 const fogFarInput = document.querySelector('#fog-far');
 const fogFarValue = document.querySelector('#fog-far-value');
-const terrainWidthInput = document.querySelector('#terrain-width');
-const terrainWidthValue = document.querySelector('#terrain-width-value');
-const terrainDepthInput = document.querySelector('#terrain-depth');
-const terrainDepthValue = document.querySelector('#terrain-depth-value');
-const terrainSegmentsInput = document.querySelector('#terrain-segments');
-const terrainSegmentsValue = document.querySelector('#terrain-segments-value');
-const terrainAmplitudeInput = document.querySelector('#terrain-amplitude');
-const terrainAmplitudeValue = document.querySelector('#terrain-amplitude-value');
-const terrainFrequencyInput = document.querySelector('#terrain-frequency');
-const terrainFrequencyValue = document.querySelector('#terrain-frequency-value');
-const terrainColorInput = document.querySelector('#terrain-color');
-const terrainBrushRadiusInput = document.querySelector('#terrain-brush-radius');
-const terrainBrushRadiusValue = document.querySelector('#terrain-brush-radius-value');
-const terrainBrushStrengthInput = document.querySelector('#terrain-brush-strength');
-const terrainBrushStrengthValue = document.querySelector('#terrain-brush-strength-value');
 const panelToggles = [
   ['assets-toggle', 'assets-panel'],
   ['inspector-toggle', 'inspector-panel'],
@@ -180,8 +162,6 @@ let assets = [];
 let sounds = { slash: '', pulse: '', arc: '', 'level-up': '' };
 let enemyAreas = [];
 let enemyTypes = [];
-let terrainConfig = { ...defaultTerrainConfig };
-let terrainRemoved = false;
 let lighting = { ...defaultLighting, directional: { ...defaultLighting.directional }, point: { ...defaultLighting.point } };
 let skyColor = [...defaultSkyColor];
 let fog = { ...defaultFog, color: [...defaultFog.color] };
@@ -197,13 +177,10 @@ let selectedEnemyAreaId = null;
 let selectedMaterialIndex = 0;
 let playerPreview = null;
 let nextId = 1;
-const terrainEntity = { id: 'terrain', name: 'Terreno', type: 'terrain', object: null, enabled: true, isSpecial: true };
 const directionalLightEntity = { id: 'directionalLight', name: 'Luz direta', type: 'directionalLight', object: null, enabled: true, isSpecial: true };
 const history = [];
 const future = [];
 const worldController = createWorldController({
-  terrainConfig: () => terrainConfig,
-  terrainRemoved: () => terrainRemoved,
   lighting: () => lighting,
   skyColor: () => skyColor,
   fog: () => fog,
@@ -213,7 +190,6 @@ const worldController = createWorldController({
   entities: () => entities,
   enemyTypes: () => enemyTypes,
   enemyAreas: () => enemyAreas,
-  ground: () => ground,
   entityGroup: () => entityGroup,
   httpUrl: () => httpUrl,
   updateSceneAtmosphere: () => updateSceneAtmosphere(),
@@ -226,8 +202,6 @@ const worldController = createWorldController({
   createPrimitiveObject: (type) => createPrimitiveObject(type),
   entityGroup: () => entityGroup,
 }, {
-  terrainConfig: (value) => { terrainConfig = value; },
-  terrainRemoved: (value) => { terrainRemoved = Boolean(value); },
   lighting: (value) => { lighting = value; },
   skyColor: (value) => { skyColor = value; },
   fog: (value) => { fog = value; },
@@ -243,11 +217,6 @@ const worldController = createWorldController({
 
 function newId(prefix) { let id; do { id = `${prefix}-${nextId++}`; } while ([...assets, ...entities, ...enemyAreas].some((item) => item.id === id)); return id; }
 function selectedEntity() {
-  if (selectedEntityId === 'terrain') {
-    terrainEntity.object = ground;
-    terrainEntity.enabled = !terrainRemoved;
-    return terrainEntity;
-  }
   if (selectedEntityId === 'directionalLight') {
     directionalLightEntity.object = directionalLight;
     directionalLightEntity.enabled = lighting.directional.enabled !== false;
@@ -288,7 +257,6 @@ async function redo() { const state = future.pop(); if (!state) return; history.
 
 const editorScene = createEditorScene({
   canvas,
-  terrainConfig,
   lighting,
   skyColor,
   fog,
@@ -300,7 +268,6 @@ const orbit = editorScene.orbit;
 const ambientLight = editorScene.ambientLight;
 const directionalLight = editorScene.directionalLight;
 const worldGroup = editorScene.worldGroup;
-const ground = editorScene.ground;
 const gridHelper = editorScene.gridHelper;
 const enemyAreaVisuals = editorScene.enemyAreaVisuals;
 const entityGroup = editorScene.entityGroup;
@@ -309,7 +276,6 @@ const raycaster = editorScene.raycaster;
 const pointer = editorScene.pointer;
 const hover = editorScene.hover;
 let gizmoDragging = false;
-let terrainBrushActive = false;
 const gizmos = createEditorGizmos({
   camera,
   canvas,
@@ -583,8 +549,7 @@ function duplicateSelectedEntity() {
 function selectEntity(id) {
   if (gizmoDragging && id !== selectedEntityId) return;
   selectedEntityId = id; selectedMaterialIndex = 0; const entity = selectedEntity();
-  if (entity?.object && entity.type !== 'terrain' && entity.type !== 'directionalLight') { gizmos.attach(entity.object); }
-  else if (entity?.type === 'terrain') { gizmos.detach(); }
+  if (entity?.object && entity.type !== 'directionalLight') { gizmos.attach(entity.object); }
   else if (entity?.type === 'directionalLight') { gizmos.detach(); }
   else { gizmos.detach(); }
   selectedEntityLabel.textContent = entity?.name ?? 'Nenhuma';
@@ -664,7 +629,7 @@ function renderEntities() {
     const button = document.createElement('button');
     button.className = `entity-item${entity.id === selectedEntityId ? ' entity-item-selected' : ''}`;
     button.type = 'button';
-    const icon = entity.type === 'terrain' ? 'T' : entity.type === 'directionalLight' ? 'L' : entity.isPlayerPreview ? 'P' : entity.assetId ? '◆' : '○';
+    const icon = entity.type === 'directionalLight' ? 'L' : entity.isPlayerPreview ? 'P' : entity.assetId ? '◆' : '○';
     button.innerHTML = `<span class="asset-icon">${icon}</span><span>${entity.name}</span>`;
     button.addEventListener('click', () => selectEntity(entity.id));
     return button;
@@ -692,42 +657,21 @@ function renderEnemyAreas() {
   renderEnemyAreaVisuals();
   renderSceneTree();
 }
-function updateTerrainInspector() {
-  const terrainButton = document.querySelector('#delete-terrain-button');
-  if (terrainButton) terrainButton.textContent = terrainRemoved ? 'Restaurar terreno' : 'Excluir terreno';
-  if (ground) ground.visible = !terrainRemoved;
-}
-function setTerrainRemoved(removed) {
-  terrainRemoved = Boolean(removed);
-  if (ground) {
-    ground.visible = !terrainRemoved;
-    ground.userData.removed = terrainRemoved;
-  }
-  terrainEntity.enabled = !terrainRemoved;
-  updateTerrainInspector();
-  renderSceneTree();
-  updateSummary();
-}
 function renderSceneTree() {
   if (!sceneTree) return;
-  const terrainNode = createSceneTreeNode('T', terrainRemoved ? 'Terreno (removido)' : 'Terreno', () => {
-    selectEntity('terrain');
-    setPanelOpen('inspector-panel', true, document.querySelector('#inspector-toggle'));
-    setStatus(terrainRemoved ? 'Terreno removido da cena' : 'Terreno selecionado');
-  }, selectedEntityId === 'terrain');
   const lightNode = createSceneTreeNode('L', 'Luz direta', () => {
     selectEntity('directionalLight');
     setPanelOpen('inspector-panel', true, document.querySelector('#inspector-toggle'));
     setStatus('Luz direcional selecionada');
   }, selectedEntityId === 'directionalLight');
-  const entityNodes = listEditorEntities(entities).slice(2).map((entity) => createSceneTreeNode(entity.isPlayerPreview ? 'P' : entity.assetId ? 'M' : 'E', entity.name, () => selectEntity(entity.id), entity.id === selectedEntityId));
+  const entityNodes = listEditorEntities(entities).slice(1).map((entity) => createSceneTreeNode(entity.isPlayerPreview ? 'P' : entity.assetId ? 'M' : 'E', entity.name, () => selectEntity(entity.id), entity.id === selectedEntityId));
   const areaNodes = enemyAreas.map((area) => createSceneTreeNode('A', area.id, () => selectEnemyArea(area.id), area.id === selectedEnemyAreaId));
   const assetNodes = assets.map((asset) => createSceneTreeNode('3D', asset.name, () => instantiateAsset(asset)));
   const settingsNode = createSceneTreeNode('S', 'Luz e cor do céu', () => {
     selectEntity('directionalLight');
     setPanelOpen('inspector-panel', true, document.querySelector('#inspector-toggle'));
   }, selectedEntityId === 'directionalLight');
-  sceneTree.replaceChildren(createSceneTreeGroup('Cena', 2 + (terrainRemoved ? 0 : 1), [terrainNode, lightNode, settingsNode]), createSceneTreeGroup('Entidades', listEditorEntities(entities).length, entityNodes), createSceneTreeGroup('Áreas inimigas', enemyAreas.length, areaNodes), createSceneTreeGroup('Assets', assets.length, assetNodes));
+  sceneTree.replaceChildren(createSceneTreeGroup('Cena', 2, [lightNode, settingsNode]), createSceneTreeGroup('Entidades', listEditorEntities(entities).length, entityNodes), createSceneTreeGroup('Áreas inimigas', enemyAreas.length, areaNodes), createSceneTreeGroup('Assets', assets.length, assetNodes));
   document.querySelector('#scene-tree-count').textContent = String(listEditorEntities(entities).length + enemyAreas.length + assets.length + 1);
 }
 function selectEnemyArea(id) { selectedEnemyAreaId = id; updateEnemyAreaInspector(); renderEnemyAreas(); }
@@ -833,26 +777,9 @@ function updateInspector() {
   const entity = selectedEntity(); const active = Boolean(entity); entityInspector.hidden = !active; emptyInspector.hidden = active; playerPreviewInspector.hidden = !entity?.isPlayerPreview; if (!entity) { updateAnimationInspector(); return; }
   document.querySelector('#entity-name').value = entity.name;
 
-  const isTerrain = entity.type === 'terrain';
   const isDirectionalLight = entity.type === 'directionalLight';
   const isPointLight = entity.type === 'pointLight';
   pointLightInspector.hidden = !isPointLight;
-
-  if (isTerrain) {
-    entityInspector.querySelectorAll('.component-tab').forEach((tab) => tab.hidden = tab.dataset.componentTab !== 'transform');
-    entityInspector.querySelectorAll('.component-panel').forEach((panel) => { panel.hidden = panel.dataset.componentPanel !== 'transform'; });
-    setComponentTab('transform');
-    if (ground) {
-      terrainEntity.position = normalizeVector(ground.position.toArray(), [0, 0, 0]);
-      terrainEntity.rotation = normalizeVector([ground.rotation.x, ground.rotation.y, ground.rotation.z], [0, 0, 0]);
-      terrainEntity.scale = normalizeVector(ground.scale.toArray(), [1, 1, 1]);
-    }
-    entityInspector.querySelectorAll('.vector-fields[data-vector] input').forEach((input) => {
-      const value = terrainEntity[input.dataset.vector][Number(input.dataset.index)];
-      input.value = input.dataset.vector === 'rotation' ? THREE.MathUtils.radToDeg(value).toFixed(1) : Number(value).toFixed(2);
-    });
-    return;
-  }
 
   if (isDirectionalLight) {
     entityInspector.querySelectorAll('.component-tab').forEach((tab) => tab.hidden = tab.dataset.componentTab !== 'transform');
@@ -904,17 +831,6 @@ function updateInspector() {
 function updateVector(input) {
   const entity = selectedEntity(); if (!entity) return; const vector = input.dataset.vector; const index = Number(input.dataset.index); const value = Number(input.value); const safeValue = Number.isFinite(value) ? value : 0;
 
-  if (entity.type === 'terrain') {
-    if (!ground) return;
-    if (vector === 'position') ground.position.setComponent(index, safeValue);
-    else if (vector === 'rotation') ground.rotation.set(index === 0 ? THREE.MathUtils.degToRad(safeValue) : ground.rotation.x, index === 1 ? THREE.MathUtils.degToRad(safeValue) : ground.rotation.y, index === 2 ? THREE.MathUtils.degToRad(safeValue) : ground.rotation.z);
-    else if (vector === 'scale') ground.scale.setComponent(index, safeValue);
-    terrainEntity.position = normalizeVector(ground.position.toArray(), [0, 0, 0]);
-    terrainEntity.rotation = normalizeVector([ground.rotation.x, ground.rotation.y, ground.rotation.z], [0, 0, 0]);
-    terrainEntity.scale = normalizeVector(ground.scale.toArray(), [1, 1, 1]);
-    updateInspector(); updateSummary(); return;
-  }
-
   if (entity.type === 'directionalLight') {
     const direction = [...lighting.directional.direction];
     direction[index] = safeValue;
@@ -927,7 +843,7 @@ function updateVector(input) {
 
   normalizeEntityTransform(entity); entity[vector][index] = vector === 'rotation' ? THREE.MathUtils.degToRad(safeValue) : safeValue; applyEntityTransform(entity); updateCollisionVisual(entity); gizmos.update(entity.object); if (entity.isPlayerPreview) syncPlayerFromPreview(entity); updateInspector(); updateSummary();
 }
-function setMode(next) { mode = next; document.querySelectorAll('.mode-button').forEach((button) => button.classList.toggle('mode-button-active', button.dataset.mode === mode)); orbit.enabled = mode !== 'terrain'; gizmos.setMode(mode); canvas.style.cursor = mode === 'terrain' ? 'crosshair' : 'default'; }
+function setMode(next) { mode = next; document.querySelectorAll('.mode-button').forEach((button) => button.classList.toggle('mode-button-active', button.dataset.mode === mode)); orbit.enabled = true; gizmos.setMode(mode); canvas.style.cursor = 'default'; }
 function exportConfig() {
   return worldController.exportConfig();
 }
@@ -1028,16 +944,15 @@ const editorEventContext = {
   setMode, setStatus, setPanelOpen, setInspectorTab, setComponentTab,
   updateEnemyTypeField, updateEnemyAreaField, updateVector, updateSummary,
   renderSounds, renderEnemyAreas, renderEnemyTypes, renderEntities, updateInspector,
-  updateTerrainInspector, updateSceneAtmosphere, updateSceneAmbientLight, updateLightingInspector,
+  updateSceneAtmosphere, updateSceneAmbientLight, updateLightingInspector,
   updatePlayerInspector, readPlayerInspector, refreshPlayerPreview, applyToGame, undo, redo,
   loadWorld, registerAsset, instantiateAsset, assetFormat, readFileAsDataUrl, addEntity,
   createEntity, createPrimitive, createPointLight, createEnemyArea, createEnemyType,
   duplicateSelectedEntity, removeEntity, updateEnemyAreaInspector, selectedEnemyArea,
-  selectedEntity, pushHistory, setTerrainRemoved,
-  applyTerrainBrushToGround: (point) => applyTerrainBrushToGround(ground, terrainConfig, point),
+  selectedEntity, pushHistory,
   updateCollisionVisual, renderSceneTree, updateAnimationInspector, setAnimationPlaying,
   stopAnimation, applyEntityAnimation, syncPlayerFromPreview, renderMeshList,
-  normalizeCollision, normalizeEntityMaterials, applyEntityMaterials, configureTerrainMesh,
+  normalizeCollision, normalizeEntityMaterials, applyEntityMaterials,
   download, exportConfig, loadSavedWorld, listEditorEntities, newId, clearCollisionVisual,
   selectEntity, selectEnemyArea, materialIndexForObject, resize, lights: [],
   entityNameInput: document.querySelector('#entity-name'),
@@ -1048,15 +963,12 @@ const editorEventContext = {
   pointLightInspector, meshCount, meshList, animationPlayButton, animationPauseButton,
   animationStopButton, animationSelect, animationLoopInput, animationSpeedInput,
   animationSpeedValue, componentTabs, soundType, soundUrl, soundList, status, canvas,
-  ground, raycaster, pointer, camera, entityGroup, coordinates, hover,
+  raycaster, pointer, camera, entityGroup, coordinates, hover,
   orbit, collisionFrictionInput, collisionRestitutionInput,
-  entityLightIntensityValue, entityLightDistanceValue, terrainWidthInput, terrainDepthInput,
-  terrainSegmentsInput, terrainAmplitudeInput, terrainFrequencyInput, terrainColorInput,
-  terrainBrushRadiusInput, terrainBrushStrengthInput, ambientColorInput, ambientIntensityInput,
+  entityLightIntensityValue, entityLightDistanceValue, ambientColorInput, ambientIntensityInput,
   directionalIntensityInput, directionalCastShadowInput, directionalInputs, directionalValues,
-  skyColorInput, fogColorInput, fogNearInput, fogFarInput, terrainWidthValue, terrainDepthValue,
-  terrainSegmentsValue, terrainAmplitudeValue, terrainFrequencyValue, terrainBrushRadiusValue,
-  terrainBrushStrengthValue, ambientIntensityValue, directionalIntensityValue, sceneTree,
+  skyColorInput, fogColorInput, fogNearInput, fogFarInput,
+  ambientIntensityValue, directionalIntensityValue, sceneTree,
   panelToggles,
   entityDiffuseColorInput: document.querySelector('#entity-diffuse-color'),
   entityTextureFileInput: document.querySelector('#entity-texture-file'),
@@ -1072,7 +984,6 @@ Object.defineProperties(editorEventContext, {
   sounds: { get: () => sounds, set: (value) => { sounds = value; } },
   enemyAreas: { get: () => enemyAreas, set: (value) => { enemyAreas = value; } },
   enemyTypes: { get: () => enemyTypes, set: (value) => { enemyTypes = value; } },
-  terrainConfig: { get: () => terrainConfig, set: (value) => { terrainConfig = value; } },
   lighting: { get: () => lighting, set: (value) => { lighting = value; } },
   skyColor: { get: () => skyColor, set: (value) => { skyColor = value; } },
   fog: { get: () => fog, set: (value) => { fog = value; } },
@@ -1080,8 +991,6 @@ Object.defineProperties(editorEventContext, {
   selectedEntityId: { get: () => selectedEntityId, set: (value) => { selectedEntityId = value; } },
   selectedEnemyAreaId: { get: () => selectedEnemyAreaId, set: (value) => { selectedEnemyAreaId = value; } },
   mode: { get: () => mode, set: (value) => { mode = value; } },
-  terrainRemoved: { get: () => terrainRemoved, set: (value) => { terrainRemoved = Boolean(value); } },
-  terrainBrushActive: { get: () => terrainBrushActive, set: (value) => { terrainBrushActive = value; } },
   gizmoDragging: { get: () => gizmoDragging, set: (value) => { gizmoDragging = value; } },
   selectedMaterialIndex: { get: () => selectedMaterialIndex, set: (value) => { selectedMaterialIndex = value; } },
 });

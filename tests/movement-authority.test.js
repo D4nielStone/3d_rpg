@@ -33,14 +33,7 @@ test('converte WASD em angulo e magnitude', () => {
 });
 
 test('a camada de física avança o jogador usando o angulo recebido', () => {
-  const physics = new PhysicsWorld({
-    terrain: {
-      width: 4,
-      depth: 4,
-      segments: 1,
-      heights: [0, 0, 0, 0],
-    },
-  });
+  const physics = new PhysicsWorld();
 
   const next = physics.movePlayer('player', [0, 0.7, 0], Math.PI / 2, 3, 0.05);
 
@@ -116,25 +109,6 @@ test('gravidade continua acelerando entre atualizacoes do jogador', () => {
   position = physics.movePlayer('falling-player', position, 0, 0, 0.05);
 
   assert.ok(firstHeight - position[1] > 0.01);
-});
-
-test('jogador nao atravessa o chao configurado do terreno', () => {
-  const physics = new PhysicsWorld({
-    terrain: {
-      width: 8,
-      depth: 8,
-      segments: 1,
-      heights: [0, 0, 0, 0],
-    },
-  });
-  let position = [0, 3, 0];
-
-  for (let index = 0; index < 40; index += 1) {
-    position = physics.movePlayer('terrain-ground-player', position, 0, 0, 0.05);
-  }
-
-  assert.ok(position[1] > -0.5, `O jogador atravessou o chão em y=${position[1]}`);
-  assert.ok(position[1] < 1.5, `O jogador ficou muito alto em y=${position[1]}`);
 });
 
 test('movimento horizontal nao faz o jogador subir', () => {
@@ -481,15 +455,4 @@ test('jogador nao atravessa um vao entre superficies inclinadas', () => {
 test('parar o movimento preserva o ultimo yaw', () => {
   assert.deepEqual(getMovementRotation([0, Math.PI / 2, 0], 0, 0), [0, Math.PI / 2, 0]);
   assert.deepEqual(getMovementRotation([0, 0, 0], Math.PI / 2, 1), [0, Math.PI / 2, 0]);
-});
-
-test('movimentos consecutivos sem terreno permanecem sobre o piso', () => {
-  const physics = new PhysicsWorld();
-  let position = [0, 0, 0];
-
-  for (let index = 0; index < 20; index += 1) {
-    position = physics.movePlayer('grounded-player', position, 0, 3, 0.05);
-  }
-
-  assert.ok(position[1] < 0);
 });

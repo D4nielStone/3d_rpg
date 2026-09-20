@@ -24,7 +24,6 @@ import {
   Rigidbody,
 } from './components.js';
 import { PhysicsWorld } from '../server/world/physics.js';
-import { sampleTerrainHeight } from '../shared/terrain-height.js';
 
 function shortestAngleDelta(target, current) {
   return Math.atan2(Math.sin(target - current), Math.cos(target - current));

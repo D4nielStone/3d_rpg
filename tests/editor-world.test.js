@@ -31,8 +31,6 @@ function createDocumentStub() {
 test('loadWorld reaplica skyColor, fog e lighting do mundo carregado no estado do editor', async () => {
   globalThis.document = createDocumentStub();
 
-  let terrainConfig = { width: 64, depth: 64, segments: 32, amplitude: 0.1, frequency: 0.2, color: '#111111', brushRadius: 3, brushStrength: 0.8 };
-  let terrainRemoved = false;
   let lighting = { ambientColor: [1, 1, 1], ambientIntensity: 0.5, directional: { direction: [-0.45, 0.85, 0.35], color: [1, 1, 1], intensity: 0.8, castShadow: true, enabled: true }, point: { position: [0, 4, 0], color: [1, 1, 1], intensity: 2, distance: 18 } };
   let skyColor = [0.1, 0.2, 0.3];
   let fog = { color: [0.2, 0.3, 0.4], near: 10, far: 50 };
@@ -44,17 +42,9 @@ test('loadWorld reaplica skyColor, fog e lighting do mundo carregado no estado d
   let enemyAreas = [];
   let selectedEntityId = null;
   let selectedEnemyAreaId = null;
-  const ground = {
-    geometry: { attributes: { position: { array: new Float32Array([0, 0, 0, 1, 0, 1, 0, 0, 2]) } } },
-    material: { color: { set() {} } },
-    visible: true,
-    userData: {},
-  };
   const entityGroup = { clear() {} };
 
   const controller = createWorldController({
-    terrainConfig: () => terrainConfig,
-    terrainRemoved: () => terrainRemoved,
     lighting: () => lighting,
     skyColor: () => skyColor,
     fog: () => fog,
@@ -64,7 +54,6 @@ test('loadWorld reaplica skyColor, fog e lighting do mundo carregado no estado d
     entities: () => entities,
     enemyTypes: () => enemyTypes,
     enemyAreas: () => enemyAreas,
-    ground: () => ground,
     entityGroup: () => entityGroup,
     httpUrl: () => 'http://localhost',
     updateSceneAtmosphere: () => {},
@@ -76,8 +65,6 @@ test('loadWorld reaplica skyColor, fog e lighting do mundo carregado no estado d
     selectEntity: (id) => { selectedEntityId = id; },
     createPrimitiveObject: () => null,
   }, {
-    terrainConfig: (value) => { terrainConfig = value; },
-    terrainRemoved: (value) => { terrainRemoved = Boolean(value); },
     lighting: (value) => { lighting = value; },
     skyColor: (value) => { skyColor = value; },
     fog: (value) => { fog = value; },

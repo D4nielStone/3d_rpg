@@ -10,7 +10,6 @@ export function normalizeMapConfig(config, fallback = null) {
       ...(fallback?.scene ?? {}),
       ...(config.scene ?? {}),
     },
-    terrain: Object.prototype.hasOwnProperty.call(config, 'terrain') ? config.terrain : (fallback?.terrain ?? null),
     lighting: {
       ...(fallback?.lighting ?? {}),
       ...(config.lighting ?? {}),

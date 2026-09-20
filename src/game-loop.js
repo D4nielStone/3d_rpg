@@ -22,7 +22,6 @@ export function startGameLoop({
     physicsSystem.update(world, deltaSeconds);
     animationSystem.update(world, deltaSeconds);
     multiplayerSystem.update(world, time);
-    multiplayerSystem.updateLocalSecondaryPhysics(world, deltaSeconds);
     networkInterpolationSystem.update(world, deltaSeconds);
     soundListenerSystem.update(world);
     const listener = world.query(SoundListener)[0];

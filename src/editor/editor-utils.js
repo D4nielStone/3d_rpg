@@ -183,7 +183,6 @@ export function createPrimitiveObject(type) {
 
 export function listEditorEntities(items = []) {
   const specialEntities = [
-    { id: 'terrain', name: 'Terreno', type: 'terrain', scene: 'terrain', enabled: true, isSpecial: true },
     { id: 'directionalLight', name: 'Luz direta', type: 'directionalLight', scene: 'lighting', enabled: true, isSpecial: true },
   ];
 

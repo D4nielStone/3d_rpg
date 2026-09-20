@@ -14,7 +14,6 @@ export function bindEditorEvents(context) {
     renderEnemyTypes,
     renderEntities,
     updateInspector,
-    updateTerrainInspector,
     updateSceneAtmosphere,
     updateSceneAmbientLight,
     updateLightingInspector,
@@ -43,9 +42,6 @@ export function bindEditorEvents(context) {
     selectedEntityId,
     selectedEnemyAreaId,
     pushHistory,
-    terrainRemoved,
-    setTerrainRemoved,
-    applyTerrainBrushToGround,
     updateCollisionVisual,
     renderSceneTree,
     updateAnimationInspector,
@@ -71,7 +67,6 @@ export function bindEditorEvents(context) {
     soundList,
     status,
     canvas,
-    ground,
     raycaster,
     pointer,
     camera,
@@ -82,21 +77,12 @@ export function bindEditorEvents(context) {
     coordinates,
     hover,
     orbit,
-    terrainBrushActive,
     clearCollisionVisual,
     panelToggles,
     collisionFrictionInput,
     collisionRestitutionInput,
     entityLightIntensityValue,
     entityLightDistanceValue,
-    terrainWidthInput,
-    terrainDepthInput,
-    terrainSegmentsInput,
-    terrainAmplitudeInput,
-    terrainFrequencyInput,
-    terrainColorInput,
-    terrainBrushRadiusInput,
-    terrainBrushStrengthInput,
     ambientColorInput,
     ambientIntensityInput,
     directionalIntensityInput,
@@ -107,13 +93,6 @@ export function bindEditorEvents(context) {
     fogColorInput,
     fogNearInput,
     fogFarInput,
-    terrainWidthValue,
-    terrainDepthValue,
-    terrainSegmentsValue,
-    terrainAmplitudeValue,
-    terrainFrequencyValue,
-    terrainBrushRadiusValue,
-    terrainBrushStrengthValue,
     ambientIntensityValue,
     directionalIntensityValue,
     playerPreview,
@@ -249,12 +228,6 @@ export function bindEditorEvents(context) {
     setStatus('Área inimiga excluída');
   });
 
-  document.querySelector('#delete-terrain-button').addEventListener('click', () => {
-    pushHistory();
-    setTerrainRemoved(!terrainRemoved);
-    setStatus(terrainRemoved ? 'Terreno restaurado' : 'Terreno removido');
-  });
-
   document.querySelector('#enemy-area-id').addEventListener('change', (event) => {
     const area = selectedEnemyArea();
     if (!area) return;
@@ -270,11 +243,6 @@ export function bindEditorEvents(context) {
   document.querySelector('#delete-entity-button').addEventListener('click', () => {
     if (!context.selectedEntityId) return;
     pushHistory();
-    if (context.selectedEntityId === 'terrain') {
-      setTerrainRemoved(!terrainRemoved);
-      setStatus(terrainRemoved ? 'Terreno restaurado' : 'Terreno removido');
-      return;
-    }
     if (context.selectedEntityId === 'directionalLight') {
       context.lighting.directional.enabled = false;
       updateSceneAmbientLight();
@@ -512,59 +480,6 @@ export function bindEditorEvents(context) {
   document.querySelector('#undo-button').addEventListener('click', undo);
   document.querySelector('#redo-button').addEventListener('click', redo);
 
-  terrainWidthInput.addEventListener('input', () => {
-    context.terrainConfig.width = Number(terrainWidthInput.value) || 128;
-    terrainWidthValue.textContent = context.terrainConfig.width.toFixed(2);
-    context.configureTerrainMesh(ground, context.terrainConfig);
-    updateSummary();
-  });
-
-  terrainDepthInput.addEventListener('input', () => {
-    context.terrainConfig.depth = Number(terrainDepthInput.value) || 128;
-    terrainDepthValue.textContent = context.terrainConfig.depth.toFixed(2);
-    context.configureTerrainMesh(ground, context.terrainConfig);
-    updateSummary();
-  });
-
-  terrainSegmentsInput.addEventListener('input', () => {
-    context.terrainConfig.segments = Number(terrainSegmentsInput.value) || 64;
-    terrainSegmentsValue.textContent = String(context.terrainConfig.segments);
-    context.configureTerrainMesh(ground, context.terrainConfig);
-    updateSummary();
-  });
-
-  terrainAmplitudeInput.addEventListener('input', () => {
-    context.terrainConfig.amplitude = Number(terrainAmplitudeInput.value) || 0.15;
-    terrainAmplitudeValue.textContent = context.terrainConfig.amplitude.toFixed(2);
-    context.configureTerrainMesh(ground, context.terrainConfig);
-    updateSummary();
-  });
-
-  terrainFrequencyInput.addEventListener('input', () => {
-    context.terrainConfig.frequency = Number(terrainFrequencyInput.value) || 0.22;
-    terrainFrequencyValue.textContent = context.terrainConfig.frequency.toFixed(2);
-    context.configureTerrainMesh(ground, context.terrainConfig);
-    updateSummary();
-  });
-
-  terrainColorInput.addEventListener('input', () => {
-    context.terrainConfig.color = terrainColorInput.value;
-    ground.material.color.set(context.terrainConfig.color);
-    updateSummary();
-  });
-
-  terrainBrushRadiusInput.addEventListener('input', () => {
-    context.terrainConfig.brushRadius = Number(terrainBrushRadiusInput.value) || 3;
-    terrainBrushRadiusValue.textContent = context.terrainConfig.brushRadius.toFixed(2);
-    updateSummary();
-  });
-
-  terrainBrushStrengthInput.addEventListener('input', () => {
-    context.terrainConfig.brushStrength = Number(terrainBrushStrengthInput.value) || 0.8;
-    terrainBrushStrengthValue.textContent = context.terrainConfig.brushStrength.toFixed(2);
-    updateSummary();
-  });
-
   ambientColorInput.addEventListener('input', () => {
     const hex = ambientColorInput.value.slice(1);
     context.lighting.ambientColor = [0, 2, 4].map((index) => Number.parseInt(hex.slice(index, index + 2), 16) / 255);
@@ -659,15 +574,6 @@ export function bindEditorEvents(context) {
     context.pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
     context.pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
     raycaster.setFromCamera(context.pointer, camera);
-    const groundHit = raycaster.intersectObject(ground, false)[0];
-    if (context.mode === 'terrain' && groundHit) {
-      context.terrainBrushActive = true;
-      canvas.setPointerCapture(event.pointerId);
-      pushHistory();
-      applyTerrainBrushToGround(groundHit.point);
-      setStatus('Terreno deformado');
-      return;
-    }
     const hit = raycaster.intersectObject(entityGroup, true)[0];
     const id = hit?.object?.userData.entityId;
     if (id) {
@@ -677,26 +583,9 @@ export function bindEditorEvents(context) {
     }
   });
 
-  canvas.addEventListener('pointermove', (event) => {
-    const rect = canvas.getBoundingClientRect();
-    pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-    pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-    raycaster.setFromCamera(pointer, camera);
-    const hit = raycaster.intersectObject(ground, false)[0];
-    if (hit) {
-      coordinates.textContent = `x: ${hit.point.x.toFixed(1)}, y: ${hit.point.y.toFixed(1)}, z: ${hit.point.z.toFixed(1)}`;
-      if (context.terrainBrushActive && context.mode === 'terrain') {
-        applyTerrainBrushToGround(hit.point);
-        setStatus('Terreno deformado');
-      }
-    }
-  });
-
   canvas.addEventListener('pointerup', (event) => {
-    context.terrainBrushActive = false;
     if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
   });
-  canvas.addEventListener('pointercancel', () => { context.terrainBrushActive = false; });
   canvas.addEventListener('pointerleave', () => { hover.visible = false; });
   window.addEventListener('resize', context.resize);
 

@@ -3,7 +3,6 @@ import {
   defaultLighting,
   defaultSkyColor,
   defaultSounds,
-  defaultTerrainConfig,
 } from './editor-scene-state.js';
 
 export function buildDefaultWorldConfig() {
@@ -19,10 +18,6 @@ export function buildDefaultWorldConfig() {
         near: defaultFog.near,
         far: defaultFog.far,
       },
-    },
-    terrain: {
-      ...defaultTerrainConfig,
-      heights: Array.from({ length: 65 * 65 }, () => 0),
     },
     lighting: {
       ...defaultLighting,
@@ -57,6 +52,6 @@ export function buildDefaultWorldConfig() {
 
 export function resolveWorldConfig(config, fallbackConfig = buildDefaultWorldConfig()) {
   if (!config || typeof config !== 'object') return fallbackConfig;
-  if (config.entities || config.terrain || config.assets || config.enemyAreas) return config;
+  if (config.entities || config.assets || config.enemyAreas) return config;
   return fallbackConfig;
 }

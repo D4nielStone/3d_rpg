@@ -34,12 +34,11 @@ test('uniqueEntityName evita nomes duplicados', () => {
   assert.equal(uniqueEntityName('Portal', entities, 'b'), 'Portal 2');
 });
 
-test('listEditorEntities inclui terreno e luz direcional como entidades editáveis', () => {
+test('listEditorEntities inclui a luz direcional como entidade especial', () => {
   const entities = [{ id: 'entity-1', name: 'Cubo', type: 'entity' }];
   const list = listEditorEntities(entities);
-  assert.deepEqual(list.map((entity) => entity.type), ['terrain', 'directionalLight', 'entity']);
-  assert.equal(list[0].name, 'Terreno');
-  assert.equal(list[1].name, 'Luz direta');
+  assert.deepEqual(list.map((entity) => entity.type), ['directionalLight', 'entity']);
+  assert.equal(list[0].name, 'Luz direta');
 });
 
 test('malha de colisao preserva a escala do modelo', () => {

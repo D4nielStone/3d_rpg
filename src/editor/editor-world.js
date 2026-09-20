@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import { normalizeTerrainForExport, isTerrainRemoved } from './terrain-state.js';
 import { normalizeVector } from './editor-utils.js';
 import {
   normalizeSounds,
@@ -30,7 +29,6 @@ export function createWorldController(getters, setters = {}) {
   };
 
   function exportConfig() {
-    const terrainConfig = get('terrainConfig');
     const player = get('player');
     const lighting = get('lighting');
     const skyColor = get('skyColor');
@@ -40,18 +38,7 @@ export function createWorldController(getters, setters = {}) {
     const entities = get('entities');
     const enemyTypes = get('enemyTypes');
     const enemyAreas = get('enemyAreas');
-    const terrainRemoved = get('terrainRemoved');
-    const ground = get('ground');
-
     const maxHp = Math.max(1, Number(player?.status?.maxHp) || 20);
-    const terrainState = normalizeTerrainForExport(
-      {
-        ...terrainConfig,
-        heights: Array.from((ground?.geometry?.attributes?.position?.array ?? [])).filter((_, index) => index % 3 === 1),
-      },
-      terrainRemoved,
-    );
-
     return {
       format: 'webrpg.world',
       version: 2,
@@ -65,7 +52,6 @@ export function createWorldController(getters, setters = {}) {
           far: Number(fog?.far ?? 90),
         },
       },
-      terrain: terrainState,
       lighting: {
         ambientColor: [...(lighting?.ambientColor ?? [1, 1, 1])],
         ambientIntensity: Number(lighting?.ambientIntensity ?? 0.5),
@@ -118,30 +104,6 @@ export function createWorldController(getters, setters = {}) {
   }
 
   async function loadWorld(config) {
-    const terrainConfig = get('terrainConfig') ?? {};
-    const incomingTerrain = Object.prototype.hasOwnProperty.call(config ?? {}, 'terrain') ? config.terrain : terrainConfig;
-    const nextTerrainConfig = { ...terrainConfig, ...incomingTerrain };
-    set('terrainConfig', nextTerrainConfig);
-    set('terrainRemoved', isTerrainRemoved(incomingTerrain));
-
-    const normalizedTerrain = { ...nextTerrainConfig };
-    normalizedTerrain.width = Math.max(16, Number(normalizedTerrain.width) || 128);
-    normalizedTerrain.depth = Math.max(16, Number(normalizedTerrain.depth) || 128);
-    normalizedTerrain.segments = Math.max(8, Math.floor(Number(normalizedTerrain.segments) || 64));
-    normalizedTerrain.amplitude = Math.max(0, Number(normalizedTerrain.amplitude) || 0.15);
-    normalizedTerrain.frequency = Math.max(0.05, Number(normalizedTerrain.frequency) || 0.22);
-    normalizedTerrain.color = /^#[0-9a-f]{6}$/i.test(normalizedTerrain.color) ? normalizedTerrain.color : '#202522';
-    normalizedTerrain.brushRadius = Math.max(0.5, Number(normalizedTerrain.brushRadius) || 3);
-    normalizedTerrain.brushStrength = Math.max(0.1, Number(normalizedTerrain.brushStrength) || 0.8);
-    set('terrainConfig', normalizedTerrain);
-
-    const ground = get('ground');
-    if (ground) {
-      ground.material.color.set(normalizedTerrain.color);
-      ground.visible = !get('terrainRemoved');
-      ground.userData.removed = get('terrainRemoved');
-    }
-
     const nextSkyColor = normalizeSkyColor(config?.scene?.skyColor);
     set('skyColor', nextSkyColor);
     const nextFog = normalizeFog(config?.scene?.fog);
@@ -233,9 +195,9 @@ export function createWorldController(getters, setters = {}) {
     const savedConfig = readSavedMapConfig();
     const fallbackConfig = buildDefaultWorldConfig();
     const config = resolveWorldConfig(
-      remoteConfig && (remoteConfig.entities || remoteConfig.terrain || remoteConfig.assets || remoteConfig.enemyAreas)
+      remoteConfig && (remoteConfig.entities || remoteConfig.assets || remoteConfig.enemyAreas)
         ? remoteConfig
-        : (savedConfig && (savedConfig.entities || savedConfig.terrain || savedConfig.assets || savedConfig.enemyAreas)
+        : (savedConfig && (savedConfig.entities || savedConfig.assets || savedConfig.enemyAreas)
           ? savedConfig
           : fallbackConfig),
       fallbackConfig,

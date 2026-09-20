@@ -121,49 +121,6 @@ function createTrimeshShape(mesh, scale) {
   return new Trimesh(vertices, indices);
 }
 
-function createTerrainSurfaceMesh(terrain) {
-  const width = Number(terrain?.width);
-  const depth = Number(terrain?.depth);
-  const segments = Math.floor(Number(terrain?.segments));
-  const heights = Array.isArray(terrain?.heights) ? terrain.heights : null;
-
-  if (
-    !Number.isFinite(width) || width <= 0 ||
-    !Number.isFinite(depth) || depth <= 0 ||
-    !Number.isInteger(segments) || segments < 1 ||
-    !heights || heights.length !== (segments + 1) * (segments + 1)
-  ) {
-    return null;
-  }
-
-  const columns = segments + 1;
-  const vertices = [];
-  const indices = [];
-  const halfWidth = width / 2;
-  const halfDepth = depth / 2;
-
-  for (let row = 0; row < columns; row += 1) {
-    const z = (row / segments) * depth - halfDepth;
-    for (let column = 0; column < columns; column += 1) {
-      const x = (column / segments) * width - halfWidth;
-      const y = Number(heights[row * columns + column]) || 0;
-      vertices.push(x, y, z);
-    }
-  }
-
-  for (let row = 0; row < segments; row += 1) {
-    for (let column = 0; column < segments; column += 1) {
-      const a = row * columns + column;
-      const b = a + 1;
-      const c = a + columns;
-      const d = c + 1;
-      indices.push(a, c, b, c, d, b);
-    }
-  }
-
-  return { vertices, indices };
-}
-
 function addBoxShape(body, scale) {
   body.addShape(getColliderDescriptors('box', scale)[0]);
 }
@@ -259,39 +216,6 @@ export class PhysicsWorld {
   }
 
   buildStaticColliders(mapConfig) {
-    const terrainMesh = createTerrainSurfaceMesh(mapConfig?.terrain);
-    if (mapConfig?.terrain && mapConfig.terrain.removed !== true && terrainMesh) {
-      const terrainBody = new Body({
-        mass: 0,
-        type: Body.STATIC,
-        allowSleep: true,
-      });
-
-      const terrainMaterial = createMaterial('terrain-ground', 0, 0);
-      terrainBody.material = terrainMaterial;
-      terrainBody.addShape(createTrimeshShape(terrainMesh, [1, 1, 1]));
-      terrainBody.position.set(0, 0, 0);
-      terrainBody.quaternion.setFromEuler(0, 0, 0);
-
-      this.world.addBody(terrainBody);
-      this.staticBodies.set(terrainBody, {
-        id: 'terrain',
-        name: 'Terreno',
-      });
-      this.world.addContactMaterial(
-        new ContactMaterial(
-          this.playerMaterial,
-          terrainMaterial,
-          {
-            friction: 0,
-            restitution: 0,
-            contactEquationStiffness: 1e7,
-            contactEquationRelaxation: 3,
-          },
-        ),
-      );
-    }
-
     for (
       const entity of mapConfig?.entities ?? []
     ) {

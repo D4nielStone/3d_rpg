@@ -1,17 +1,5 @@
 import { normalizeColor, normalizeVector } from './editor-utils.js';
 
-export const defaultTerrainConfig = {
-  width: 128,
-  depth: 128,
-  segments: 64,
-  amplitude: 0.15,
-  frequency: 0.22,
-  color: '#202522',
-  brushRadius: 3,
-  brushStrength: 0.8,
-  removed: false,
-};
-
 export const defaultLighting = {
   ambientColor: [1, 1, 1],
   ambientIntensity: 1,

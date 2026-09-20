@@ -3,18 +3,7 @@ import { loadAsset } from './asset-loader.js';
 import { createWater } from './water.js';
 import { readSavedMapConfig } from './map-config.js';
 
-const DEFAULT_TERRAIN = Object.freeze({
-  width: 128,
-  depth: 128,
-  segments: 16,
-  color: '#202522',
-  amplitude: 0,
-  frequency: 0.22,
-  heights: Array.from({ length: 17 * 17 }, () => 0),
-});
-
 export const DEFAULT_MAP_CONFIG = Object.freeze({
-  terrain: DEFAULT_TERRAIN,
   enemyAreas: [],
   water: {
     enabled: false,
@@ -23,13 +12,6 @@ export const DEFAULT_MAP_CONFIG = Object.freeze({
     level: -0.2,
   },
 });
-
-const TERRAIN_COLORS = {
-  grass: [0.247, 0.529, 0.282],
-  water: [0.157, 0.482, 0.627],
-  stone: [0.467, 0.49, 0.475],
-  enemy: [0.435, 0.357, 0.192],
-};
 
 function addConfiguredRigidbody(world, entity, definition) {
   if (definition.collision?.bodyType !== 'rigidBody') return;
@@ -118,93 +100,6 @@ function createPrimitiveMesh(type) {
   });
 }
 
-function createTerrain(world, terrain) {
-  const columns = Number(terrain?.columns);
-  const rows = Number(terrain?.rows);
-  const cells = terrain?.cells;
-  if (!Number.isInteger(columns) || !Number.isInteger(rows) || !Array.isArray(cells)) return;
-
-  const vertices = [];
-  const colors = [];
-  const indices = [];
-  const halfColumns = columns / 2;
-  const halfRows = rows / 2;
-
-  for (let row = 0; row < rows; row += 1) {
-    for (let column = 0; column < columns; column += 1) {
-      const terrainType = cells[row]?.[column] === 'enemy' ? 'grass' : cells[row]?.[column];
-      const color = TERRAIN_COLORS[terrainType] ?? TERRAIN_COLORS.grass;
-      const x = column - halfColumns;
-      const z = row - halfRows;
-      const first = vertices.length / 3;
-      const level = terrainType === 'water' ? -0.2 : -0.08;
-      vertices.push(
-        x, level, z,
-        x + 1, level, z,
-        x + 1, level, z + 1,
-        x, level, z + 1,
-      );
-      colors.push(...color, ...color, ...color, ...color);
-      indices.push(first, first + 2, first + 1, first, first + 3, first + 2);
-    }
-  }
-
-  const entity = world.createEntity();
-  world.addComponent(entity, new Transform());
-  world.addComponent(entity, new MeshRenderer({
-    vertices: new Float32Array(vertices),
-    colors: new Float32Array(colors),
-    indices: new Uint16Array(indices),
-  }));
-}
-
-function createEditorTerrain(world, terrain) {
-  const width = Number(terrain?.width);
-  const depth = Number(terrain?.depth);
-  const segments = Math.floor(Number(terrain?.segments));
-  const heights = terrain?.heights;
-  if (!Number.isFinite(width) || !Number.isFinite(depth) || !Number.isInteger(segments) || segments < 1 || !Array.isArray(heights)) return;
-  const columns = segments + 1;
-  if (heights.length !== columns * columns) return;
-  const vertices = [];
-  const normals = [];
-  const indices = [];
-  const halfWidth = width / 2;
-  const halfDepth = depth / 2;
-  for (let row = 0; row <= segments; row += 1) {
-    for (let column = 0; column <= segments; column += 1) {
-      const heightAt = (sampleRow, sampleColumn) => Number(heights[Math.max(0, Math.min(segments, sampleRow)) * columns + Math.max(0, Math.min(segments, sampleColumn))]) || 0;
-      const heightLeft = heightAt(row, column - 1);
-      const heightRight = heightAt(row, column + 1);
-      const heightTop = heightAt(row - 1, column);
-      const heightBottom = heightAt(row + 1, column);
-      const normalX = -(heightRight - heightLeft) / Math.max(width / segments, 0.001);
-      const normalZ = -(heightBottom - heightTop) / Math.max(depth / segments, 0.001);
-      const normalLength = Math.hypot(normalX, 1, normalZ);
-      vertices.push((column / segments) * width - halfWidth, heightAt(row, column), (row / segments) * depth - halfDepth);
-      normals.push(normalX / normalLength, 1 / normalLength, normalZ / normalLength);
-    }
-  }
-  for (let row = 0; row < segments; row += 1) for (let column = 0; column < segments; column += 1) {
-    const first = row * columns + column;
-    const next = first + 1;
-    const below = first + columns;
-    indices.push(first, below, next, next, below, below + 1);
-  }
-  const color = String(terrain.color ?? '').match(/^#([0-9a-f]{6})$/i);
-  const diffuseColor = color ? [0, 2, 4].map((index) => Number.parseInt(color[1].slice(index, index + 2), 16) / 255) : [0.125, 0.145, 0.133];
-  const entity = world.createEntity();
-  world.addComponent(entity, new Transform());
-  world.addComponent(entity, new MeshRenderer({
-    meshes: [{
-      vertices: new Float32Array(vertices),
-      normals: new Float32Array(normals),
-      indices: new Uint32Array(indices),
-      material: { diffuseColor },
-    }],
-  }));
-}
-
 function createDirectionalLight(world, lightingConfig = {}) {
   const direction = lightingConfig?.directional ?? {};
   if (!direction || typeof direction !== 'object') return;
@@ -291,9 +186,7 @@ async function createWorldEntities(world, config, textureManager) {
 export async function customizeMap(world, config = null, textureManager = null) {
   const activeConfig = config ?? readSavedMapConfig() ?? DEFAULT_MAP_CONFIG;
   const normalizedConfig = { ...DEFAULT_MAP_CONFIG, ...(activeConfig ?? {}) };
-  if (normalizedConfig.terrain?.width && normalizedConfig.terrain?.heights) createEditorTerrain(world, normalizedConfig.terrain);
-  else createTerrain(world, normalizedConfig.terrain);
-  if (normalizedConfig.water?.enabled && !normalizedConfig.terrain?.cells) {
+  if (normalizedConfig.water?.enabled) {
     createWater(world, normalizedConfig.water);
   }
   createDirectionalLight(world, normalizedConfig.lighting);

@@ -1,10 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { createEnemyTypeMap } from './world/enemy-types.js';
-import { canTraverseTerrain, PLAYER_HEIGHT, sampleTerrainHeight } from '../shared/terrain-height.js';
 import { doesAttackHit } from './combat.js';
 
 export class Enemy {
-  constructor({ id = randomUUID(), type = 'rat', level, position = [0, 0, 0], definitions = null, terrain = null } = {}) {
+  constructor({ id = randomUUID(), type = 'rat', level, position = [0, 0, 0], definitions = null } = {}) {
     const definition = (definitions ?? createEnemyTypeMap()).get(type);
     if (!definition) throw new Error(`Tipo de inimigo desconhecido: ${type}`);
 
@@ -34,13 +33,11 @@ export class Enemy {
     this.wanderPause = 0;
 
     this.position = [...position];
-    this.terrain = terrain;
     this.rotationY = 0;
     this.scale = this.sizeMultiplier;
   }
 
   updateChase(players, deltaSeconds, area = null) {
-    this.updateTerrainHeight();
     this.attackCooldown = Math.max(0, this.attackCooldown - deltaSeconds);
     this.scale = this.sizeMultiplier * (Math.sin(Date.now() * 0.0005 + 1) * 0.05 + 0.95);
     let target = players.find((player) =>
@@ -146,16 +143,9 @@ export class Enemy {
     this.moveTo(this.position[0] + (deltaX / distance * step), this.position[2] + (deltaZ / distance * step));
   }
 
-  updateTerrainHeight() {
-    const height = sampleTerrainHeight(this.terrain, this.position[0], this.position[2]);
-    if (height !== null) this.position[1] = height + PLAYER_HEIGHT / 2;
-  }
-
   moveTo(x, z) {
-    if (!canTraverseTerrain(this.terrain, this.position, [x, this.position[1], z])) return false;
     this.position[0] = x;
     this.position[2] = z;
-    this.updateTerrainHeight();
     return true;
   }
 

@@ -40,11 +40,10 @@ export function handleCameraWheel(camera, event) {
 
 export async function createGame(canvas, mapConfig = null) {
   const normalizedMapConfig = normalizeMapConfig(mapConfig ?? {}, null);
-  const camera = new Camera({ terrain: normalizedMapConfig?.terrain ?? null });
+  const camera = new Camera();
   const world = new World();
   const textureManager = new TextureManager();
   await customizeMap(world, normalizedMapConfig, textureManager);
-  camera.setTerrain(normalizedMapConfig?.terrain ?? null);
   const pointLights = (normalizedMapConfig?.entities ?? [])
     .filter((entity) => entity.type === 'pointLight')
     .map((entity) => ({

@@ -30,7 +30,6 @@ A colisão é calculada em função da forma do objeto e das superfícies do map
 
 - bounding shapes para objetos simples
 - colisores em forma de caixa e cápsula
-- superfícies trianguladas para terreno e estruturas complexas
 
 ## Aplicação do projeto
 
