@@ -76,6 +76,7 @@ npm run dev
 - [docs/fisica.md](docs/fisica.md) — física e colisão
 - [docs/renderizacao.md](docs/renderizacao.md) — renderização e câmera
 - [docs/multiplayer.md](docs/multiplayer.md) — servidor, autenticação e sincronização
+- [docs/world-editor.md](docs/world-editor.md) — editor de mundos, cena e configuração do mapa
 
 ## Estrutura principal
 

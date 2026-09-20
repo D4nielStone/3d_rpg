@@ -10,6 +10,7 @@ Este diretório reúne a documentação por categoria para facilitar a compreens
 - [Física](./fisica.md) — colisão, gravidade, movimento e simulação
 - [Renderização](./renderizacao.md) — Three.js, câmera, luzes e scene graph
 - [Multiplayer](./multiplayer.md) — relay WebSocket, autenticação e sincronização
+- [Editor de mundos](./world-editor.md) — edição de cena, terreno, entidades e configuração do mapa
 
 ### Operação e configuração
 

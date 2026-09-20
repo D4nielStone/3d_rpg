@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { CommandManager } from '../command-manager.js';
 import { sendSystemMessage, resolvePlayerTarget } from './utils.js';
 import { promotePlayerToAreaTwo } from './player-actions.js';
+import { isWaterPosition } from '../world/enemy-areas.js';
 
 export function createCommandManager({ state, playerStore, broadcastSnapshot }) {
   const commandManager = new CommandManager();
@@ -68,6 +69,11 @@ export function createCommandManager({ state, playerStore, broadcastSnapshot }) 
           );
         }
 
+        const position = [x, y, z];
+        if (isWaterPosition(position, state.publishedMapConfig)) {
+          return sendSystemMessage(socket, 'Não é possível teletransportar para a água.');
+        }
+
         const target = resolvePlayerTarget(
           targetName,
           peerId,
@@ -82,11 +88,16 @@ export function createCommandManager({ state, playerStore, broadcastSnapshot }) 
           );
         }
 
-        target.player.setTransform(
-          [x, y, z],
-          target.player.rotation
-        );
-        state.physics.teleportPlayer(target.playerId, [x, y, z]);
+        const destinationArea = state.findPlayerArea?.(position);
+        target.player.area = destinationArea
+          ? {
+            id: destinationArea.id,
+            name: destinationArea.id === 'second-rat-area' ? 'Área dos Ratos 2' : 'Área dos Ratos',
+            level: destinationArea.areaLevel,
+          }
+          : { id: 'open-world', name: 'Mundo aberto', level: 0 };
+        target.player.setTransform(position, target.player.rotation);
+        state.physics.teleportPlayer(target.playerId, position);
 
         await playerStore.save(
           target.playerId,
@@ -96,7 +107,7 @@ export function createCommandManager({ state, playerStore, broadcastSnapshot }) 
         const targetSession = state.activeGuestSessions.get(target.playerId);
         targetSession?.socket?.send(JSON.stringify({
           type: 'teleported',
-          position: [x, y, z],
+          position,
           rotation: [...target.player.rotation],
         }));
 
