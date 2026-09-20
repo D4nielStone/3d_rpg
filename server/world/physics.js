@@ -108,21 +108,23 @@ function createTrimeshShape(mesh, scale) {
     return null;
   }
 
-  const reverseVertices = [...vertices];
-  const reverseOffset = reverseVertices.length / 3;
-  const reverseIndices = [];
-  for (let index = 0; index + 2 < indices.length; index += 3) {
-    reverseIndices.push(
-      indices[index] + reverseOffset,
-      indices[index + 2] + reverseOffset,
-      indices[index + 1] + reverseOffset,
-    );
-  }
-
   return {
     type: 'trimesh',
-    vertices: vertices.concat(reverseVertices),
-    indices: indices.concat(reverseIndices),
+    vertices,
+    indices,
+  };
+}
+
+function createReverseTrimeshShape(shape) {
+  if (!shape) return null;
+  const indices = [];
+  for (let index = 0; index + 2 < shape.indices.length; index += 3) {
+    indices.push(shape.indices[index], shape.indices[index + 2], shape.indices[index + 1]);
+  }
+  return {
+    type: 'trimesh',
+    vertices: shape.vertices,
+    indices,
   };
 }
 
@@ -285,11 +287,8 @@ export class PhysicsWorld {
           surfaceMesh ?? generatedSurfaceMesh ?? entity.collision.mesh,
           surfaceMesh ? [1, 1, 1] : scale,
         );
-
-        if (!shape) {
-          continue;
-        }
-
+        if (!shape) continue;
+        body.addShape(createReverseTrimeshShape(shape));
         body.addShape(shape);
       } else if (shapeType === 'capsule') {
         addCapsule(
@@ -302,7 +301,6 @@ export class PhysicsWorld {
           scale,
         );
       }
-
       setBodyTransform(
         body,
         entity,
