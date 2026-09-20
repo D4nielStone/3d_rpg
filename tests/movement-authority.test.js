@@ -118,12 +118,94 @@ test('gravidade continua acelerando entre atualizacoes do jogador', () => {
   assert.ok(firstHeight - position[1] > 0.01);
 });
 
+test('jogador nao atravessa o chao configurado do terreno', () => {
+  const physics = new PhysicsWorld({
+    terrain: {
+      width: 8,
+      depth: 8,
+      segments: 1,
+      heights: [0, 0, 0, 0],
+    },
+  });
+  let position = [0, 3, 0];
+
+  for (let index = 0; index < 40; index += 1) {
+    position = physics.movePlayer('terrain-ground-player', position, 0, 0, 0.05);
+  }
+
+  assert.ok(position[1] > -0.5, `O jogador atravessou o chão em y=${position[1]}`);
+  assert.ok(position[1] < 1.5, `O jogador ficou muito alto em y=${position[1]}`);
+});
+
 test('movimento horizontal nao faz o jogador subir', () => {
   const physics = new PhysicsWorld();
   const first = physics.movePlayer('grounded-player', [0, 0, 0], Math.PI / 2, 3, 0.05);
   const second = physics.movePlayer('grounded-player', first, Math.PI / 2, 3, 0.05);
 
   assert.ok(second[1] <= first[1] + 0.02);
+});
+
+test('jogador nao atravessa collider em alta velocidade', () => {
+  const physics = new PhysicsWorld({
+    entities: [{
+      id: 'thin-wall',
+      position: [0, 0, 0],
+      scale: [0.1, 2, 4],
+      collision: { enabled: true, shape: 'box' },
+    }],
+  });
+
+  const position = physics.movePlayer('fast-player', [-2, 0, 0], Math.PI / 2, 30, 0.1);
+
+  assert.ok(position[0] < -0.3, `O jogador atravessou o collider em x=${position[0]}`);
+});
+
+test('jogador bloqueia a lateral de uma caixa mesmo perto da borda', () => {
+  const physics = new PhysicsWorld({
+    entities: [{
+      id: 'box-wall',
+      position: [0, 0, 0],
+      scale: [1, 2, 4],
+      collision: { enabled: true, shape: 'box' },
+    }],
+  });
+
+  const position = physics.movePlayer('edge-player', [-1, 0.8, 1.7], Math.PI / 2, 6, 0.1);
+
+  assert.ok(position[0] < -0.65, `O jogador atravessou a lateral da caixa em x=${position[0]}`);
+});
+
+test('colisor de caixa considera a escala do transform da entidade', () => {
+  const physics = new PhysicsWorld({
+    entities: [{
+      id: 'scaled-box',
+      position: [0, 0, 0],
+      scale: [4, 2, 4],
+      collision: { enabled: true, shape: 'box' },
+    }],
+  });
+
+  const position = physics.movePlayer('scaled-box-player', [-3, 0, 0], Math.PI / 2, 3, 0.5);
+
+  assert.ok(position[0] < -2, `A escala do transform nao foi aplicada em x=${position[0]}`);
+});
+
+test('gravidade nao atravessa o topo de uma caixa em queda rapida', () => {
+  const physics = new PhysicsWorld({
+    entities: [{
+      id: 'vertical-box',
+      position: [0, 0, 0],
+      scale: [4, 2, 4],
+      collision: { enabled: true, shape: 'box' },
+    }],
+  });
+  let position = [0, 8, 0];
+
+  for (let index = 0; index < 30; index += 1) {
+    position = physics.movePlayer('falling-box-player', position, 0, 0, 0.1);
+  }
+
+  assert.ok(position[1] >= 1.9, `O jogador atravessou o topo em y=${position[1]}`);
 });
 
 test('jogador atravessa o topo de uma caixa baixa como um degrau', () => {

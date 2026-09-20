@@ -12,6 +12,7 @@ import { PLAYER_HEIGHT, sampleTerrainHeight, TERRAIN_BASE_Y } from '../shared/te
 const MESSAGE_LIMIT = 32;
 const COMBAT_DISTANCE = 1;
 const RANGED_ATTACK_DISTANCE = 5;
+const PLAYER_GRAVITY = 24;
 
 function normalizeAngle(angle) {
   return Math.atan2(Math.sin(angle), Math.cos(angle));
@@ -491,7 +492,7 @@ export class MultiplayerSystem {
         return;
       }
 
-      this.localVerticalVelocity -= 9.81 * deltaSeconds;
+      this.localVerticalVelocity -= PLAYER_GRAVITY * deltaSeconds;
       transform.position[1] += this.localVerticalVelocity * deltaSeconds;
       if (transform.position[1] <= groundY) {
         transform.position[1] = groundY;
@@ -500,7 +501,7 @@ export class MultiplayerSystem {
       return;
     }
 
-    this.localVerticalVelocity -= 9.81 * deltaSeconds;
+    this.localVerticalVelocity -= PLAYER_GRAVITY * deltaSeconds;
     transform.position[1] += this.localVerticalVelocity * deltaSeconds;
   }
 

@@ -11,6 +11,7 @@ import {
   createCollisionMesh,
   createCollisionSurfaceGeometry,
 } from '../src/editor/editor-utils.js';
+import { getColliderDescriptors, getCombinedCollisionScale } from '../shared/collision-shape.js';
 
 test('normalizeVector usa fallback para valores inválidos', () => {
   assert.deepEqual(normalizeVector([1, 2], [0, 0, 0]), [1, 2, 0]);
@@ -63,4 +64,15 @@ test('geometria visual do colisor usa triangulos do modelo em vez da grelha apro
   assert.ok(geometry);
   assert.equal(geometry.index.count, mesh.indices.length);
   assert.equal(geometry.attributes.position.count, mesh.vertices.length / 3);
+});
+
+test('dimensoes do preview de box e capsule seguem o descritor da fisica', () => {
+  const scale = getCombinedCollisionScale({ scale: [2, 3, 4], collision: { scale: [1, 0.5, 0.25] } });
+  const box = getColliderDescriptors('box', scale)[0];
+  assert.deepEqual(box.halfExtents, [1, 0.75, 0.5]);
+
+  const capsule = getColliderDescriptors('capsule', scale);
+  assert.equal(capsule[0].radius, 0.5);
+  assert.equal(capsule[0].height, 0.5);
+  assert.deepEqual(capsule.slice(1).map((descriptor) => descriptor.translation[1]), [0.25, -0.25]);
 });

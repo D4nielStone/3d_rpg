@@ -1,5 +1,7 @@
 import RAPIER from '@dimforge/rapier3d/rapier.js';
 
+export { createColliderDesc } from '../../../shared/collision-shape.js';
+
 await RAPIER.init?.();
 
 export class Vec3 {
@@ -165,23 +167,39 @@ export class World {
 
     const delta = Number(deltaSeconds) || 0;
     this.contacts = [];
-    for (const body of this.bodies) {
-      if (body.type === Body.STATIC) continue;
-      if (this.allowSleep && body.sleepState === Body.SLEEPING) continue;
+    const configuredSubSteps = Math.max(1, Math.trunc(Number(maxSubSteps) || 1));
+    const dynamicBodies = this.bodies.filter((body) => (
+      body.type !== Body.STATIC
+      && !(this.allowSleep && body.sleepState === Body.SLEEPING)
+    ));
+    const maximumDisplacement = dynamicBodies.reduce((maximum, body) => Math.max(
+      maximum,
+      Math.abs(body.velocity.x * delta),
+      Math.abs(body.velocity.y * delta),
+      Math.abs(body.velocity.z * delta),
+    ), 0);
+    const subSteps = Math.max(
+      configuredSubSteps,
+      Math.ceil(maximumDisplacement / 0.05),
+    );
+    const subStepDelta = delta / subSteps;
 
-      body.velocity.y += this.gravity.y * delta * (maxSubSteps || 1);
-      body.position.x += body.velocity.x * delta;
-      body.position.y += body.velocity.y * delta;
-      body.position.z += body.velocity.z * delta;
+    for (let subStep = 0; subStep < subSteps; subStep += 1) {
+      for (const body of dynamicBodies) {
+        body.velocity.y += this.gravity.y * subStepDelta;
+        body.position.x += body.velocity.x * subStepDelta;
+        body.position.y += body.velocity.y * subStepDelta;
+        body.position.z += body.velocity.z * subStepDelta;
 
-      if (Math.abs(body.velocity.x) < 1e-6) body.velocity.x = 0;
-      if (Math.abs(body.velocity.y) < 1e-6) body.velocity.y = 0;
-      if (Math.abs(body.velocity.z) < 1e-6) body.velocity.z = 0;
+        if (Math.abs(body.velocity.x) < 1e-6) body.velocity.x = 0;
+        if (Math.abs(body.velocity.y) < 1e-6) body.velocity.y = 0;
+        if (Math.abs(body.velocity.z) < 1e-6) body.velocity.z = 0;
 
-      for (const staticBody of this.bodies) {
-        if (staticBody.type !== Body.STATIC) continue;
-        const collision = resolveStaticCollision(body, staticBody);
-        if (collision) this.contacts.push({ bi: body, bj: staticBody });
+        for (const staticBody of this.bodies) {
+          if (staticBody.type !== Body.STATIC) continue;
+          const collision = resolveStaticCollision(body, staticBody);
+          if (collision) this.contacts.push({ bi: body, bj: staticBody });
+        }
       }
     }
   }
@@ -262,9 +280,20 @@ function resolveStaticCollision(dynamicBody, staticBody) {
   ));
   if (overlap.some((value) => value <= 0)) return false;
 
-  const axis = overlap.indexOf(Math.min(...overlap));
-  const dynamicCenter = (dynamicBounds.min[axis] + dynamicBounds.max[axis]) * 0.5;
-  const staticCenter = (staticBounds.min[axis] + staticBounds.max[axis]) * 0.5;
+  const centers = [0, 1, 2].map((axis) => ({
+    dynamic: (dynamicBounds.min[axis] + dynamicBounds.max[axis]) * 0.5,
+    static: (staticBounds.min[axis] + staticBounds.max[axis]) * 0.5,
+  }));
+  const inwardAxes = [0, 1, 2]
+    .filter((axis) => {
+      const direction = centers[axis].dynamic >= centers[axis].static ? 1 : -1;
+      const velocity = dynamicBody.velocity[axis === 0 ? 'x' : axis === 1 ? 'y' : 'z'];
+      return velocity * direction < 0;
+    })
+    .sort((first, second) => overlap[first] - overlap[second]);
+  const axis = inwardAxes[0] ?? overlap.indexOf(Math.min(...overlap));
+  const dynamicCenter = centers[axis].dynamic;
+  const staticCenter = centers[axis].static;
   const direction = dynamicCenter >= staticCenter ? 1 : -1;
   dynamicBody.position[axis === 0 ? 'x' : axis === 1 ? 'y' : 'z'] += overlap[axis] * direction;
 
@@ -298,26 +327,6 @@ export function createRigidBodyDesc({
     translation,
     rotation,
     type,
-  };
-}
-
-export function createColliderDesc({
-  type = 'cuboid',
-  halfExtents = [0.5, 0.5, 0.5],
-  radius = 0.5,
-  height = 1,
-  translation = [0, 0, 0],
-  friction = 0,
-  restitution = 0,
-} = {}) {
-  return {
-    type,
-    halfExtents,
-    radius,
-    height,
-    translation,
-    friction,
-    restitution,
   };
 }
 

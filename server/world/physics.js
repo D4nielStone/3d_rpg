@@ -10,17 +10,18 @@ import {
   Trimesh,
   Body,
   World,
-  createColliderDesc,
   createPhysicsVector,
   createPhysicsWorld,
   createMovementVector,
   createRigidBodyDesc,
   stepPhysicsSimulation,
 } from './physics/helpers.js';
+import { getColliderDescriptors, getCombinedCollisionScale } from '../../shared/collision-shape.js';
 import { normalizePlayerScale } from '../../shared/player-size.js';
 
 const FIXED_TIME_STEP = 1 / 60;
 const MAX_SUB_STEPS = 3;
+const PLAYER_GRAVITY = 10;
 
 const PLAYER_MASS = 1;
 const PLAYER_LINEAR_DAMPING = 0;
@@ -46,35 +47,8 @@ function getVector3(value, fallback = [0, 0, 0]) {
   ];
 }
 
-function getCollisionScale(entity) {
-  const scale = entity?.collision?.scale ?? [1, 1, 1];
-
-  return [
-    Math.max(0.01, Math.abs(toFiniteNumber(scale[0], 1))),
-    Math.max(0.01, Math.abs(toFiniteNumber(scale[1], 1))),
-    Math.max(0.01, Math.abs(toFiniteNumber(scale[2], 1))),
-  ];
-}
-
-function getEntityScale(entity) {
-  const scale = entity?.scale ?? [1, 1, 1];
-
-  return [
-    Math.max(0.01, Math.abs(toFiniteNumber(scale[0], 1))),
-    Math.max(0.01, Math.abs(toFiniteNumber(scale[1], 1))),
-    Math.max(0.01, Math.abs(toFiniteNumber(scale[2], 1))),
-  ];
-}
-
 function getCombinedScale(entity) {
-  const scale = getEntityScale(entity);
-  const collisionScale = getCollisionScale(entity);
-
-  return [
-    scale[0] * collisionScale[0],
-    scale[1] * collisionScale[1],
-    scale[2] * collisionScale[2],
-  ];
+  return getCombinedCollisionScale(entity);
 }
 
 function createMaterial(name, friction, restitution) {
@@ -92,60 +66,7 @@ function createMaterial(name, friction, restitution) {
 }
 
 function addCapsule(body, scale = [1, 1, 1]) {
-  const radius = Math.max(
-    0.2,
-    Math.min(
-      Math.abs(scale[0] ?? 1),
-      Math.abs(scale[2] ?? 1),
-    ) * 0.5,
-  );
-
-  const height = Math.max(
-    radius * 2,
-    Math.abs(scale[1] ?? 1),
-  );
-
-  const cylinderHeight = Math.max(
-    0,
-    height - radius * 2,
-  );
-
-  body.addShape(
-    createColliderDesc({
-      type: 'cylinder',
-      radius,
-      height: Math.max(cylinderHeight, 0.001),
-      translation: [0, 0, 0],
-      friction: 0,
-      restitution: 0,
-    }),
-  );
-
-  if (cylinderHeight > 0) {
-    body.addShape(
-      createColliderDesc({
-        type: 'ball',
-        radius,
-        translation: [0, cylinderHeight * 0.5, 0],
-      }),
-    );
-
-    body.addShape(
-      createColliderDesc({
-        type: 'ball',
-        radius,
-        translation: [0, -cylinderHeight * 0.5, 0],
-      }),
-    );
-  } else {
-    body.addShape(
-      createColliderDesc({
-        type: 'ball',
-        radius,
-        translation: [0, 0, 0],
-      }),
-    );
-  }
+  getColliderDescriptors('capsule', scale).forEach((descriptor) => body.addShape(descriptor));
 }
 
 function scaleTrimeshVertices(vertices, scale) {
@@ -200,17 +121,51 @@ function createTrimeshShape(mesh, scale) {
   return new Trimesh(vertices, indices);
 }
 
+function createTerrainSurfaceMesh(terrain) {
+  const width = Number(terrain?.width);
+  const depth = Number(terrain?.depth);
+  const segments = Math.floor(Number(terrain?.segments));
+  const heights = Array.isArray(terrain?.heights) ? terrain.heights : null;
+
+  if (
+    !Number.isFinite(width) || width <= 0 ||
+    !Number.isFinite(depth) || depth <= 0 ||
+    !Number.isInteger(segments) || segments < 1 ||
+    !heights || heights.length !== (segments + 1) * (segments + 1)
+  ) {
+    return null;
+  }
+
+  const columns = segments + 1;
+  const vertices = [];
+  const indices = [];
+  const halfWidth = width / 2;
+  const halfDepth = depth / 2;
+
+  for (let row = 0; row < columns; row += 1) {
+    const z = (row / segments) * depth - halfDepth;
+    for (let column = 0; column < columns; column += 1) {
+      const x = (column / segments) * width - halfWidth;
+      const y = Number(heights[row * columns + column]) || 0;
+      vertices.push(x, y, z);
+    }
+  }
+
+  for (let row = 0; row < segments; row += 1) {
+    for (let column = 0; column < segments; column += 1) {
+      const a = row * columns + column;
+      const b = a + 1;
+      const c = a + columns;
+      const d = c + 1;
+      indices.push(a, c, b, c, d, b);
+    }
+  }
+
+  return { vertices, indices };
+}
+
 function addBoxShape(body, scale) {
-  body.addShape(
-    createColliderDesc({
-      type: 'cuboid',
-      halfExtents: [
-        Math.max(0.05, scale[0] * 0.5),
-        Math.max(0.05, scale[1] * 0.5),
-        Math.max(0.05, scale[2] * 0.5),
-      ],
-    }),
-  );
+  body.addShape(getColliderDescriptors('box', scale)[0]);
 }
 
 function setBodyTransform(body, entity) {
@@ -245,7 +200,10 @@ function setBodyTransform(body, entity) {
 function getCollisionShape(entity) {
   const shape = entity?.collision?.shape;
 
-  if (shape === 'trimesh') {
+  if ((shape === 'trimesh' || shape === 'model') && (
+    Array.isArray(entity?.collision?.surface?.mesh?.vertices)
+    && Array.isArray(entity?.collision?.surface?.mesh?.indices)
+  )) {
     return 'trimesh';
   }
 
@@ -259,7 +217,7 @@ function getCollisionShape(entity) {
 export class PhysicsWorld {
   constructor(mapConfig = null) {
     this.world = new World({
-      gravity: new Vec3(0, -9.81, 0),
+      gravity: new Vec3(0, -PLAYER_GRAVITY, 0),
     });
 
     this.world.broadphase = new SAPBroadphase(this.world);
@@ -301,6 +259,39 @@ export class PhysicsWorld {
   }
 
   buildStaticColliders(mapConfig) {
+    const terrainMesh = createTerrainSurfaceMesh(mapConfig?.terrain);
+    if (mapConfig?.terrain && mapConfig.terrain.removed !== true && terrainMesh) {
+      const terrainBody = new Body({
+        mass: 0,
+        type: Body.STATIC,
+        allowSleep: true,
+      });
+
+      const terrainMaterial = createMaterial('terrain-ground', 0, 0);
+      terrainBody.material = terrainMaterial;
+      terrainBody.addShape(createTrimeshShape(terrainMesh, [1, 1, 1]));
+      terrainBody.position.set(0, 0, 0);
+      terrainBody.quaternion.setFromEuler(0, 0, 0);
+
+      this.world.addBody(terrainBody);
+      this.staticBodies.set(terrainBody, {
+        id: 'terrain',
+        name: 'Terreno',
+      });
+      this.world.addContactMaterial(
+        new ContactMaterial(
+          this.playerMaterial,
+          terrainMaterial,
+          {
+            friction: 0,
+            restitution: 0,
+            contactEquationStiffness: 1e7,
+            contactEquationRelaxation: 3,
+          },
+        ),
+      );
+    }
+
     for (
       const entity of mapConfig?.entities ?? []
     ) {
@@ -332,10 +323,10 @@ export class PhysicsWorld {
       let shape = null;
 
       if (shapeType === 'trimesh') {
+        const surfaceMesh = entity.collision.surface?.mesh;
         shape = createTrimeshShape(
-          entity.collision.surface?.mesh ??
-          entity.collision.mesh,
-          scale,
+          surfaceMesh ?? entity.collision.mesh,
+          surfaceMesh ? [1, 1, 1] : scale,
         );
 
         if (!shape) {

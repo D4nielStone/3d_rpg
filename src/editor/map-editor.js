@@ -3,8 +3,8 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 import { MTLLoader } from 'three/examples/jsm/loaders/MTLLoader.js';
-import { ConvexGeometry } from 'three/examples/jsm/geometries/ConvexGeometry.js';
 import { AnimationMixer, LoopOnce, LoopRepeat } from 'three';
+import { getColliderDescriptors, getCombinedCollisionScale } from '../../shared/collision-shape.js';
 import { createEditorGizmos } from './editor-gizmos.js';
 import { normalizeTerrainForExport, isTerrainRemoved } from './terrain-state.js';
 import {
@@ -376,40 +376,29 @@ function updateCollisionVisual(entity) {
     const surfaceVisual = createCollisionSurfaceVisual(surface, material);
     if (surfaceVisual) group.add(surfaceVisual);
   } else {
-    const bounds = new THREE.Box3().setFromObject(entity.object);
-    if (entity.collision.shape === 'box') {
+    const scale = getCombinedCollisionScale(entity);
+    const descriptors = getColliderDescriptors(entity.collision.shape, scale);
+    if (entity.collision.shape === 'box' || entity.collision.shape === 'convex') {
+      const halfExtents = descriptors[0].halfExtents;
       const box = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(
-        (bounds.max.x - bounds.min.x) * collisionScale[0],
-        (bounds.max.y - bounds.min.y) * collisionScale[1],
-        (bounds.max.z - bounds.min.z) * collisionScale[2],
+        halfExtents[0] * 2, halfExtents[1] * 2, halfExtents[2] * 2,
       )), material);
-      box.position.copy(bounds.getCenter(new THREE.Vector3()));
       group.add(box);
     } else if (entity.collision.shape === 'capsule') {
-      const radius = Math.max(0.25, Math.min(
-        (bounds.max.x - bounds.min.x) * collisionScale[0],
-        (bounds.max.z - bounds.min.z) * collisionScale[2],
-      ) * 0.5);
-      const height = Math.max(radius * 2, (bounds.max.y - bounds.min.y) * collisionScale[1]);
+      const radius = descriptors[0].radius;
+      const cylinderHeight = descriptors[0].height;
       const capsule = new THREE.LineSegments(new THREE.EdgesGeometry(
-        new THREE.CapsuleGeometry(radius, Math.max(0, height - radius * 2), 8, 16),
+        new THREE.CapsuleGeometry(radius, cylinderHeight, 8, 16),
       ), material);
-      capsule.position.copy(bounds.getCenter(new THREE.Vector3()));
       group.add(capsule);
-    } else {
-      const points = [];
-      entity.object.traverse((child) => {
-        if (!child.isMesh || !child.geometry?.attributes?.position) return;
-        const position = child.geometry.attributes.position;
-        for (let index = 0; index < position.count; index += 1) {
-          points.push(new THREE.Vector3().fromBufferAttribute(position, index).applyMatrix4(child.matrixWorld));
-        }
-      });
-      if (points.length >= 4) group.add(new THREE.LineSegments(new THREE.EdgesGeometry(new ConvexGeometry(points)), material));
     }
   }
   const offset = entity.collision.offset ?? [0, 0, 0];
-  group.position.set(Number(offset[0]) || 0, Number(offset[1]) || 0, Number(offset[2]) || 0);
+  group.position.set(
+    entity.position[0] + (Number(offset[0]) || 0),
+    entity.position[1] + (Number(offset[1]) || 0),
+    entity.position[2] + (Number(offset[2]) || 0),
+  );
   group.renderOrder = 20;
   collisionGroup.add(group);
 }
