@@ -65,33 +65,6 @@ export class SAPBroadphase {
   }
 }
 
-export class Box {
-  constructor(size) {
-    this.size = size;
-  }
-}
-
-export class Sphere {
-  constructor(radius) {
-    this.radius = radius;
-  }
-}
-
-export class Cylinder {
-  constructor(radiusTop, radiusBottom, height) {
-    this.radiusTop = radiusTop;
-    this.radiusBottom = radiusBottom;
-    this.height = height;
-  }
-}
-
-export class Trimesh {
-  constructor(vertices, indices) {
-    this.vertices = vertices;
-    this.indices = indices;
-  }
-}
-
 export class Body {
   static STATIC = 0;
   static DYNAMIC = 1;
@@ -114,6 +87,7 @@ export class Body {
     this.shapes = [];
     this.sleepState = 0;
     this.rapierBody = null;
+    this.rapierColliders = [];
   }
 
   addShape(shape, offset = new Vec3()) {
@@ -159,10 +133,14 @@ export class World {
     descriptor.setCcdEnabled(true);
     const rapierBody = this.rapierWorld.createRigidBody(descriptor);
     body.rapierBody = rapierBody;
+    body.rapierColliders = [];
 
     for (const { shape } of body.shapes) {
       const collider = createRapierCollider(shape, body.material);
-      if (collider) this.rapierWorld.createCollider(collider, rapierBody);
+      if (collider) {
+        const rapierCollider = this.rapierWorld.createCollider(collider, rapierBody);
+        body.rapierColliders.push(rapierCollider);
+      }
     }
 
     this.bodies.push(body);
@@ -196,6 +174,26 @@ export class World {
     this.rapierWorld.timestep = Math.min(delta, 0.1);
     this.rapierWorld.step();
     this.contacts = [];
+
+    for (const dynamicBody of this.bodies) {
+      if (!dynamicBody.rapierBody || dynamicBody.type === Body.STATIC) continue;
+      for (const staticBody of this.bodies) {
+        if (!staticBody.rapierBody || staticBody.type !== Body.STATIC) continue;
+        for (const dynamicCollider of dynamicBody.rapierColliders) {
+          for (const staticCollider of staticBody.rapierColliders) {
+            let touching = false;
+            this.rapierWorld.contactPair(dynamicCollider, staticCollider, () => {
+              touching = true;
+            });
+            if (touching) {
+              this.contacts.push({ bi: dynamicBody, bj: staticBody });
+              break;
+            }
+          }
+          if (this.contacts.some((contact) => contact.bi === dynamicBody && contact.bj === staticBody)) break;
+        }
+      }
+    }
 
     for (const body of this.bodies) {
       if (!body.rapierBody || body.type === Body.STATIC) continue;
@@ -235,103 +233,6 @@ function createRapierCollider(shape, material) {
   descriptor.setFriction(friction);
   descriptor.setRestitution(restitution);
   return descriptor;
-}
-
-function getShapeBounds(body, shapeEntry) {
-  const shape = shapeEntry.shape;
-  const translation = shape.translation ?? [0, 0, 0];
-  const center = [
-    body.position.x + Number(translation[0] ?? 0),
-    body.position.y + Number(translation[1] ?? 0),
-    body.position.z + Number(translation[2] ?? 0),
-  ];
-
-  if (shape.type === 'cuboid') {
-    const halfExtents = shape.halfExtents ?? [0.5, 0.5, 0.5];
-    return {
-      min: center.map((value, index) => value - Math.abs(Number(halfExtents[index]) || 0.5)),
-      max: center.map((value, index) => value + Math.abs(Number(halfExtents[index]) || 0.5)),
-    };
-  }
-
-  if (shape.type === 'cylinder') {
-    const radius = Math.abs(Number(shape.radius) || 0.5);
-    const halfHeight = Math.abs(Number(shape.height) || 1) * 0.5;
-    return {
-      min: [center[0] - radius, center[1] - halfHeight, center[2] - radius],
-      max: [center[0] + radius, center[1] + halfHeight, center[2] + radius],
-    };
-  }
-
-  if (shape.type === 'ball') {
-    const radius = Math.abs(Number(shape.radius) || 0.5);
-    return {
-      min: center.map((value) => value - radius),
-      max: center.map((value) => value + radius),
-    };
-  }
-
-  if (shape.type === 'trimesh' || (Array.isArray(shape.vertices) && Array.isArray(shape.indices))) {
-    const vertices = shape.vertices ?? [];
-    if (vertices.length < 3) return null;
-    const min = [Infinity, Infinity, Infinity];
-    const max = [-Infinity, -Infinity, -Infinity];
-    for (let index = 0; index < vertices.length; index += 3) {
-      for (let axis = 0; axis < 3; axis += 1) {
-        const value = center[axis] + Number(vertices[index + axis] ?? 0);
-        min[axis] = Math.min(min[axis], value);
-        max[axis] = Math.max(max[axis], value);
-      }
-    }
-    return { min, max };
-  }
-
-  return null;
-}
-
-function getBodyBounds(body) {
-  const bounds = body.shapes
-    .map((shapeEntry) => getShapeBounds(body, shapeEntry))
-    .filter(Boolean);
-  if (bounds.length === 0) return null;
-
-  return {
-    min: [0, 1, 2].map((axis) => Math.min(...bounds.map((item) => item.min[axis]))),
-    max: [0, 1, 2].map((axis) => Math.max(...bounds.map((item) => item.max[axis]))),
-  };
-}
-
-function resolveStaticCollision(dynamicBody, staticBody) {
-  const dynamicBounds = getBodyBounds(dynamicBody);
-  const staticBounds = getBodyBounds(staticBody);
-  if (!dynamicBounds || !staticBounds) return false;
-
-  const overlap = [0, 1, 2].map((axis) => Math.min(
-    dynamicBounds.max[axis] - staticBounds.min[axis],
-    staticBounds.max[axis] - dynamicBounds.min[axis],
-  ));
-  if (overlap.some((value) => value <= 0)) return false;
-
-  const centers = [0, 1, 2].map((axis) => ({
-    dynamic: (dynamicBounds.min[axis] + dynamicBounds.max[axis]) * 0.5,
-    static: (staticBounds.min[axis] + staticBounds.max[axis]) * 0.5,
-  }));
-  const inwardAxes = [0, 1, 2]
-    .filter((axis) => {
-      const direction = centers[axis].dynamic >= centers[axis].static ? 1 : -1;
-      const velocity = dynamicBody.velocity[axis === 0 ? 'x' : axis === 1 ? 'y' : 'z'];
-      return velocity * direction < 0;
-    })
-    .sort((first, second) => overlap[first] - overlap[second]);
-  const axis = inwardAxes[0] ?? overlap.indexOf(Math.min(...overlap));
-  const dynamicCenter = centers[axis].dynamic;
-  const staticCenter = centers[axis].static;
-  const direction = dynamicCenter >= staticCenter ? 1 : -1;
-  dynamicBody.position[axis === 0 ? 'x' : axis === 1 ? 'y' : 'z'] += overlap[axis] * direction;
-
-  const velocityKey = axis === 0 ? 'x' : axis === 1 ? 'y' : 'z';
-  if (dynamicBody.velocity[velocityKey] * direction < 0) dynamicBody.velocity[velocityKey] = 0;
-  return true;
 }
 
 export function createPhysicsVector(x = 0, y = 0, z = 0) {

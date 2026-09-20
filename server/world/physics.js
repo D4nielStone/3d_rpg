@@ -1,24 +1,12 @@
 import {
   Vec3,
-  Quaternion,
   Material,
   ContactMaterial,
-  SAPBroadphase,
-  Box,
-  Sphere,
-  Cylinder,
-  Trimesh,
   Body,
   World,
-  createPhysicsVector,
-  createPhysicsWorld,
-  createMovementVector,
-  createRigidBodyDesc,
-  stepPhysicsSimulation,
 } from './physics/helpers.js';
 import { getColliderDescriptors, getCombinedCollisionScale } from '../../shared/collision-shape.js';
 import { normalizePlayerScale } from '../../shared/player-size.js';
-import { sampleCollisionSurface } from '../../shared/collision-surface.js';
 
 const FIXED_TIME_STEP = 1 / 60;
 const MAX_SUB_STEPS = 3;
@@ -120,14 +108,22 @@ function createTrimeshShape(mesh, scale) {
     return null;
   }
 
-  const doubleSidedIndices = [];
+  const reverseVertices = [...vertices];
+  const reverseOffset = reverseVertices.length / 3;
+  const reverseIndices = [];
   for (let index = 0; index + 2 < indices.length; index += 3) {
-    const first = indices[index];
-    const second = indices[index + 1];
-    const third = indices[index + 2];
-    doubleSidedIndices.push(first, second, third, third, second, first);
+    reverseIndices.push(
+      indices[index] + reverseOffset,
+      indices[index + 2] + reverseOffset,
+      indices[index + 1] + reverseOffset,
+    );
   }
-  return new Trimesh(vertices, doubleSidedIndices);
+
+  return {
+    type: 'trimesh',
+    vertices: vertices.concat(reverseVertices),
+    indices: indices.concat(reverseIndices),
+  };
 }
 
 function createSurfaceMesh(surface) {
@@ -230,29 +226,9 @@ export class PhysicsWorld {
       gravity: new Vec3(0, -PLAYER_GRAVITY, 0),
     });
 
-    this.world.broadphase = new SAPBroadphase(this.world);
-
-    this.world.allowSleep = false;
-
-    this.world.defaultContactMaterial.friction =
-      DEFAULT_FRICTION;
-
-    this.world.defaultContactMaterial.restitution =
-      DEFAULT_RESTITUTION;
-
-    this.world.defaultContactMaterial.contactEquationStiffness =
-      1e7;
-
-    this.world.defaultContactMaterial.contactEquationRelaxation =
-      3;
-
-    this.world.solver.iterations = 10;
-    this.world.solver.tolerance = 0.001;
-
     this.playerMaterial = new Material('player');
 
     this.staticBodies = new Map();
-    this.collisionSurfaces = [];
     this.bodies = new Map();
     this.playerInputs = new Map();
 
@@ -301,10 +277,12 @@ export class PhysicsWorld {
       let shape = null;
 
       if (shapeType === 'trimesh') {
-        const surfaceMesh = entity.collision.surface?.mesh
-          ?? createSurfaceMesh(entity.collision.surface);
+        const surfaceMesh = entity.collision.surface?.mesh;
+        const generatedSurfaceMesh = surfaceMesh
+          ? null
+          : createSurfaceMesh(entity.collision.surface);
         shape = createTrimeshShape(
-          surfaceMesh ?? entity.collision.mesh,
+          surfaceMesh ?? generatedSurfaceMesh ?? entity.collision.mesh,
           surfaceMesh ? [1, 1, 1] : scale,
         );
 
@@ -344,15 +322,6 @@ export class PhysicsWorld {
             'objeto sem nome',
         },
       );
-
-      if (shapeType === 'trimesh' && entity.collision.surface) {
-        this.collisionSurfaces.push({
-          surface: entity.collision.surface,
-          position: getVector3(entity.position),
-          offset: getVector3(entity.collision.offset),
-          rotation: getVector3(entity.rotation),
-        });
-      }
 
       this.world.addContactMaterial(
         new ContactMaterial(
@@ -608,37 +577,8 @@ export class PhysicsWorld {
       MAX_SUB_STEPS,
     );
 
-    this.resolveSurfaceSupport();
-
     this.lastCollision =
       this.findPlayerCollision();
-  }
-
-  resolveSurfaceSupport() {
-    const supportHeight = Math.max(0.7, this.playerScale[1] * 0.5);
-    for (const body of this.bodies.values()) {
-      for (const entry of this.collisionSurfaces) {
-        if (entry.rotation.some((value) => Math.abs(value) > 0.0001)) continue;
-        const localX = body.position.x - entry.position[0] - entry.offset[0];
-        const localZ = body.position.z - entry.position[2] - entry.offset[2];
-        const height = sampleCollisionSurface(entry.surface, localX, localZ);
-        if (!Number.isFinite(height)) continue;
-        const targetY = entry.position[1] + entry.offset[1] + height + supportHeight;
-        if (body.position.y >= targetY) continue;
-        body.position.y = targetY;
-        body.velocity.y = Math.max(0, body.velocity.y);
-        body.rapierBody?.setTranslation({
-          x: body.position.x,
-          y: targetY,
-          z: body.position.z,
-        }, true);
-        body.rapierBody?.setLinvel({
-          x: body.velocity.x,
-          y: body.velocity.y,
-          z: body.velocity.z,
-        }, true);
-      }
-    }
   }
 
   findPlayerCollision() {
