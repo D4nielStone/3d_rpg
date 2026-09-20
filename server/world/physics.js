@@ -54,9 +54,14 @@ function createMaterial(name, friction, restitution) {
   };
 }
 
-function addCapsule(body, scale = [1, 1, 1]) {
-  const physicsScale = [scale[0], scale[1] + 0.4, scale[2]];
-  getColliderDescriptors('capsule', physicsScale).forEach((descriptor) => body.addShape(descriptor));
+function addPlayerCollider(body, playerConfig, scale) {
+  const collision = playerConfig?.collision ?? {};
+  const shape = collision.shape === 'capsule' ? 'capsule' : 'box';
+  const offset = getVector3(collision.offset);
+  getColliderDescriptors(shape, scale).forEach((descriptor) => {
+    descriptor.translation = descriptor.translation.map((value, index) => value + offset[index]);
+    body.addShape(descriptor);
+  });
 }
 
 function scaleTrimeshVertices(vertices, scale) {
@@ -237,10 +242,13 @@ export class PhysicsWorld {
     this.lastCollision = null;
     this.lastDeltaSeconds = FIXED_TIME_STEP;
 
-    this.playerScale =
-      normalizePlayerScale(
-        mapConfig?.player?.scale,
-      );
+    const player = mapConfig?.player ?? {};
+    const playerScale = normalizePlayerScale(player.scale);
+    this.playerScale = getCombinedCollisionScale({
+      scale: playerScale,
+      collision: player.collision,
+    });
+    this.playerConfig = player;
 
     this.buildStaticColliders(
       mapConfig,
@@ -291,10 +299,8 @@ export class PhysicsWorld {
         body.addShape(createReverseTrimeshShape(shape));
         body.addShape(shape);
       } else if (shapeType === 'capsule') {
-        addCapsule(
-          body,
-          scale,
-        );
+        getColliderDescriptors('capsule', scale)
+          .forEach((descriptor) => body.addShape(descriptor));
       } else {
         addBoxShape(
           body,
@@ -345,10 +351,7 @@ export class PhysicsWorld {
       angularDamping: PLAYER_ANGULAR_DAMPING,
     });
 
-    addCapsule(
-      body,
-      this.playerScale,
-    );
+    addPlayerCollider(body, this.playerConfig, this.playerScale);
 
     body.material =
       this.playerMaterial;

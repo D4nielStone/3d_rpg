@@ -174,6 +174,7 @@ export class World {
     this.rapierWorld.timestep = Math.min(delta, 0.1);
     this.rapierWorld.step();
     this.contacts = [];
+    const verticallySupported = new Set();
 
     for (const dynamicBody of this.bodies) {
       if (!dynamicBody.rapierBody || dynamicBody.type === Body.STATIC) continue;
@@ -182,8 +183,10 @@ export class World {
         for (const dynamicCollider of dynamicBody.rapierColliders) {
           for (const staticCollider of staticBody.rapierColliders) {
             let touching = false;
-            this.rapierWorld.contactPair(dynamicCollider, staticCollider, () => {
+            this.rapierWorld.contactPair(dynamicCollider, staticCollider, (manifold) => {
               touching = true;
+              const normal = manifold.normal?.();
+              if (normal && Math.abs(normal.y) > 0.5) verticallySupported.add(dynamicBody);
             });
             if (touching) {
               this.contacts.push({ bi: dynamicBody, bj: staticBody });
@@ -193,6 +196,11 @@ export class World {
           if (this.contacts.some((contact) => contact.bi === dynamicBody && contact.bj === staticBody)) break;
         }
       }
+    }
+
+    for (const body of verticallySupported) {
+      const velocity = body.rapierBody.linvel();
+      body.rapierBody.setLinvel({ x: velocity.x, y: 0, z: velocity.z }, true);
     }
 
     for (const body of this.bodies) {
