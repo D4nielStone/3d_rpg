@@ -113,6 +113,7 @@ export class Body {
     this.material = null;
     this.shapes = [];
     this.sleepState = 0;
+    this.rapierBody = null;
   }
 
   addShape(shape, offset = new Vec3()) {
@@ -121,6 +122,7 @@ export class Body {
 
   wakeUp() {
     this.sleepState = 0;
+    this.rapierBody?.wakeUp();
   }
 }
 
@@ -144,14 +146,34 @@ export class World {
     this.bodies = [];
     this.contacts = [];
     this.contactMaterials = [];
+    this.rapierWorld = new RAPIER.World({ x: this.gravity.x, y: this.gravity.y, z: this.gravity.z });
   }
 
   addBody(body) {
+    const descriptor = body.type === Body.STATIC
+      ? RAPIER.RigidBodyDesc.fixed()
+      : RAPIER.RigidBodyDesc.dynamic();
+    descriptor.setTranslation(body.position.x, body.position.y, body.position.z);
+    descriptor.setRotation(body.quaternion);
+    descriptor.setEnabled(true);
+    descriptor.setCcdEnabled(true);
+    const rapierBody = this.rapierWorld.createRigidBody(descriptor);
+    body.rapierBody = rapierBody;
+
+    for (const { shape } of body.shapes) {
+      const collider = createRapierCollider(shape, body.material);
+      if (collider) this.rapierWorld.createCollider(collider, rapierBody);
+    }
+
     this.bodies.push(body);
     return body;
   }
 
   removeBody(body) {
+    if (body?.rapierBody) {
+      this.rapierWorld.removeRigidBody(body.rapierBody);
+      body.rapierBody = null;
+    }
     const index = this.bodies.indexOf(body);
     if (index >= 0) this.bodies.splice(index, 1);
     return body;
@@ -166,43 +188,53 @@ export class World {
     if (!Number.isFinite(Number(fixedTimeStep)) || Number(fixedTimeStep) <= 0) return;
 
     const delta = Number(deltaSeconds) || 0;
+    for (const body of this.bodies) {
+      if (!body.rapierBody || body.type === Body.STATIC) continue;
+      body.rapierBody.setLinvel({ x: body.velocity.x, y: body.velocity.y, z: body.velocity.z }, true);
+    }
+
+    this.rapierWorld.timestep = Math.min(delta, 0.1);
+    this.rapierWorld.step();
     this.contacts = [];
-    const configuredSubSteps = Math.max(1, Math.trunc(Number(maxSubSteps) || 1));
-    const dynamicBodies = this.bodies.filter((body) => (
-      body.type !== Body.STATIC
-      && !(this.allowSleep && body.sleepState === Body.SLEEPING)
-    ));
-    const maximumDisplacement = dynamicBodies.reduce((maximum, body) => Math.max(
-      maximum,
-      Math.abs(body.velocity.x * delta),
-      Math.abs(body.velocity.y * delta),
-      Math.abs(body.velocity.z * delta),
-    ), 0);
-    const subSteps = Math.max(
-      configuredSubSteps,
-      Math.ceil(maximumDisplacement / 0.05),
-    );
-    const subStepDelta = delta / subSteps;
 
-    for (let subStep = 0; subStep < subSteps; subStep += 1) {
-      for (const body of dynamicBodies) {
-        body.velocity.y += this.gravity.y * subStepDelta;
-        body.position.x += body.velocity.x * subStepDelta;
-        body.position.y += body.velocity.y * subStepDelta;
-        body.position.z += body.velocity.z * subStepDelta;
-
-        if (Math.abs(body.velocity.x) < 1e-6) body.velocity.x = 0;
-        if (Math.abs(body.velocity.y) < 1e-6) body.velocity.y = 0;
-        if (Math.abs(body.velocity.z) < 1e-6) body.velocity.z = 0;
-
-        for (const staticBody of this.bodies) {
-          if (staticBody.type !== Body.STATIC) continue;
-          const collision = resolveStaticCollision(body, staticBody);
-          if (collision) this.contacts.push({ bi: body, bj: staticBody });
-        }
-      }
+    for (const body of this.bodies) {
+      if (!body.rapierBody || body.type === Body.STATIC) continue;
+      const position = body.rapierBody.translation();
+      const velocity = body.rapierBody.linvel();
+      body.position.set(position.x, position.y, position.z);
+      body.velocity.set(velocity.x, velocity.y, velocity.z);
     }
   }
+}
+
+function createRapierCollider(shape, material) {
+  const friction = Number(material?.friction) || 0;
+  const restitution = Number(material?.restitution) || 0;
+  let descriptor = null;
+
+  if (shape?.type === 'cuboid') {
+    const halfExtents = shape.halfExtents ?? [0.5, 0.5, 0.5];
+    descriptor = RAPIER.ColliderDesc.cuboid(...halfExtents);
+  } else if (shape?.type === 'cylinder') {
+    descriptor = RAPIER.ColliderDesc.cylinder(
+      Math.abs(Number(shape.height) || 1) * 0.5,
+      Math.abs(Number(shape.radius) || 0.5),
+    );
+  } else if (shape?.type === 'ball') {
+    descriptor = RAPIER.ColliderDesc.ball(Math.abs(Number(shape.radius) || 0.5));
+  } else if (shape?.type === 'trimesh'
+    || (Array.isArray(shape?.vertices) && Array.isArray(shape?.indices))) {
+    descriptor = RAPIER.ColliderDesc.trimesh(
+      new Float32Array(shape.vertices),
+      new Uint32Array(shape.indices),
+    );
+  }
+
+  if (!descriptor) return null;
+  descriptor.setTranslation(...(shape.translation ?? [0, 0, 0]));
+  descriptor.setFriction(friction);
+  descriptor.setRestitution(restitution);
+  return descriptor;
 }
 
 function getShapeBounds(body, shapeEntry) {

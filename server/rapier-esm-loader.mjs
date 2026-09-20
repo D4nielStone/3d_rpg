@@ -32,6 +32,10 @@ export async function resolve(specifier, context, nextResolve) {
     if (existsSync(directoryIndex)) {
       return nextResolve(pathToFileURL(directoryIndex).href, context);
     }
+
+    if (existsSync(`${targetPath}.js`)) {
+      return nextResolve(pathToFileURL(`${targetPath}.js`).href, context);
+    }
   }
 
   return nextResolve(specifier, context);
