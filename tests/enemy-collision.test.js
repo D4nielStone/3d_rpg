@@ -1,7 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { Enemy } from '../server/enemy.js';
 import { collidesWithMap } from '../server/world/collision.js';
 
 test('colisao de objetos considera escala do modelo e escala da colisao', () => {
