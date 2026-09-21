@@ -154,6 +154,7 @@ function setPanelOpen(panelId, open, toggle) {
 
 function setInspectorTab(tabId) {
   domSetInspectorTab(inspectorTabs, tabId);
+  document.body.classList.toggle('shader-editor-fullscreen', tabId === 'shaders');
 }
 
 function renderSounds() {
@@ -915,11 +916,145 @@ function highlightSource(source, language) {
 function currentShaderFile() {
   return shaderFiles[Number(document.querySelector('#shader-file-select')?.value) || 0] ?? null;
 }
+function shaderUniforms(shader) {
+  if (!shader) return [];
+  const uniforms = [];
+  const pattern = /\buniform\s+(bool|int|float|vec[234]|sampler2D)\s+([A-Za-z_]\w*)\s*;/g;
+  let match;
+  while ((match = pattern.exec(shader.source)) !== null) {
+    if (!uniforms.some((uniform) => uniform.name === match[2])) uniforms.push({ type: match[1], name: match[2] });
+  }
+  return uniforms;
+}
+function shaderColorValue(value) {
+  if (typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value)) return value;
+  if (typeof value === 'string' && /^#[0-9a-f]{3}$/i.test(value)) return `#${[...value.slice(1)].map((digit) => digit + digit).join('')}`;
+  if (Array.isArray(value)) return colorToHex(value);
+  return '#ffffff';
+}
+function shaderUniformValue(shader, uniform) {
+  const saved = shader.properties?.[uniform.name];
+  if (saved !== undefined) return saved;
+  const materialValue = entities.flatMap((entity) => {
+    const matchesShader = entity.shader?.file === shader?.path || (shader?.path?.includes('/water.') && (entity.tags ?? []).some((tag) => String(tag).toLowerCase() === 'water'));
+    if (!matchesShader) return [];
+    const values = [];
+    entity.object?.traverse((child) => {
+      const materials = child.isMesh ? (Array.isArray(child.material) ? child.material : [child.material]) : [];
+      materials.forEach((material) => { if (material?.userData?.waterShader && material.uniforms?.[uniform.name]) values.push(material.uniforms[uniform.name].value); });
+    });
+    return values;
+  })[0];
+  if (materialValue !== undefined) {
+    if (materialValue?.isColor) return `#${materialValue.getHexString()}`;
+    if (materialValue?.isVector2 || materialValue?.isVector3 || materialValue?.isVector4) return materialValue.toArray();
+    return materialValue;
+  }
+  if (uniform.type === 'bool') return false;
+  if (uniform.type === 'int' || uniform.type === 'float') return 0;
+  return Array.from({ length: Number(uniform.type.slice(-1)) }, () => 0);
+}
+function isColorUniform(uniform, value) {
+  return uniform.type.startsWith('vec') && (uniform.name.toLowerCase().includes('color') || typeof value === 'string');
+}
+function uniformValueForMaterial(value, uniform) {
+  if (isColorUniform(uniform, value)) {
+    const color = typeof value === 'string' ? value : shaderColorValue(value);
+    return new THREE.Color(color);
+  }
+  if (Array.isArray(value)) return value;
+  return value;
+}
+function applyShaderPropertyToMaterial(material, shader, name, value) {
+  const uniform = shaderUniforms(shader).find((item) => item.name === name);
+  const target = material?.uniforms?.[name];
+  if (!uniform || !target) return;
+  const next = uniformValueForMaterial(value, uniform);
+  if (target.value?.isColor && next?.isColor) target.value.copy(next);
+  else if (target.value?.set && Array.isArray(next)) target.value.set(...next);
+  else target.value = next;
+}
+function applyShaderProperties(shader) {
+  if (!shader) return;
+  entities.forEach((entity) => {
+    const materialUsesWater = (entity.materials ?? []).some((material) => material.shader === 'Water');
+    const waterShader = shader.path?.includes('/water.') && ((entity.tags ?? []).some((tag) => String(tag).trim().toLowerCase() === 'water') || materialUsesWater);
+    const linked = waterShader || entity.shader?.file === shader.path || (shader.tag && entity.shader?.tag?.toLowerCase() === shader.tag.toLowerCase());
+    if (!linked) return;
+    entity.object?.traverse((child) => {
+      if (!child.isMesh) return;
+      const materials = Array.isArray(child.material) ? child.material : [child.material];
+      materials.forEach((material) => Object.entries(shader.properties ?? {}).forEach(([name, value]) => applyShaderPropertyToMaterial(material, shader, name, value)));
+    });
+  });
+}
+function updateShaderProperty(name, value) {
+  const shader = currentShaderFile();
+  if (!shader) return;
+  shader.properties = { ...(shader.properties ?? {}), [name]: value };
+  applyShaderProperties(shader);
+  document.querySelector('#shader-properties').value = JSON.stringify(shader.properties, null, 2);
+  document.querySelector('#shader-dirty-state').textContent = 'Editado';
+  updateSummary();
+}
+function renderShaderProperties() {
+  const shader = currentShaderFile();
+  const list = document.querySelector('#shader-property-list');
+  if (!list) return;
+  list.replaceChildren();
+  const uniforms = shaderUniforms(shader);
+  if (!uniforms.length) {
+    const empty = document.createElement('div');
+    empty.className = 'shader-property-empty';
+    empty.textContent = 'Nenhum uniform editável encontrado neste arquivo.';
+    list.append(empty);
+    return;
+  }
+  uniforms.forEach((uniform) => {
+    const value = shaderUniformValue(shader, uniform);
+    const wrapper = document.createElement('div');
+    wrapper.className = 'shader-property';
+    const label = document.createElement('label');
+    label.textContent = uniform.name;
+    if (uniform.type === 'bool') {
+      const input = document.createElement('input');
+      input.type = 'checkbox'; input.checked = Boolean(value);
+      input.addEventListener('change', () => updateShaderProperty(uniform.name, input.checked));
+      label.append(input); wrapper.append(label); list.append(wrapper); return;
+    }
+    if (isColorUniform(uniform, value)) {
+      const input = document.createElement('input');
+      input.type = 'color'; input.value = shaderColorValue(value);
+      input.addEventListener('input', () => updateShaderProperty(uniform.name, input.value));
+      wrapper.append(label, input); list.append(wrapper); return;
+    }
+    if (uniform.type.startsWith('vec')) {
+      const fields = document.createElement('div');
+      fields.className = 'shader-property-vector';
+      (Array.isArray(value) ? value : []).forEach((item, index) => {
+        const input = document.createElement('input');
+        input.type = 'number'; input.step = '0.01'; input.value = Number(item) || 0;
+        input.addEventListener('change', () => {
+          const next = [...(Array.isArray(shader.properties?.[uniform.name]) ? shader.properties[uniform.name] : value)];
+          next[index] = Number(input.value) || 0;
+          updateShaderProperty(uniform.name, next);
+        });
+        fields.append(input);
+      });
+      wrapper.append(label, fields); list.append(wrapper); return;
+    }
+    const input = document.createElement('input');
+    input.type = 'number'; input.step = uniform.type === 'int' ? '1' : '0.01'; input.value = Number(value) || 0;
+    input.addEventListener('change', () => updateShaderProperty(uniform.name, uniform.type === 'int' ? Math.round(Number(input.value)) : Number(input.value) || 0));
+    wrapper.append(label, input); list.append(wrapper);
+  });
+}
 function loadShaderProperties() {
   const shader = currentShaderFile();
   if (!shader) return;
   document.querySelector('#shader-tag').value = shader.tag ?? '';
   document.querySelector('#shader-properties').value = JSON.stringify(shader.properties ?? {}, null, 2);
+  renderShaderProperties();
 }
 function updateShaderCursor() {
   const editor = document.querySelector('#shader-source-editor');
@@ -948,11 +1083,19 @@ function loadShaderIntoEditor() {
 }
 function renderShaders() {
   const select = document.querySelector('#shader-file-select');
+  const fileList = document.querySelector('#shader-file-list');
   if (!select) return;
   const selectedPath = currentShaderFile()?.path;
   select.replaceChildren(...shaderFiles.map((shader, index) => new Option(shader.path, String(index))));
   const selectedIndex = shaderFiles.findIndex((shader) => shader.path === selectedPath);
   select.value = String(selectedIndex >= 0 ? selectedIndex : 0);
+  if (fileList) fileList.replaceChildren(...shaderFiles.map((shader, index) => {
+    const button = document.createElement('button');
+    button.type = 'button'; button.className = `shader-file-item${index === Number(select.value) ? ' shader-file-item-active' : ''}`;
+    button.textContent = shader.path.split('/').pop() || shader.path; button.title = shader.path;
+    button.addEventListener('click', () => { select.value = String(index); loadShaderIntoEditor(); renderShaders(); });
+    return button;
+  }));
   document.querySelector('#shader-count').textContent = String(shaderFiles.length);
   loadShaderIntoEditor();
 }
@@ -978,8 +1121,11 @@ function saveShaderFile() {
 }
 function applyShaderToViewport() {
   entities.forEach((entity) => entity.object?.traverse((child) => {
-    if (child.isMesh && child.material?.userData?.waterShader) refreshWaterMaterial(child.material);
+    if (!child.isMesh) return;
+    const materials = Array.isArray(child.material) ? child.material : [child.material];
+    materials.forEach((material) => { if (material?.userData?.waterShader) refreshWaterMaterial(material); });
   }));
+  shaderFiles.forEach((shader) => applyShaderProperties(shader));
   document.querySelector('#shader-dirty-state').textContent = 'Aplicado';
 }
 function bindShaderToTag() {
@@ -1006,6 +1152,7 @@ function bindShaderEditor() {
     shader.source = editor.value;
     document.querySelector('#shader-dirty-state').textContent = 'Editado';
     refreshShaderHighlight();
+    renderShaderProperties();
   });
   editor.addEventListener('scroll', refreshShaderHighlight);
   ['click', 'keyup', 'select'].forEach((eventName) => editor.addEventListener(eventName, updateShaderCursor));
@@ -1025,6 +1172,14 @@ function bindShaderEditor() {
   document.querySelector('#shader-save-button').addEventListener('click', saveShaderFile);
   document.querySelector('#shader-apply-button').addEventListener('click', applyShaderToViewport);
   document.querySelector('#shader-bind-button').addEventListener('click', bindShaderToTag);
+  document.querySelector('#shader-properties').addEventListener('change', () => {
+    const shader = currentShaderFile();
+    if (!shader) return;
+    try {
+      shader.properties = JSON.parse(document.querySelector('#shader-properties').value || '{}');
+      renderShaderProperties(); applyShaderProperties(shader); updateSummary();
+    } catch { setStatus('Propriedades do shader precisam ser um JSON válido'); }
+  });
   document.querySelector('#shader-import-file').addEventListener('change', async (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -1200,7 +1355,7 @@ Object.defineProperties(editorEventContext, {
 });
 bindEditorEvents(editorEventContext);
 
-makeVectorFields(); makeAreaVectorFields(); normalizeSkyColor(); normalizeFog(); updateSceneAtmosphere(); normalizeLighting(); updateLightingInspector(); renderShaders(); bindShaderEditor(); renderEnemyAreas(); await loadSavedWorld(); resize(); setMode('select');
+makeVectorFields(); makeAreaVectorFields(); normalizeSkyColor(); normalizeFog(); updateSceneAtmosphere(); normalizeLighting(); updateLightingInspector(); renderShaders(); bindShaderEditor(); renderEnemyAreas(); await loadSavedWorld(); applyShaderToViewport(); resize(); setMode('select');
 let lastFrameTime = performance.now();
 function animate() {
   requestAnimationFrame(animate);

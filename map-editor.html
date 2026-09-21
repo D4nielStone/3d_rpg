@@ -273,29 +273,41 @@
           <dl class="map-summary"><div><dt>Entidades</dt><dd id="entity-summary-count">0</dd></div></dl>
         </div>
         <div class="panel-section inspector-tab-panel export-preview" data-inspector-panel="world-json"><h2>World JSON</h2><pre id="json-preview">{}</pre></div>
-        <div class="panel-section inspector-tab-panel" data-inspector-panel="shaders">
-          <div class="section-heading"><h2>Editor de texto</h2><span id="shader-count">0</span></div>
-          <div class="shader-toolbar">
-            <label class="shader-file-picker" for="shader-file-select">Arquivo<select id="shader-file-select" aria-label="Selecionar arquivo de shader"></select></label>
-            <span id="shader-language" class="shader-language">texto</span>
+        <div class="panel-section inspector-tab-panel shader-panel" data-inspector-panel="shaders">
+          <div class="section-heading"><h2>Shaders e arquivos</h2><span id="shader-count">0</span></div>
+          <div class="shader-workspace">
+            <aside class="shader-file-manager" aria-label="Arquivos do projeto">
+              <div class="shader-manager-heading"><strong>Arquivos</strong><label class="file-button" for="shader-import-file" title="Importar arquivo">+</label></div>
+              <div id="shader-file-list" class="shader-file-list"></div>
+            </aside>
+            <div class="shader-editor-column">
+              <div class="shader-toolbar">
+                <label class="shader-file-picker" for="shader-file-select">Arquivo<select id="shader-file-select" aria-label="Selecionar arquivo de shader"></select></label>
+                <span id="shader-language" class="shader-language">texto</span>
+              </div>
+              <div class="shader-actions">
+                <button id="shader-save-button" class="primary-button" type="button">Salvar no mundo</button>
+                <button id="shader-apply-button" class="primary-button" type="button">Aplicar no viewport</button>
+                <button id="shader-download-button" class="secondary-button" type="button">Baixar</button>
+                <input id="shader-import-file" type="file" accept=".glsl,.vert,.frag,.js,.ts,.json,.css,.html,.txt" hidden />
+              </div>
+              <div class="shader-editor" aria-label="Editor de arquivo de texto">
+                <pre id="shader-highlight" aria-hidden="true"></pre>
+                <textarea id="shader-source-editor" spellcheck="false" wrap="off" aria-label="Conteúdo do arquivo"></textarea>
+              </div>
+              <div class="shader-status"><span id="shader-cursor-position">Ln 1, Col 1</span><span id="shader-dirty-state">Salvo</span></div>
+            </div>
           </div>
-          <div class="shader-actions">
-            <button id="shader-save-button" class="primary-button" type="button">Salvar no mundo</button>
-            <button id="shader-apply-button" class="primary-button" type="button">Aplicar no viewport</button>
-            <button id="shader-download-button" class="secondary-button" type="button">Baixar arquivo</button>
-            <label class="file-button secondary-button" for="shader-import-file">Abrir arquivo</label>
-            <input id="shader-import-file" type="file" accept=".glsl,.vert,.frag,.js,.ts,.json,.css,.html,.txt" hidden />
+          <div class="shader-properties-panel">
+            <div class="transform-heading"><strong>Inspector do shader</strong><span>uniforms</span></div>
+            <div id="shader-property-list" class="shader-property-list"></div>
+            <details class="shader-advanced-properties"><summary>Propriedades avançadas (JSON)</summary>
+              <textarea id="shader-properties" rows="3" placeholder='{"uColor":"#ffffff","uSpeed":1}'></textarea>
+            </details>
+            <label for="shader-tag">Aplicar à tag</label>
+            <input id="shader-tag" type="text" placeholder="water" />
+            <button id="shader-bind-button" class="secondary-button full-button" type="button">Vincular shader à tag</button>
           </div>
-          <label for="shader-tag">Aplicar à tag</label>
-          <input id="shader-tag" type="text" placeholder="water" />
-          <label for="shader-properties">Propriedades (JSON)</label>
-          <textarea id="shader-properties" rows="3" placeholder='{"uColor":"#ffffff","uSpeed":1}'></textarea>
-          <button id="shader-bind-button" class="secondary-button full-button" type="button">Vincular shader à tag</button>
-          <div class="shader-editor" aria-label="Editor de arquivo de texto">
-            <pre id="shader-highlight" aria-hidden="true"></pre>
-            <textarea id="shader-source-editor" spellcheck="false" wrap="off" aria-label="Conteúdo do arquivo"></textarea>
-          </div>
-          <div class="shader-status"><span id="shader-cursor-position">Ln 1, Col 1</span><span id="shader-dirty-state">Salvo</span></div>
         </div>
       </aside>
     </section>
