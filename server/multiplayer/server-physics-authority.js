@@ -1,6 +1,12 @@
 import { FIXED_DT, MAX_INPUTS_PER_SECOND, normalizePlayerInput } from '../../shared/network-messages.js';
 import { InputBuffer } from './input-buffer.js';
 
+function readVector(value) {
+  if (Array.isArray(value) && value.length === 3 && value.every(Number.isFinite)) return [...value];
+  if (value && [value.x, value.y, value.z].every(Number.isFinite)) return [value.x, value.y, value.z];
+  return null;
+}
+
 export class ServerPhysicsAuthority {
   constructor({ physics, getSpeed = () => 3 } = {}) {
     this.physics = physics;
@@ -37,15 +43,12 @@ export class ServerPhysicsAuthority {
   }
   receiveState(player, rawState) {
     const state = this.players.get(player.peerId);
-    const position = rawState?.position;
-    const rotation = rawState?.rotation;
-    if (!state || !Array.isArray(position) || position.length !== 3 || !position.every(Number.isFinite)) return false;
-    if (!Array.isArray(rotation) || rotation.length !== 3 || !rotation.every(Number.isFinite)) return false;
+    const position = readVector(rawState?.position);
+    const rotation = readVector(rawState?.rotation);
+    if (!state || !position || !rotation) return false;
 
     player.setTransform(position, rotation);
-    player.linearVelocity = Array.isArray(rawState.linearVelocity) && rawState.linearVelocity.length === 3
-      ? rawState.linearVelocity.map((value) => Number.isFinite(value) ? value : 0)
-      : [0, 0, 0];
+    player.linearVelocity = readVector(rawState.linearVelocity) ?? [0, 0, 0];
     player.grounded = rawState.grounded === true;
     return true;
   }
