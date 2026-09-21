@@ -1,4 +1,4 @@
-import { EnemyIdentity, PlayerHealthBar, SoundListener, SoundPlayer, SwordRenderer, Transform } from './components.js';
+import { EnemyIdentity, PlayerHealthBar, Rigidbody, SoundListener, SoundPlayer, SwordRenderer, Transform } from './components.js';
 import { MultiplayerSystem } from './multiplayer.js';
 import { addRemotePlayer } from './player-factory.js';
 import { createGame } from './three-game-setup.js';
@@ -175,6 +175,7 @@ function createMultiplayer(game, playerEntity, enemyAssets, soundPlayer, mapConf
     url: url?.toString() ?? '',
     world: game.world,
     input: game.input,
+    physicsSystem: game.physicsSystem,
     camera: game.camera,
     canvas,
     onStatus: (message) => {
@@ -300,6 +301,9 @@ async function start(identity = {}) {
   const game = await createGame(canvas, mapConfig);
   updateLoading('Carregando cenário e personagem...');
   const { entity: playerEntity, usedFallback } = await loadLocalPlayer(game, mapConfig?.player, mapConfig?.assets);
+  game.world.addComponent(playerEntity, new Rigidbody({
+    speed: Number(mapConfig?.player?.speed) || 3,
+  }));
   window.__gameDebug = { game, playerEntity };
   game.world.addComponent(playerEntity, new SwordRenderer());
   const soundListener = new SoundListener();

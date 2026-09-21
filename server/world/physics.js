@@ -10,7 +10,6 @@ import { normalizePlayerScale } from '../../shared/player-size.js';
 
 const VOID_LIMIT = 10;
 const FIXED_TIME_STEP = 1 / 60;
-const MAX_SUB_STEPS = 3;
 const PLAYER_GRAVITY = 10;
 
 const PLAYER_MASS = 1;
@@ -579,12 +578,10 @@ export class PhysicsWorld {
       this.staticBodies.get(staticBody) ?? null;
 
     const entity = info?.entity ?? null;
-    const offset = getVector3(entity?.collision?.offset, [0, 0, 0]);
-    const position = getVector3(entity?.position, [0, 0, 0]);
     const center = [
-      position[0] + offset[0],
-      position[1] + offset[1],
-      position[2] + offset[2],
+      staticBody.position.x,
+      staticBody.position.y,
+      staticBody.position.z,
     ];
 
     const scale = getCombinedScale(entity ?? { scale: [1, 1, 1] });
@@ -612,6 +609,9 @@ export class PhysicsWorld {
     }
 
     const surface = entity.collision.surface;
+    const entityPosition = getVector3(entity.position, [0, 0, 0]);
+    const localX = x - entityPosition[0];
+    const localZ = z - entityPosition[2];
     const columns = Math.floor(Number(surface.columns));
     const rows = Math.floor(Number(surface.rows));
     const heights = Array.isArray(surface.heights) ? surface.heights : [];
@@ -629,8 +629,8 @@ export class PhysicsWorld {
       return null;
     }
 
-    const clampedX = Math.min(Math.max(x, minX), maxX);
-    const clampedZ = Math.min(Math.max(z, minZ), maxZ);
+    const clampedX = Math.min(Math.max(localX, minX), maxX);
+    const clampedZ = Math.min(Math.max(localZ, minZ), maxZ);
     const u = columns === 1 ? 0 : (clampedX - minX) / (maxX - minX) * (columns - 1);
     const v = rows === 1 ? 0 : (clampedZ - minZ) / (maxZ - minZ) * (rows - 1);
     const xIndex = Math.min(columns - 1, Math.max(0, Math.floor(u)));
@@ -661,7 +661,7 @@ export class PhysicsWorld {
     const h11 = candidates[3];
     const first = h00 * (1 - fx) + h10 * fx;
     const second = h01 * (1 - fx) + h11 * fx;
-    return first * (1 - fz) + second * fz;
+    return entityPosition[1] + first * (1 - fz) + second * fz;
   }
 
   resolvePlayerCollision(body, previousPosition) {
@@ -734,7 +734,9 @@ export class PhysicsWorld {
       ].sort((a, b) => a[1] - b[1])[0];
 
       if (axis[0] === 'y') {
-        const previousAbove = (previousPosition?.y ?? body.position.y) + offset[1] >= bounds.maxY;
+        const previousCenterY = (previousPosition?.y ?? body.position.y) + offset[1];
+        const previousAbove = previousCenterY >= bounds.maxY
+          || previousCenterY >= bounds.minY;
         if (body.velocity.y <= 0 && previousAbove) {
           body.position.y = bounds.maxY + half.y - offset[1];
           body.velocity.y = Math.max(0, body.velocity.y);
@@ -811,12 +813,6 @@ export class PhysicsWorld {
 
       this.lastCollision = this.resolvePlayerCollision(body, previousPosition) ?? this.lastCollision;
     }
-
-    this.world.step(
-      FIXED_TIME_STEP,
-      safeDelta,
-      MAX_SUB_STEPS,
-    );
 
     this.lastCollision =
       this.lastCollision ?? this.findPlayerCollision();

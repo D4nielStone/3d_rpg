@@ -49,7 +49,7 @@ export function createEditorScene({
   const worldGroup = new THREE.Group();
   scene.add(worldGroup);
 
-  const gridHelper = new THREE.GridHelper(1024, 64, 0x53605a, 0x29312d);
+  const gridHelper = new THREE.GridHelper(512, 64, 0x53605a, 0x29312d);
   gridHelper.position.set(-0.5, -0.14, -0.5);
   gridHelper.material.transparent = true;
   gridHelper.material.opacity = 0.3;

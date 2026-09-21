@@ -31,6 +31,7 @@ export class MultiplayerSystem {
     url,
     world,
     input = null,
+    physicsSystem = null,
     camera = null,
     canvas = null,
     createRemoteEntity,
@@ -52,6 +53,7 @@ export class MultiplayerSystem {
     this.url = url;
     this.world = world;
     this.input = input;
+    this.physicsSystem = physicsSystem;
     this.camera = camera;
     this.canvas = canvas;
     this.createRemoteEntity = createRemoteEntity;
@@ -478,7 +480,14 @@ export class MultiplayerSystem {
       angle: movement.magnitude > 0 ? worldAngle : 0,
       magnitude: movement.magnitude,
     };
-    this.socket.send(JSON.stringify({ type: 'movement', ...command }));
+    this.physicsSystem?.setMovement(this.localEntity, command.angle, command.magnitude);
+    const localTransform = this.world.getComponent(this.localEntity, Transform);
+    this.socket.send(JSON.stringify({
+      type: 'movement',
+      ...command,
+      position: localTransform?.position,
+      rotation: localTransform?.rotation,
+    }));
     this.lastMovementCommand = command;
     this.lastSentAt = time;
   }
@@ -514,20 +523,6 @@ export class MultiplayerSystem {
       if (player.peerId === this.localPeerId) {
         this.localPlayerDead = Boolean(player.dead);
         this.combatMode = player.combatMode ?? 'melee';
-        if (Array.isArray(player.position) && Array.isArray(player.rotation)) {
-          const transform = world.getComponent(this.localEntity, Transform);
-          if (transform) {
-            const networkTransform = world.getComponent(this.localEntity, NetworkTransform);
-            if (this.localStateRestored && networkTransform) {
-              networkTransform.targetPosition = [...player.position];
-              networkTransform.targetRotation = [...player.rotation];
-            } else {
-              transform.position = [...player.position];
-              transform.rotation = [...player.rotation];
-            }
-          }
-          this.localStateRestored = true;
-        }
         const localNameTag = world.getComponent(this.localEntity, NameTag);
         localNameTag?.update(player.nickname, player.level);
         this.onPlayerState(player);

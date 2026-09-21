@@ -104,10 +104,20 @@ export class PhysicsSystem {
   constructor(physicsWorld) {
     if (physicsWorld && typeof physicsWorld.step === 'function' && typeof physicsWorld.movePlayer === 'function') {
       this.physicsWorld = physicsWorld;
+      this.pendingMovements = new Map();
       return;
     }
 
     this.physicsWorld = new PhysicsWorld(physicsWorld ?? null);
+    this.pendingMovements = new Map();
+  }
+
+  setMovement(entity, angle, magnitude) {
+    if (!entity) return;
+    this.pendingMovements.set(entity, {
+      angle: Number.isFinite(angle) ? angle : 0,
+      magnitude: Math.max(0, Math.min(1, Number(magnitude) || 0)),
+    });
   }
 
   update(world, deltaSeconds) {
@@ -129,11 +139,16 @@ export class PhysicsSystem {
         body.physicsId = entity;
       }
 
+      const movement = this.pendingMovements.get(entity);
+      if (movement?.magnitude > 0) {
+        transform.rotation[1] = movement.angle;
+      }
+
       this.physicsWorld.movePlayer(
         body.physicsId,
         transform.position,
-        transform.rotation?.[1] ?? 0,
-        body.speed ?? 0,
+        movement?.angle ?? transform.rotation?.[1] ?? 0,
+        (body.speed ?? 0) * (movement?.magnitude ?? 0),
         step,
       );
     }
@@ -151,6 +166,7 @@ export class PhysicsSystem {
 
       transform.position = position;
     }
+
   }
 }
 

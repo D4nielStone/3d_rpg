@@ -5,7 +5,7 @@ import {
   getUserLabel,
   sendSystemMessage,
 } from './utils.js';
-import { isValidMapConfig, isWaterPosition } from '../world/enemy-areas.js';
+import { isValidMapConfig } from '../world/enemy-areas.js';
 import { promotePlayerToAreaTwo } from './player-actions.js';
 import { maxWebSocketConnections } from './config.js';
 
@@ -265,26 +265,14 @@ export function registerConnectionHandler({
           logger.warn('Mensagem inválida ignorada', { peerId, type: message.type });
           return;
         }
-        const angle = normalizeAngle(message.angle);
-        const magnitude = Math.max(0, Math.min(1, message.magnitude));
-        const physicsPosition = state.physics.movePlayer(
-          playerId,
-          player.position,
-          angle,
-          getPlayerSpeed(state.publishedMapConfig) * magnitude,
-          0.05,
-        );
-        if (isWaterPosition(physicsPosition, state.publishedMapConfig)) {
-          state.physics.teleportPlayer(playerId, player.position);
-          socket.send(JSON.stringify({
-            type: 'water-blocked',
-            position: [...player.position],
-            rotation: [...player.rotation],
-          }));
-          sendSystemMessage(socket, 'Não é possível caminhar sobre a água.');
-          return;
-        }
-        const destinationArea = state.findPlayerArea(physicsPosition);
+        if (!Array.isArray(message.position) || message.position.length !== 3
+          || !message.position.every(Number.isFinite)) return;
+        const position = message.position.map(Number);
+        const rotation = Array.isArray(message.rotation) && message.rotation.length === 3
+          && message.rotation.every(Number.isFinite)
+          ? message.rotation.map(Number)
+          : player.rotation;
+        const destinationArea = state.findPlayerArea(position);
         player.area = destinationArea
           ? {
             id: destinationArea.id,
@@ -294,7 +282,7 @@ export function registerConnectionHandler({
           : { id: 'open-world', name: 'Mundo aberto', level: 0 };
 
 
-        player.setTransform(physicsPosition, getMovementRotation(player.rotation, angle, magnitude));
+        player.setTransform(position, rotation);
         queuePlayerSave(playerId, player);
         broadcastSnapshot();
       } catch (error) {

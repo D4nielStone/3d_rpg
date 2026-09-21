@@ -2,18 +2,18 @@
 
 ## Objetivo
 
-A física centraliza a simulação de movimento, gravidade e colisão para manter a lógica consistente entre o cliente e o servidor.
+A física centraliza no cliente a simulação de movimento, gravidade e colisão do jogador.
 
 ## Arquivos principais
 
-- `server/world/physics.js` — simulação do mundo físico
-- `server/world/movement.js` — regras de deslocamento e movimento
+- `server/world/physics.js` — implementação compartilhada da simulação física local
+- `server/world/movement.js` — regras compartilhadas de deslocamento e movimento
 - `shared/collision-shape.js` — formas de colisão compartilhadas
 - `shared/player-size.js` — escala e dimensões do jogador
 
 ## Modelo
 
-A simulação usa um mundo de física com:
+A simulação local usa um mundo de física com:
 
 - gravidade
 - formas geométricas como caixa, cápsula e trimesh
@@ -22,7 +22,7 @@ A simulação usa um mundo de física com:
 
 ## Movimento
 
-O movimento do jogador é tratado como um comando de direção e magnitude ao invés de coordenadas brutas do cliente. Isso evita que a entrada local seja confiável demais e permite que o servidor valide o resultado.
+O movimento do jogador é simulado no cliente a partir de um comando de direção e magnitude. O cliente envia ao relay apenas a transformação resultante para sincronização e persistência; o relay não executa a física do jogador.
 
 ## Colisão
 
@@ -33,4 +33,4 @@ A colisão é calculada em função da forma do objeto e das superfícies do map
 
 ## Aplicação do projeto
 
-A simulação mantém o jogador em um espaço 3D com atualização por passos fixos. Isso ajuda a reduzir inconsistências no multiplayer e facilita a sincronização entre clientes e servidor.
+A simulação mantém o jogador em um espaço 3D com atualização por passos fixos no navegador. O multiplayer sincroniza a transformação observada pelos outros clientes.

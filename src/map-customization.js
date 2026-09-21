@@ -51,6 +51,7 @@ function addConfiguredRigidbody(world, entity, definition) {
     offset: definition.collision.offset,
     gravity: definition.collision.gravity,
     mass: definition.collision.mass,
+    speed: definition.speed,
   }));
 }
 

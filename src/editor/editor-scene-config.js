@@ -47,7 +47,16 @@ export function buildDefaultWorldConfig() {
     assets: [],
     entities: [],
     enemyTypes: defaultEnemyTypes.map((type) => ({ ...type, gold: { ...type.gold }, itemDrops: [...type.itemDrops] })),
-    enemyAreas: [],
+    enemyAreas: [{
+      id: 'starting-rat-area',
+      center: [0, 0, 0],
+      width: 20,
+      depth: 20,
+      maxEnemies: 5,
+      enemyType: 'rat',
+      areaLevel: 1,
+      spawnIntervalMs: 3000,
+    }],
   };
 }
 
