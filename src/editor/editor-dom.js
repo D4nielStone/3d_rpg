@@ -6,8 +6,20 @@ export function setStatus(statusNode, message) {
 export function setPanelOpen(panelId, open, toggle) {
   const panel = document.querySelector(`#${panelId}`);
   if (!panel) return;
+  if (open && panelId === 'shader-panel') {
+    const inspector = document.querySelector('#inspector-panel');
+    inspector?.classList.remove('panel-open');
+    document.querySelector('[aria-controls="inspector-panel"]')?.setAttribute('aria-expanded', 'false');
+  }
+  if (open && panelId === 'inspector-panel') {
+    const shaderPanel = document.querySelector('#shader-panel');
+    shaderPanel?.classList.remove('panel-open');
+    document.querySelector('[aria-controls="shader-panel"]')?.setAttribute('aria-expanded', 'false');
+  }
   panel.classList.toggle('panel-open', open);
   toggle?.setAttribute('aria-expanded', String(open));
+  if (panelId === 'shader-panel') document.body.classList.toggle('shader-dock-open', open);
+  if (panelId === 'inspector-panel' && open) document.body.classList.remove('shader-dock-open');
 }
 
 export function setInspectorTab(inspectorTabs, tabId) {

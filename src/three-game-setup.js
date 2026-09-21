@@ -15,6 +15,8 @@ import { NameTagSystem } from './name-tags.js';
 import { EnemyHoverSystem } from './enemy-hover.js';
 import { customizeMap } from './map-customization.js';
 import { ThreeRenderSystem } from './three-renderer.js';
+import { configureWaterShaderSources } from './shaders/water-material.js';
+import { migrateWorldResources } from './resources/resource-library.js';
 
 export function handleCameraWheel(camera, event) {
   const hasTrackpadPan = Math.abs(event.deltaX) > 0.5 || (event.shiftKey && Math.abs(event.deltaY) > 0.5);
@@ -40,7 +42,8 @@ export function handleCameraWheel(camera, event) {
 }
 
 export async function createGame(canvas, mapConfig = null) {
-  const normalizedMapConfig = normalizeMapConfig(mapConfig ?? {}, null);
+  const normalizedMapConfig = migrateWorldResources(normalizeMapConfig(mapConfig ?? {}, null));
+  configureWaterShaderSources(normalizedMapConfig?.resources?.shaders ?? normalizedMapConfig?.shaders ?? []);
   const camera = new Camera();
   const world = new World();
   const textureManager = new TextureManager();

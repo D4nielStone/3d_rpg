@@ -40,14 +40,36 @@ function textureFrom(texture) {
 }
 
 function createMaterial(mesh, texture, transparent = false, water = false, waterLevel = 0) {
-  if (water) return createWaterMaterial({ color: mesh.material?.diffuseColor, level: waterLevel, map: textureFrom(mesh.material?.texture ?? texture) });
-  return new THREE.MeshLambertMaterial({
-    color: colorFrom(mesh.material?.diffuseColor),
-    map: textureFrom(mesh.material?.texture ?? texture),
+  const materialDefinition = mesh.material ?? {};
+  if (!water && materialDefinition.shaderId && !materialDefinition.shaderId.startsWith('builtin/') && materialDefinition.shaderVertexSource && materialDefinition.shaderFragmentSource) {
+    const uniforms = Object.fromEntries(Object.entries(materialDefinition.shaderParameters ?? {}).map(([name, value]) => [name, { value: Array.isArray(value) ? [...value] : value }]));
+    return new THREE.ShaderMaterial({
+      vertexShader: materialDefinition.shaderVertexSource,
+      fragmentShader: materialDefinition.shaderFragmentSource,
+      uniforms,
+      transparent: transparent || materialDefinition.surface === 'Transparent',
+      opacity: materialDefinition.opacity ?? 1,
+      depthWrite: materialDefinition.surface !== 'Transparent',
+      side: THREE.DoubleSide,
+    });
+  }
+  if (water) return createWaterMaterial({
+    color: materialDefinition.diffuseColor,
+    level: waterLevel,
+    map: textureFrom(materialDefinition.texture ?? texture),
+    roughness: materialDefinition.roughness,
+    opacity: materialDefinition.opacity,
+  });
+  const isTransparent = transparent || materialDefinition.surface === 'Transparent';
+  return new THREE.MeshStandardMaterial({
+    color: colorFrom(materialDefinition.diffuseColor),
+    map: textureFrom(materialDefinition.texture ?? texture),
     vertexColors: Boolean(mesh.colors?.length),
     flatShading: true,
-    transparent,
-    opacity: transparent ? 0.24 : 1,
+    transparent: isTransparent,
+    opacity: materialDefinition.opacity ?? (isTransparent ? 0.7 : 1),
+    metalness: Math.min(1, Math.max(0, Number(materialDefinition.metallic) || 0)),
+    roughness: Math.min(1, Math.max(0, Number(materialDefinition.roughness ?? 0.7) || 0.7)),
     side: THREE.DoubleSide,
   });
 }
@@ -260,7 +282,7 @@ export class ThreeRenderSystem {
     const renderer = world.getComponent(entity, MeshRenderer);
     const texture = world.getComponent(entity, Texture);
     const water = world.getComponent(entity, Water);
-    const taggedWater = isWaterEntity(renderer);
+    const taggedWater = isWaterEntity(renderer) || renderer.meshes?.some((mesh) => mesh.material?.shader === 'Water');
     let object = this.entityObjects.get(entity);
     if (!object) {
       object = this.createObject(renderer, texture, Boolean(water || taggedWater), Boolean(world.getComponent(entity, EnemyAreaRenderer)), transform.position[1]);
@@ -510,6 +532,7 @@ export class ThreeRenderSystem {
       object.visible = true;
       const uniforms = object.material.uniforms;
       uniforms.uDepthTexture.value = this.waterDepthTarget.depthTexture;
+      uniforms.uHasDepthTexture.value = true;
       uniforms.uScreenResolution.value.set(this.waterDepthTarget.width, this.waterDepthTarget.height);
       uniforms.uCameraNear.value = this.camera.near;
       uniforms.uCameraFar.value = this.camera.far;

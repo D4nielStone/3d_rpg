@@ -1,3 +1,5 @@
+import { createMaterialResource } from '../resources/material-resource.js';
+
 export function bindEditorEvents(context) {
   const {
     setMode,
@@ -24,6 +26,7 @@ export function bindEditorEvents(context) {
     undo,
     redo,
     loadWorld,
+    refreshShaders,
     registerAsset,
     renderAssets,
     instantiateAsset,
@@ -433,11 +436,43 @@ export function bindEditorEvents(context) {
     const material = entity.materials[selectedMaterialIndex];
     if (!material) return;
     material.diffuseColor = [...color];
+    updateSharedMaterial(material, 'diffuseColor', color);
     context.applyEntityMaterials(entity);
     if (entity.isPlayerPreview) context.syncPlayerFromPreview(entity);
     context.renderMeshList(entity);
     updateSummary();
   });
+
+  function updateSharedMaterial(material, property, value) {
+    if (!material.materialId) return;
+    const resource = context.materials?.find((item) => item.id === material.materialId);
+    if (!resource) return;
+    if (property === 'shaderId') {
+      resource.shaderId = value;
+      context.entities.forEach((item) => item.materials?.forEach((itemMaterial) => {
+        if (itemMaterial.materialId !== material.materialId) return;
+        itemMaterial.shaderId = value;
+        itemMaterial.shader = value === 'builtin/water' ? 'Water' : value === 'builtin/standard' ? 'Standard' : 'Custom';
+      }));
+    } else if (property === 'surface') {
+      resource.state = { ...(resource.state ?? {}), surface: value, transparent: value === 'Transparent', depthWrite: value !== 'Transparent' };
+      context.entities.forEach((item) => item.materials?.forEach((itemMaterial) => {
+        if (itemMaterial.materialId === material.materialId) itemMaterial.surface = value;
+      }));
+    } else {
+      resource.parameters = { ...(resource.parameters ?? {}), [property]: Array.isArray(value) ? [...value] : value };
+      context.entities.forEach((item) => item.materials?.forEach((itemMaterial) => {
+        if (itemMaterial.materialId === material.materialId) itemMaterial[property] = Array.isArray(value) ? [...value] : value;
+      }));
+    }
+    context.entities.forEach((item) => {
+      if (item.materials?.some((itemMaterial) => itemMaterial.materialId === material.materialId)) {
+        context.normalizeEntityMaterials(item);
+        context.applyEntityMaterials(item);
+        context.applyEntityWaterShader(item);
+      }
+    });
+  }
 
   function updateSelectedMaterial(property, value) {
     const entity = selectedEntity();
@@ -445,6 +480,7 @@ export function bindEditorEvents(context) {
     if (!entity || !material) return;
     pushHistory();
     material[property] = value;
+    updateSharedMaterial(material, property, value);
     context.normalizeEntityMaterials(entity);
     context.applyEntityMaterials(entity);
     context.applyEntityWaterShader(entity);
@@ -458,7 +494,10 @@ export function bindEditorEvents(context) {
     if (!entity) return;
     pushHistory();
     entity.materials = entity.materials ?? [];
-    entity.materials.push({ name: `Material ${entity.materials.length + 1}`, shader: 'Standard', surface: 'Opaque', diffuseColor: [1, 1, 1], metallic: 0, roughness: 0.7 });
+    const materialId = `material:${context.newId('material')}`;
+    const material = { name: `Material ${entity.materials.length + 1}`, materialId, shader: 'Standard', surface: 'Opaque', diffuseColor: [1, 1, 1], metallic: 0, roughness: 0.7 };
+    entity.materials.push(material);
+    context.materials.push(createMaterialResource({ ...material, id: materialId }));
     context.selectedMaterialIndex = entity.materials.length - 1;
     context.applyEntityMaterials(entity);
     context.renderMeshList(entity);
@@ -467,7 +506,7 @@ export function bindEditorEvents(context) {
   });
 
   materialNameInput.addEventListener('change', () => updateSelectedMaterial('name', materialNameInput.value.trim() || `Material ${selectedMaterialIndex + 1}`));
-  materialShaderInput.addEventListener('change', () => updateSelectedMaterial('shader', materialShaderInput.value));
+  materialShaderInput.addEventListener('change', () => updateSelectedMaterial('shaderId', materialShaderInput.value));
   materialSurfaceInput.addEventListener('change', () => updateSelectedMaterial('surface', materialSurfaceInput.value));
   materialMetalnessInput.addEventListener('input', () => { materialMetalnessValue.textContent = Number(materialMetalnessInput.value).toFixed(2); updateSelectedMaterial('metallic', Number(materialMetalnessInput.value)); });
   materialRoughnessInput.addEventListener('input', () => { materialRoughnessValue.textContent = Number(materialRoughnessInput.value).toFixed(2); updateSelectedMaterial('roughness', Number(materialRoughnessInput.value)); });

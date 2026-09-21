@@ -1,7 +1,7 @@
 import { AnimationPlayer, DirectionalLightRenderer, MeshRenderer, Rigidbody, ShadowRenderer, Texture, Transform } from './components.js';
 import { loadAsset } from './asset-loader.js';
-import { createWater } from './water.js';
 import { readSavedMapConfig } from './map-config.js';
+import { migrateWorldResources } from './resources/resource-library.js';
 
 export const DEFAULT_MAP_CONFIG = Object.freeze({
   enemyTypes: [{
@@ -126,6 +126,27 @@ function createPrimitiveMesh(type) {
   });
 }
 
+function applyMaterialDefinition(material, definition = {}, materialResources = []) {
+  if (!material || !definition) return;
+  const resource = materialResources.find((item) => item.id === definition.materialId);
+  const parameters = { ...(resource?.parameters ?? {}), ...(definition.parameters ?? {}) };
+  const shaderId = definition.shaderId ?? resource?.shaderId;
+  Object.assign(material, {
+    name: definition.name ?? material.name,
+    shaderId,
+    shader: definition.shader ?? (shaderId === 'builtin/water' ? 'Water' : material.shader ?? 'Standard'),
+    surface: definition.surface ?? resource?.state?.surface ?? parameters.surface ?? material.surface ?? 'Opaque',
+    metallic: definition.metallic ?? parameters.metallic ?? material.metallic ?? 0,
+    roughness: definition.roughness ?? parameters.roughness ?? material.roughness ?? 0.7,
+    opacity: definition.opacity ?? parameters.opacity ?? material.opacity,
+    shaderVertexSource: resource?.vertexSource ?? null,
+    shaderFragmentSource: resource?.fragmentSource ?? null,
+    shaderParameters: parameters,
+  });
+  if (Array.isArray(definition.diffuseColor ?? parameters.diffuseColor)) material.diffuseColor = [...(definition.diffuseColor ?? parameters.diffuseColor)];
+  if (definition.texture ?? parameters.texture) material.texture = definition.texture ?? parameters.texture;
+}
+
 function createDirectionalLight(world, lightingConfig = {}) {
   const direction = lightingConfig?.directional ?? {};
   if (!direction || typeof direction !== 'object') return;
@@ -158,8 +179,7 @@ async function createWorldEntities(world, config, textureManager) {
       const material = mesh.meshes[0]?.material;
       mesh.receiveLight = definition.receiveLight !== false;
       mesh.castShadow = definition.castShadow !== false;
-      const configuredMaterial = definition.materials?.[0]?.diffuseColor;
-      if (Array.isArray(configuredMaterial)) material.diffuseColor = [...configuredMaterial];
+      applyMaterialDefinition(material, definition.materials?.[0], config.resources?.materials);
       world.addComponent(entity, mesh);
       addConfiguredRigidbody(world, entity, definition);
       if (definition.castShadow !== false) world.addComponent(entity, new ShadowRenderer());
@@ -182,7 +202,7 @@ async function createWorldEntities(world, config, textureManager) {
       }));
       (definition.materials ?? []).forEach((materialDefinition, index) => {
         const material = loaded.mesh.meshes[index]?.material;
-        if (material && Array.isArray(materialDefinition.diffuseColor)) material.diffuseColor = [...materialDefinition.diffuseColor];
+        applyMaterialDefinition(material, materialDefinition, config.resources?.materials);
       });
       loaded.mesh.receiveLight = definition.receiveLight !== false;
       loaded.mesh.castShadow = definition.castShadow !== false;
@@ -213,10 +233,7 @@ async function createWorldEntities(world, config, textureManager) {
 
 export async function customizeMap(world, config = null, textureManager = null) {
   const activeConfig = config ?? readSavedMapConfig() ?? DEFAULT_MAP_CONFIG;
-  const normalizedConfig = { ...DEFAULT_MAP_CONFIG, ...(activeConfig ?? {}) };
-  if (normalizedConfig.water?.enabled) {
-    createWater(world, normalizedConfig.water);
-  }
+  const normalizedConfig = migrateWorldResources({ ...DEFAULT_MAP_CONFIG, ...(activeConfig ?? {}) });
   createDirectionalLight(world, normalizedConfig.lighting);
   if (textureManager && Array.isArray(normalizedConfig.entities)) {
     await createWorldEntities(world, normalizedConfig, textureManager);

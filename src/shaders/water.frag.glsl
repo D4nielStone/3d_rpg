@@ -1,4 +1,5 @@
 uniform sampler2D uDepthTexture;
+uniform bool uHasDepthTexture;
 uniform vec2 uScreenResolution;
 uniform float uDepthFadeDistance;
 uniform float uAbsorbance;
@@ -6,6 +7,7 @@ uniform vec3 uShallowColor;
 uniform vec3 uDeepColor;
 uniform float uFoamAmount;
 uniform vec3 uFoamColor;
+uniform vec3 u_waterColor;
 uniform float uRoughness;
 uniform float uOpacity;
 uniform float uTime;
@@ -37,18 +39,22 @@ float foamNoise(vec2 position) {
 }
 
 void main() {
-    vec2 uv = gl_FragCoord.xy / uScreenResolution;
-    float sceneDepth = texture2D(uDepthTexture, uv).r;
-    float sceneViewDepth = perspectiveDepthToViewDepth(sceneDepth);
-    float verticalDepth = max(sceneViewDepth - vViewDepth, 0.0);
+    float verticalDepth = 1.0;
+    if (uHasDepthTexture) {
+        vec2 uv = gl_FragCoord.xy / uScreenResolution;
+        float sceneDepth = texture2D(uDepthTexture, uv).r;
+        float sceneViewDepth = perspectiveDepthToViewDepth(sceneDepth);
+        verticalDepth = max(sceneViewDepth - vViewDepth, 0.0);
+    }
 
     float depthBlend = clamp(exp(-verticalDepth / max(uDepthFadeDistance, 0.001)), 0.0, 1.0);
-    float alphaBlend = clamp(1.0 - exp(-verticalDepth * uAbsorbance), 0.0, 1.0);
+    float alphaBlend = uHasDepthTexture ? clamp(1.0 - exp(-verticalDepth * uAbsorbance), 0.0, 1.0) : 1.0;
     float foamEdge = clamp(1.0 - verticalDepth / max(uFoamAmount, 0.001), 0.0, 1.0);
     float foamDetail = smoothstep(0.35, 0.75, foamNoise(vWorldPosition.xz * 0.7 + vec2(uTime * 0.08)));
     float foamBlend = foamEdge * mix(0.55, 1.0, foamDetail);
 
     vec3 colorOut = mix(uDeepColor, uShallowColor, depthBlend);
+    colorOut = mix(colorOut, u_waterColor, 0.5);
     colorOut = screenBlend(colorOut, uFoamColor * foamBlend);
     gl_FragColor = vec4(colorOut, alphaBlend * uOpacity);
 }

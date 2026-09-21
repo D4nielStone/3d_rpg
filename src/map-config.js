@@ -22,6 +22,7 @@ export function normalizeMapConfig(config, fallback = null) {
       ...(fallback?.sounds ?? {}),
       ...(config.sounds ?? {}),
     },
+    shaders: Array.isArray(config.shaders) ? config.shaders : (Array.isArray(fallback?.shaders) ? fallback.shaders : []),
     assets: Array.isArray(config.assets) ? config.assets : (Array.isArray(fallback?.assets) ? fallback.assets : []),
     entities: Array.isArray(config.entities) ? config.entities : (Array.isArray(fallback?.entities) ? fallback.entities : []),
     enemyTypes: Array.isArray(config.enemyTypes) ? config.enemyTypes : (Array.isArray(fallback?.enemyTypes) ? fallback.enemyTypes : []),

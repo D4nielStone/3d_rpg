@@ -89,6 +89,10 @@ export function createRequestHandler({
           return;
         }
       }
+      if (!state.publishedMapConfig) {
+        const savedMapConfig = await playerStore.getMapConfig().catch(() => null);
+        if (savedMapConfig) state.setMapConfig(savedMapConfig);
+      }
       sendJson(
         response,
         200,

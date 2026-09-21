@@ -14,7 +14,8 @@ export function normalizeEntityMaterials(entity) {
   entity.materials = Array.isArray(entity.materials)
     ? entity.materials.map((material, index) => ({
       name: material.name || `Material ${index + 1}`,
-      shader: material.shader || 'Standard',
+      shader: material.shader || (material.shaderId === 'builtin/water' ? 'Water' : material.shaderId === 'builtin/standard' ? 'Standard' : 'Custom'),
+      shaderId: material.shaderId || (material.shader === 'Water' ? 'builtin/water' : material.shader === 'Custom' ? 'shader:custom' : 'builtin/standard'),
       surface: material.surface || 'Opaque',
       metallic: Math.min(1, Math.max(0, Number(material.metallic ?? 0) || 0)),
       roughness: Math.min(1, Math.max(0, Number(material.roughness ?? 0.7) || 0)),
@@ -66,6 +67,11 @@ export function applyEntityMaterials(entity) {
     meshMaterials.forEach((material) => {
       const definition = entity.materials[index++];
       if (!material || !definition) return;
+      if (material.userData?.waterShader) {
+        if (material.uniforms?.u_waterColor) material.uniforms.u_waterColor.value.setRGB(...definition.diffuseColor);
+        if (material.uniforms?.uOpacity) material.uniforms.uOpacity.value = Math.min(1, Math.max(0, Number(definition.opacity ?? 0.78) || 0.78));
+        if (material.uniforms?.uRoughness) material.uniforms.uRoughness.value = Math.min(1, Math.max(0, Number(definition.roughness ?? 0.05) || 0.05));
+      }
       if (material.color) material.color.setRGB(...definition.diffuseColor);
       if ('roughness' in material) material.roughness = definition.roughness;
       if ('metalness' in material) material.metalness = definition.metallic;
@@ -87,17 +93,23 @@ export function applyEntityWaterShader(entity) {
     const materials = Array.isArray(child.material) ? child.material : [child.material];
     const nextMaterials = materials.map((material, index) => {
       const definition = entity.materials[index];
-      if (water || definition?.shader === 'Water') {
+      if (water || definition?.shader === 'Water' || definition?.shaderId === 'builtin/water') {
         if (!material.userData?.waterShader) {
           const shaderDefinition = definition ?? { diffuseColor: [0.08, 0.45, 0.72] };
-          const shader = createWaterMaterial({ color: shaderDefinition.diffuseColor, level: entity.position[1], map: material.map ?? null });
+          const shader = createWaterMaterial({
+            color: shaderDefinition.diffuseColor,
+            level: entity.position[1],
+            map: material.map ?? null,
+            roughness: shaderDefinition.roughness,
+            opacity: shaderDefinition.opacity,
+          });
           shader.userData.waterShader = true;
           shader.userData.originalMaterial = material;
           return shader;
         }
         return material;
       }
-      if (material.userData?.waterShader && !water && definition?.shader !== 'Water') return material.userData.originalMaterial ?? material;
+      if (material.userData?.waterShader && !water && definition?.shader !== 'Water' && definition?.shaderId !== 'builtin/water') return material.userData.originalMaterial ?? material;
       return material;
     });
     child.material = Array.isArray(child.material) ? nextMaterials : nextMaterials[0];

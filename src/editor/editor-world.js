@@ -13,6 +13,7 @@ import {
 import { buildDefaultWorldConfig, resolveWorldConfig } from './editor-scene-config.js';
 import { readSavedMapConfig, saveMapConfig } from '../map-config.js';
 import { entitySnapshot } from './editor-entity-utils.js';
+import { migrateWorldResources } from '../resources/resource-library.js';
 
 export function createWorldController(getters, setters = {}) {
   const get = (key) => {
@@ -36,6 +37,7 @@ export function createWorldController(getters, setters = {}) {
     const fog = get('fog');
     const sounds = get('sounds');
     const shaders = get('shaders');
+    const materials = get('materials');
     const assets = get('assets');
     const entities = get('entities');
     const enemyTypes = get('enemyTypes');
@@ -43,7 +45,7 @@ export function createWorldController(getters, setters = {}) {
     const maxHp = Math.max(1, Number(player?.status?.maxHp) || 20);
     return {
       format: 'webrpg.world',
-      version: 2,
+      version: 3,
       scene: {
         name: 'main-world',
         units: 'world',
@@ -71,7 +73,15 @@ export function createWorldController(getters, setters = {}) {
         },
       },
       sounds: { ...(sounds ?? {}) },
-      shaders: (shaders ?? []).map(({ path, stage, source, tag, properties }) => ({ path, stage, source, tag, properties: { ...(properties ?? {}) } })),
+      resources: {
+        shaders: (shaders ?? []).map((shader) => ({ ...shader, properties: { ...(shader.properties ?? {}) } })),
+        materials: (materials ?? []).map((material) => ({
+          ...material,
+          parameters: { ...(material.parameters ?? {}) },
+          state: { ...(material.state ?? {}) },
+        })),
+      },
+      shaders: (shaders ?? []).map((shader) => ({ ...shader, properties: { ...(shader.properties ?? {}) } })),
       player: {
         ...(player ?? {}),
         maxHp,
@@ -111,51 +121,51 @@ export function createWorldController(getters, setters = {}) {
   }
 
   async function loadWorld(config) {
-    const nextSkyColor = normalizeSkyColor(config?.scene?.skyColor);
+    const migratedConfig = migrateWorldResources(config);
+    const nextSkyColor = normalizeSkyColor(migratedConfig.scene?.skyColor);
     set('skyColor', nextSkyColor);
-    const nextFog = normalizeFog(config?.scene?.fog);
+    const nextFog = normalizeFog(migratedConfig.scene?.fog);
     set('fog', nextFog);
     const updateSceneAtmosphere = getCallback('updateSceneAtmosphere');
     if (typeof updateSceneAtmosphere === 'function') updateSceneAtmosphere();
-    const nextLighting = normalizeLighting(config?.lighting);
+    const nextLighting = normalizeLighting(migratedConfig.lighting);
     set('lighting', nextLighting);
     const updateLightingInspector = getCallback('updateLightingInspector');
     if (typeof updateLightingInspector === 'function') updateLightingInspector();
 
-    const nextSounds = normalizeSounds(config?.sounds);
+    const nextSounds = normalizeSounds(migratedConfig.sounds);
     set('sounds', nextSounds);
-    const nextShaders = Array.isArray(config?.shaders) && config.shaders.length ? config.shaders.filter((shader) => shader?.path && typeof shader.source === 'string').map((shader) => ({ ...shader, properties: { ...(shader.properties ?? {}) } })) : null;
-    if (nextShaders) {
-      set('shaders', nextShaders);
-      getCallback('renderShaders')?.();
-    }
+    const nextShaders = (migratedConfig.resources?.shaders ?? []).filter((shader) => shader?.id);
+    set('shaders', nextShaders);
+    set('materials', migratedConfig.resources?.materials ?? []);
+    getCallback('renderShaders')?.();
 
     const nextPlayer = {
       ...(get('player') ?? {}),
-      ...(config?.player ?? {}),
-      position: normalizeVector(config?.player?.position, [0, 0, 0]),
-      rotation: normalizeVector(config?.player?.rotation, [0, 0, 0]),
-      scale: normalizeVector(config?.player?.scale, [1, 1, 1]),
-      status: { ...((get('player') ?? {}).status ?? {}), ...(config?.player?.status ?? {}) },
-      inventory: Array.isArray(config?.player?.inventory) ? config.player.inventory : [...((get('player') ?? {}).inventory ?? [])],
+      ...(migratedConfig.player ?? {}),
+      position: normalizeVector(migratedConfig.player?.position, [0, 0, 0]),
+      rotation: normalizeVector(migratedConfig.player?.rotation, [0, 0, 0]),
+      scale: normalizeVector(migratedConfig.player?.scale, [1, 1, 1]),
+      status: { ...((get('player') ?? {}).status ?? {}), ...(migratedConfig.player?.status ?? {}) },
+      inventory: Array.isArray(migratedConfig.player?.inventory) ? migratedConfig.player.inventory : [...((get('player') ?? {}).inventory ?? [])],
       collision: {
         ...((get('player') ?? {}).collision ?? {}),
-        ...(config?.player?.collision ?? {}),
-        offset: normalizeVector(config?.player?.collision?.offset ?? ((get('player') ?? {}).collision?.offset), [0, 0, 0]),
-        scale: normalizeVector(config?.player?.collision?.scale ?? ((get('player') ?? {}).collision?.scale), [1, 1, 1]),
+        ...(migratedConfig.player?.collision ?? {}),
+        offset: normalizeVector(migratedConfig.player?.collision?.offset ?? ((get('player') ?? {}).collision?.offset), [0, 0, 0]),
+        scale: normalizeVector(migratedConfig.player?.collision?.scale ?? ((get('player') ?? {}).collision?.scale), [1, 1, 1]),
       },
-      animation: { ...((get('player') ?? {}).animation ?? {}), ...(config?.player?.animation ?? {}) },
+      animation: { ...((get('player') ?? {}).animation ?? {}), ...(migratedConfig.player?.animation ?? {}) },
     };
-    nextPlayer.status.maxHp = Math.max(1, Number(config?.player?.maxHp ?? nextPlayer.status.maxHp) || 20);
+    nextPlayer.status.maxHp = Math.max(1, Number(migratedConfig.player?.maxHp ?? nextPlayer.status.maxHp) || 20);
     nextPlayer.maxHp = nextPlayer.status.maxHp;
     set('player', nextPlayer);
 
-    set('assets', (config?.assets ?? []).filter((asset) => asset.url && !asset.url.startsWith('blob:')).map((asset) => ({
+    set('assets', (migratedConfig.assets ?? []).filter((asset) => asset.url && !asset.url.startsWith('blob:')).map((asset) => ({
       ...asset,
       format: asset.format ?? asset.name?.split('?')[0].split('.').pop().toLowerCase() ?? 'glb',
     })));
-    set('enemyTypes', (Array.isArray(config?.enemyTypes) ? config.enemyTypes : defaultEnemyTypes).map((type, index) => normalizeEnemyType({ ...type, gold: { ...type.gold }, itemDrops: [...(type.itemDrops ?? [])] }, index)));
-    set('enemyAreas', (Array.isArray(config?.enemyAreas) ? config.enemyAreas : []).map((area) => normalizeEnemyArea({ ...area })));
+    set('enemyTypes', (Array.isArray(migratedConfig.enemyTypes) ? migratedConfig.enemyTypes : defaultEnemyTypes).map((type, index) => normalizeEnemyType({ ...type, gold: { ...type.gold }, itemDrops: [...(type.itemDrops ?? [])] }, index)));
+    set('enemyAreas', (Array.isArray(migratedConfig.enemyAreas) ? migratedConfig.enemyAreas : []).map((area) => normalizeEnemyArea({ ...area })));
     getCallback('renderAssets')?.();
     getCallback('renderEnemyTypes')?.();
     getCallback('renderEnemyAreas')?.();
@@ -167,7 +177,7 @@ export function createWorldController(getters, setters = {}) {
     set('selectedEnemyAreaId', null);
 
     const assets = get('assets') ?? [];
-    for (const definition of config?.entities ?? []) {
+    for (const definition of migratedConfig.entities ?? []) {
       if (!definition || typeof definition !== 'object') continue;
       if (definition.type === 'pointLight') {
         const object = new THREE.PointLight(
@@ -182,7 +192,14 @@ export function createWorldController(getters, setters = {}) {
         const asset = assets.find((item) => item.id === definition.assetId);
         const instantiateAsset = getCallback('instantiateAsset');
         if (asset && typeof instantiateAsset === 'function') {
-          await instantiateAsset({ ...asset, _definition: definition });
+          try {
+            await instantiateAsset({ ...asset, _definition: definition });
+          } catch (error) {
+            console.error(`Falha ao carregar a entidade ${definition.name ?? definition.id}.`, error);
+            const addEntity = getCallback('addEntity');
+            if (typeof addEntity === 'function') addEntity({ ...definition, object: null });
+            getCallback('setStatus')?.(`Asset ${asset.name ?? asset.id} falhou; entidade preservada`);
+          }
         } else if (definition.primitive) {
           const createPrimitiveObject = getCallback('createPrimitiveObject');
           if (typeof createPrimitiveObject === 'function') {
@@ -211,18 +228,47 @@ export function createWorldController(getters, setters = {}) {
       credentials: 'include',
       cache: 'no-store',
     }).catch(() => null);
+    if (!response?.ok) getCallback('setStatus')?.(`Banco indisponível; usando o mapa local (HTTP ${response?.status ?? 'sem resposta'})`);
     const remoteConfig = response?.ok ? await response.json().catch(() => null) : null;
     const savedConfig = readSavedMapConfig();
     const fallbackConfig = buildDefaultWorldConfig();
     const config = resolveWorldConfig(
-      remoteConfig && (remoteConfig.entities || remoteConfig.assets || remoteConfig.enemyAreas || remoteConfig.shaders)
+      remoteConfig && (remoteConfig.entities || remoteConfig.assets || remoteConfig.enemyAreas || remoteConfig.shaders || remoteConfig.resources)
         ? remoteConfig
-        : (savedConfig && (savedConfig.entities || savedConfig.assets || savedConfig.enemyAreas)
+        : (savedConfig && (savedConfig.entities || savedConfig.assets || savedConfig.enemyAreas || savedConfig.shaders || savedConfig.resources)
           ? savedConfig
           : fallbackConfig),
       fallbackConfig,
     );
-    await loadWorld(config);
+    try {
+      await loadWorld(config);
+    } catch (error) {
+      getCallback('setStatus')?.(`Falha ao carregar o mundo: ${error.message}`);
+      console.error('Falha ao carregar o mundo persistido.', error);
+    }
+  }
+
+  async function refreshShaders() {
+    const httpUrl = get('httpUrl');
+    const response = await fetch(`${httpUrl}/api/map-config`, {
+      credentials: 'include',
+      cache: 'no-store',
+    }).catch(() => null);
+    const remoteConfig = response?.ok ? await response.json().catch(() => null) : null;
+    const savedConfig = readSavedMapConfig();
+    const config = remoteConfig?.resources?.shaders
+      ? remoteConfig
+      : Array.isArray(remoteConfig?.shaders)
+      ? remoteConfig
+      : (savedConfig?.resources?.shaders || Array.isArray(savedConfig?.shaders) ? savedConfig : null);
+    if (!config) return false;
+    const migratedConfig = migrateWorldResources(config);
+    const nextShaders = migratedConfig.resources?.shaders ?? [];
+    set('shaders', nextShaders);
+    set('materials', migratedConfig.resources?.materials ?? []);
+    getCallback('renderShaders')?.();
+    getCallback('setStatus')?.('Shaders atualizados do mundo publicado');
+    return true;
   }
 
   function download() {
@@ -261,6 +307,7 @@ export function createWorldController(getters, setters = {}) {
     updateSummary,
     loadWorld,
     loadSavedWorld,
+    refreshShaders,
     download,
     applyToGame,
   };

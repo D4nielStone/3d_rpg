@@ -13,6 +13,7 @@
       <div class="editor-actions">
         <button id="assets-toggle" class="secondary-button" type="button" aria-controls="assets-panel" aria-expanded="false">Assets</button>
         <button id="inspector-toggle" class="secondary-button" type="button" aria-controls="inspector-panel" aria-expanded="false">Inspector</button>
+        <button id="shaders-toggle" class="secondary-button" type="button" aria-controls="shader-panel" aria-expanded="false">Shaders</button>
         <button id="undo-button" class="icon-button" type="button" title="Desfazer">↶</button>
         <button id="redo-button" class="icon-button" type="button" title="Refazer">↷</button>
         <button id="clear-button" class="secondary-button" type="button">Limpar cena</button>
@@ -84,7 +85,6 @@
           <button class="inspector-tab" type="button" role="tab" aria-selected="false" data-inspector-tab="entity-inspector">Inspector</button>
           <button class="inspector-tab" type="button" role="tab" aria-selected="false" data-inspector-tab="scene-settings">Config</button>
           <button class="inspector-tab" type="button" role="tab" aria-selected="false" data-inspector-tab="world-json">JSON</button>
-          <button class="inspector-tab" type="button" role="tab" aria-selected="false" data-inspector-tab="shaders">Shaders</button>
         </nav>
         <div class="panel-section inspector-tab-panel panel-section-active" data-inspector-panel="scene-tree">
           <div class="section-heading"><h2>Scene</h2><span id="scene-tree-count">0</span></div>
@@ -273,11 +273,15 @@
           <dl class="map-summary"><div><dt>Entidades</dt><dd id="entity-summary-count">0</dd></div></dl>
         </div>
         <div class="panel-section inspector-tab-panel export-preview" data-inspector-panel="world-json"><h2>World JSON</h2><pre id="json-preview">{}</pre></div>
-        <div class="panel-section inspector-tab-panel shader-panel" data-inspector-panel="shaders">
+      </aside>
+
+      <aside id="shader-panel" class="shader-panel" aria-label="Shaders">
+        <button class="panel-close icon-button" type="button" data-close-panel="shader-panel" title="Fechar shaders">×</button>
+        <div class="panel-section">
           <div class="section-heading"><h2>Shaders e arquivos</h2><span id="shader-count">0</span></div>
           <div class="shader-workspace">
             <aside class="shader-file-manager" aria-label="Arquivos do projeto">
-              <div class="shader-manager-heading"><strong>Arquivos</strong><label class="file-button" for="shader-import-file" title="Importar arquivo">+</label></div>
+              <div class="shader-manager-heading"><strong>Arquivos</strong><span><button id="shader-new-button" class="icon-button" type="button" title="Criar shader">+</button><button id="shader-duplicate-button" class="icon-button" type="button" title="Duplicar shader">&#x2398;</button><label class="file-button" for="shader-import-file" title="Importar arquivo">+</label></span></div>
               <div id="shader-file-list" class="shader-file-list"></div>
             </aside>
             <div class="shader-editor-column">
@@ -286,10 +290,12 @@
                 <span id="shader-language" class="shader-language">texto</span>
               </div>
               <div class="shader-actions">
+                <button id="shader-refresh-button" class="secondary-button" type="button">Atualizar</button>
+                <button id="shader-delete-button" class="danger-button" type="button">Excluir</button>
                 <button id="shader-save-button" class="primary-button" type="button">Salvar no mundo</button>
                 <button id="shader-apply-button" class="primary-button" type="button">Aplicar no viewport</button>
                 <button id="shader-download-button" class="secondary-button" type="button">Baixar</button>
-                <input id="shader-import-file" type="file" accept=".glsl,.vert,.frag,.js,.ts,.json,.css,.html,.txt" hidden />
+                <input id="shader-import-file" type="file" accept=".mat,.glsl,.vert,.frag,.js,.ts,.json,.css,.html,.txt" hidden />
               </div>
               <div class="shader-editor" aria-label="Editor de arquivo de texto">
                 <pre id="shader-highlight" aria-hidden="true"></pre>

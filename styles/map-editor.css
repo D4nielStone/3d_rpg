@@ -18,10 +18,6 @@ h1, h2, p { margin-top: 0; } h1 { margin-bottom: 0; font-size: 1.65rem; letter-s
 .asset-panel, .inspector-panel { position: fixed; z-index: 15; top: 4.1rem; bottom: .75rem; display: none; overflow: auto; width: min(20rem, calc(100vw - 1.5rem)); padding: 1rem; background: rgb(24 29 27 / 96%); box-shadow: 0 1rem 3rem rgb(0 0 0 / 35%); }
 .asset-panel { left: .75rem; border-right: 1px solid var(--line); } .inspector-panel { right: .75rem; border-left: 1px solid var(--line); }
 .asset-panel.panel-open, .inspector-panel.panel-open { display: block; }
-.shader-editor-fullscreen .inspector-panel { inset: 4.1rem .75rem .75rem; width: auto; }
-.shader-editor-fullscreen .shader-panel { min-height: calc(100vh - 6rem); }
-.shader-editor-fullscreen .shader-workspace { grid-template-columns: 12rem minmax(0, 1fr); min-height: calc(100vh - 18rem); }
-.shader-editor-fullscreen .shader-editor { min-height: calc(100vh - 22rem); }
 .panel-close { position: absolute; top: .65rem; right: .65rem; width: 1.8rem; height: 1.8rem; }
 .inspector-tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: .25rem; margin: 0 0 .75rem; padding-right: 2.5rem; } .inspector-tab { min-height: 1.9rem; padding: 0 .35rem; color: var(--muted); background: transparent; font-size: .62rem; } .inspector-tab-active { border-color: var(--accent); color: var(--accent); background: var(--panel-soft); } .inspector-tab-panel { display: none; } .inspector-tab-panel.panel-section-active { display: block; }
 .panel-section { padding-bottom: 1rem; margin-bottom: 1rem; border-bottom: 1px solid var(--line); } .panel-section:last-child { border-bottom: 0; }
@@ -147,6 +143,10 @@ h1 { font-size: .88rem; font-weight: 600; letter-spacing: 0; }
 .asset-panel, .inspector-panel { top: 3rem; bottom: 0; width: 18rem; padding: .65rem; border: 0; border-radius: 0; background: var(--panel); box-shadow: none; }
 .asset-panel { left: 0; border-right: 1px solid var(--line); }
 .inspector-panel { right: 0; width: 21rem; border-left: 1px solid var(--line); }
+.shader-panel { position: fixed; z-index: 16; top: 3rem; right: 0; bottom: 0; display: none; overflow: auto; width: min(32rem, calc(100vw - 1rem)); padding: .65rem; border-left: 1px solid var(--line); background: var(--panel); }
+.shader-panel.panel-open { display: block; }
+.shader-panel .panel-close { display: block; }
+body.shader-dock-open .inspector-panel { display: none; }
 .asset-panel.panel-open, .inspector-panel.panel-open { display: block; }
 .panel-close { top: .45rem; right: .45rem; }
 .panel-section { padding-bottom: .7rem; margin-bottom: .7rem; border-bottom-color: var(--line-soft); }
@@ -173,6 +173,7 @@ label { color: #c4c7cb; }
 	.asset-panel { display: block; }
 	.inspector-panel { display: block; }
 	.canvas-stage { margin-left: 18rem; margin-right: 21rem; }
+	body.shader-dock-open .canvas-stage { margin-right: 32rem; }
 	.asset-panel .panel-close, .inspector-panel .panel-close { display: none; }
 	.editor-actions #assets-toggle, .editor-actions #inspector-toggle { display: none; }
 }
@@ -190,6 +191,7 @@ label { color: #c4c7cb; }
 	.asset-panel { width: 15rem; }
 	.inspector-panel { width: 18rem; }
 	.canvas-stage { margin-left: 15rem; margin-right: 18rem; }
+	body.shader-dock-open .canvas-stage { margin-right: 27rem; }
 	#map-coordinates { display: none; }
 }
 
