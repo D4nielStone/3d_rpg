@@ -153,8 +153,11 @@ export class PhysicsSystem {
         movement?.angle ?? transform.rotation?.[1] ?? 0,
         (body.speed ?? 0) * (movement?.magnitude ?? 0),
         step,
+        false,
       );
     }
+
+    this.physicsWorld.step(step);
 
     // 2. Recupera a posição física resultante.
     for (const entity of world.query(Transform, Rigidbody)) {

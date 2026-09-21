@@ -274,10 +274,16 @@ const enemyAreaVisuals = editorScene.enemyAreaVisuals;
 const entityGroup = editorScene.entityGroup;
 const collisionGroup = editorScene.collisionGroup;
 let collisionDebugVisible = false;
+function refreshCollisionDebug() {
+  entities.forEach((entity) => updateCollisionVisual(entity));
+}
 window.addEventListener('keydown', (event) => {
-  if (event.key !== 'F6' || event.repeat) return;
+  if ((event.code !== 'F6' && event.key !== 'F6') || event.repeat) return;
+  event.preventDefault();
   collisionDebugVisible = !collisionDebugVisible;
   collisionGroup.visible = collisionDebugVisible;
+  if (collisionDebugVisible) refreshCollisionDebug();
+  setStatus(collisionDebugVisible ? 'Colisões físicas visíveis (F6).' : 'Colisões físicas ocultas (F6).');
 });
 const raycaster = editorScene.raycaster;
 const pointer = editorScene.pointer;
@@ -302,6 +308,67 @@ function renderEnemyAreaVisuals() {
     outline.position.set(...area.center); outline.position.y += 0.04; outline.renderOrder = 8;
     enemyAreaVisuals.add(outline);
   });
+}
+
+function clearCollisionVisual(entity) {
+  const visual = collisionGroup.getObjectByName(`collision-${entity.id}`);
+  if (!visual) return;
+  collisionGroup.remove(visual);
+  disposeObject(visual);
+}
+
+function createCollisionSurfaceVisual(surface, material) {
+  const geometry = createCollisionSurfaceGeometry(surface);
+  if (!geometry) return null;
+  return new THREE.Mesh(geometry, material);
+}
+
+function updateCollisionVisual(entity) {
+  if (!entity?.object) return;
+  clearCollisionVisual(entity);
+  if (!entity.collision?.enabled) return;
+
+  normalizeCollision(entity);
+  const group = new THREE.Group();
+  group.name = `collision-${entity.id}`;
+  const material = new THREE.MeshBasicMaterial({
+    color: entity.collision.shape === 'model' ? 0xff5522 : 0x66ff66,
+    wireframe: true,
+    transparent: true,
+    opacity: 0.9,
+    depthTest: false,
+  });
+
+  if (entity.collision.shape === 'model') {
+    const surface = createCollisionSurface(entity.object, 32, entity.collision.scale);
+    const surfaceVisual = createCollisionSurfaceVisual(surface, material);
+    if (surfaceVisual) group.add(surfaceVisual);
+  } else {
+    const scale = getCombinedCollisionScale(entity);
+    const descriptors = getColliderDescriptors(entity.collision.shape, scale);
+    for (const descriptor of descriptors) {
+      let geometry;
+      if (descriptor.type === 'cylinder') {
+        geometry = new THREE.CylinderGeometry(descriptor.radius, descriptor.radius, descriptor.height, 16, 1, true);
+      } else if (descriptor.type === 'ball') {
+        geometry = new THREE.SphereGeometry(descriptor.radius, 16, 8);
+      } else {
+        geometry = new THREE.BoxGeometry(...descriptor.halfExtents.map((value) => value * 2));
+      }
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.position.set(...descriptor.translation);
+      group.add(mesh);
+    }
+  }
+
+  const offset = entity.collision.offset ?? [0, 0, 0];
+  group.position.set(...entity.position);
+  group.position.x += Number(offset[0]) || 0;
+  group.position.y += Number(offset[1]) || 0;
+  group.position.z += Number(offset[2]) || 0;
+  group.rotation.set(...entity.rotation);
+  group.renderOrder = 20;
+  collisionGroup.add(group);
 }
 // Adiciona uma entidade à cena, normalizando seus dados e aplicando transformações e materiais.
 function addEntity(entity, object = null, animations = []) {
@@ -898,6 +965,7 @@ const editorEventContext = {
   renderSceneTree, updateAnimationInspector, setAnimationPlaying,
   stopAnimation, applyEntityAnimation, syncPlayerFromPreview, renderMeshList,
   normalizeCollision, normalizeEntityMaterials, applyEntityMaterials,
+  updateCollisionVisual, clearCollisionVisual,
   download, exportConfig, loadSavedWorld, listEditorEntities, newId,
   selectEntity, selectEnemyArea, materialIndexForObject, resize, lights: [],
   entityNameInput: document.querySelector('#entity-name'),

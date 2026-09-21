@@ -446,6 +446,7 @@ export class PhysicsWorld {
     angle,
     speed = 3,
     deltaSeconds = FIXED_TIME_STEP,
+    advanceWorld = true,
   ) {
     this.lastCollision = null;
 
@@ -505,7 +506,7 @@ export class PhysicsWorld {
     body.velocity.z =
       inputZ * safeSpeed;
 
-    this.step(safeDelta);
+    if (advanceWorld) this.step(safeDelta);
 
     return [
       body.position.x,
