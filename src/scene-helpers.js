@@ -3,6 +3,13 @@ import { loadPlayer, spawnFallbackPlayer } from './player-factory.js';
 
 const CAMERA_STORAGE_KEY = 'webgl-rpg-player-camera';
 
+export function isMobileCameraViewport() {
+  return typeof window !== 'undefined' && (
+    window.matchMedia?.('(pointer: coarse) and (max-width: 900px)').matches
+    || window.innerWidth <= 900
+  );
+}
+
 function readCameraSettings() {
   try {
     const value = JSON.parse(window.localStorage.getItem(CAMERA_STORAGE_KEY) ?? 'null');
@@ -42,7 +49,7 @@ export function followPlayer(game, playerEntity) {
   const transform = game.world.getComponent(playerEntity, Transform);
   const settings = readCameraSettings();
   game.camera.orbitalFollow(transform, {
-    distance: 6,
+    distance: isMobileCameraViewport() ? 10 : 6,
     azimuth: 0,
     elevation: 0.35,
     targetHeight: 0.5,

@@ -216,15 +216,20 @@ export class Camera {
     return settings;
   }
 
-  zoom(amount, { minDistance = 14, maxDistance = 30 } = {}) {
+  setDistance(distance, { minDistance = 6, maxDistance = 18 } = {}) {
     if (!this.orbit) return;
-    const distance = Math.min(
+    const nextDistance = Math.min(
       maxDistance,
-      Math.max(minDistance, this.orbit.distance + amount),
+      Math.max(minDistance, Number(distance) || minDistance),
     );
-    if (distance === this.orbit.distance) return;
-    this.orbit.distance = distance;
+    if (nextDistance === this.orbit.distance) return;
+    this.orbit.distance = nextDistance;
     this.orbit.onChange?.(this.getOrbitSettings());
+  }
+
+  zoom(amount, options = {}) {
+    if (!this.orbit) return;
+    this.setDistance(this.orbit.distance + amount, options);
   }
 
   rotateOrbit(deltaAzimuth, deltaElevation, {

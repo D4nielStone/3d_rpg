@@ -41,6 +41,50 @@ export function handleCameraWheel(camera, event) {
   camera.zoom(event.deltaY * 0.01);
 }
 
+export function attachCameraTouchControls(camera, canvas, slider = null, onPinchStart = null) {
+  if (!canvas) return;
+  const pointers = new Map();
+  let previousDistance = null;
+  const syncSlider = () => {
+    if (slider && camera.orbit) slider.value = String(camera.orbit.distance);
+  };
+  const distanceBetweenPointers = () => {
+    const [first, second] = [...pointers.values()];
+    return Math.hypot(first.clientX - second.clientX, first.clientY - second.clientY);
+  };
+
+  canvas.addEventListener('pointerdown', (event) => {
+    if (event.pointerType === 'mouse') return;
+    pointers.set(event.pointerId, event);
+    if (pointers.size === 2) {
+      previousDistance = distanceBetweenPointers();
+      onPinchStart?.();
+      event.preventDefault();
+    }
+  }, { passive: false });
+  canvas.addEventListener('pointermove', (event) => {
+    if (!pointers.has(event.pointerId)) return;
+    pointers.set(event.pointerId, event);
+    if (pointers.size !== 2) return;
+    const currentDistance = distanceBetweenPointers();
+    if (previousDistance !== null) camera.zoom((previousDistance - currentDistance) * 0.035);
+    previousDistance = currentDistance;
+    syncSlider();
+    event.preventDefault();
+  }, { passive: false });
+  const endPointer = (event) => {
+    pointers.delete(event.pointerId);
+    if (pointers.size < 2) previousDistance = null;
+  };
+  canvas.addEventListener('pointerup', endPointer);
+  canvas.addEventListener('pointercancel', endPointer);
+  canvas.addEventListener('lostpointercapture', endPointer);
+
+  slider?.addEventListener('input', () => {
+    camera.setDistance(Number(slider.value));
+  });
+}
+
 export async function createGame(canvas, mapConfig = null) {
   const normalizedMapConfig = migrateWorldResources(normalizeMapConfig(mapConfig ?? {}, null));
   configureWaterShaderSources(normalizedMapConfig?.resources?.shaders ?? normalizedMapConfig?.shaders ?? []);
@@ -73,6 +117,8 @@ export async function createGame(canvas, mapConfig = null) {
   };
   const input = new InputState(window, canvas);
   input.attachJoystick(document.querySelector('#mobile-joystick'));
+  const cameraSlider = document.querySelector('#mobile-camera-distance');
+  attachCameraTouchControls(camera, canvas, cameraSlider, () => input.cancelClick());
   const renderSystem = new ThreeRenderSystem(
     canvas,
     camera,

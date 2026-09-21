@@ -83,6 +83,10 @@ export class InputState {
     return click;
   }
 
+  cancelClick() {
+    this.pendingClick = null;
+  }
+
   getMovementCommand() {
     const keyboardHorizontal = Number(this.keys.has('d') || this.keys.has('arrowright'))
       - Number(this.keys.has('a') || this.keys.has('arrowleft'));
