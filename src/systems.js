@@ -155,7 +155,11 @@ export class PhysicsSystem {
         this.physicsWorld.syncPlayerHorizontalPosition?.(body.physicsId, transform.position);
       }
       if (movement?.magnitude > 0) {
-        transform.rotation[1] = movement.angle;
+        const rotationAmount = Math.min(1, step * 12);
+        transform.rotation[1] += shortestAngleDelta(
+          movement.angle,
+          transform.rotation[1],
+        ) * rotationAmount;
       }
 
       this.physicsWorld.movePlayer(

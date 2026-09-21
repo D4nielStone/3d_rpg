@@ -509,7 +509,7 @@ export class MultiplayerSystem {
     const deltaSeconds = this.lastFrameTime === null ? 1 / 60 : Math.min((time - this.lastFrameTime) * 0.001, 0.1);
     this.lastFrameTime = time;
     this.applySnapshot(world);
-    this.updateAttackTarget(world, time);
+    this.updateAttackTarget(world, time, deltaSeconds);
     if (!this.socket || this.socket.readyState !== WebSocket.OPEN || !this.localEntity) return;
     if (this.localPlayerDead || this.respawnPending) return;
     if (this.input?.consumePressed('f')) {
@@ -554,7 +554,7 @@ export class MultiplayerSystem {
     this.lastSentAt = time;
   }
 
-  updateAttackTarget(world, time) {
+  updateAttackTarget(world, time, deltaSeconds) {
     if (!this.attackTargetEntity) return;
     const targetTransform = world.getComponent(this.attackTargetEntity, Transform);
     const playerTransform = world.getComponent(this.localEntity, Transform);
@@ -569,7 +569,12 @@ export class MultiplayerSystem {
     const distance = Math.hypot(deltaX, deltaZ);
     const attackDistance = this.combatMode === 'melee' ? COMBAT_DISTANCE : RANGED_ATTACK_DISTANCE;
     if (distance > 0.001) {
-      playerTransform.rotation[1] = Math.atan2(deltaX, deltaZ);
+      const targetAngle = Math.atan2(deltaX, deltaZ);
+      const rotationAmount = Math.min(1, deltaSeconds * 12);
+      playerTransform.rotation[1] += Math.atan2(
+        Math.sin(targetAngle - playerTransform.rotation[1]),
+        Math.cos(targetAngle - playerTransform.rotation[1]),
+      ) * rotationAmount;
     }
 
     if (distance <= attackDistance && time - this.lastAttackRequestAt >= 200) {
