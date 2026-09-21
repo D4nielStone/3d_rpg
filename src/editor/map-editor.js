@@ -273,6 +273,12 @@ const gridHelper = editorScene.gridHelper;
 const enemyAreaVisuals = editorScene.enemyAreaVisuals;
 const entityGroup = editorScene.entityGroup;
 const collisionGroup = editorScene.collisionGroup;
+let collisionDebugVisible = false;
+window.addEventListener('keydown', (event) => {
+  if (event.key !== 'F6' || event.repeat) return;
+  collisionDebugVisible = !collisionDebugVisible;
+  collisionGroup.visible = collisionDebugVisible;
+});
 const raycaster = editorScene.raycaster;
 const pointer = editorScene.pointer;
 const hover = editorScene.hover;
@@ -287,88 +293,6 @@ const gizmos = createEditorGizmos({
 
 function resize() { editorScene.resize(); }
 function disposeObject(object) { editorScene.disposeObject(object); }
-function clearCollisionVisual(entity) {
-  const visual = collisionGroup.getObjectByName(`collision-${entity.id}`);
-  if (!visual) return;
-  collisionGroup.remove(visual);
-  disposeObject(visual);
-}
-function createCollisionSurfaceVisual(surface, material) {
-  if (surface?.mesh) {
-    const geometry = createCollisionSurfaceGeometry(surface);
-    if (geometry) return new THREE.LineSegments(new THREE.EdgesGeometry(geometry), material);
-  }
-
-  const columns = Math.floor(Number(surface?.columns));
-  const rows = Math.floor(Number(surface?.rows));
-  const heights = surface?.heights;
-  if (!Number.isInteger(columns) || columns < 2 || !Number.isInteger(rows) || rows < 2 || !Array.isArray(heights) || heights.length !== columns * rows) return null;
-  const vertices = [];
-  const minX = Number(surface.minX);
-  const maxX = Number(surface.maxX);
-  const minZ = Number(surface.minZ);
-  const maxZ = Number(surface.maxZ);
-  for (let row = 0; row < rows; row += 1) {
-    for (let column = 0; column < columns; column += 1) {
-      const index = row * columns + column;
-      const x = THREE.MathUtils.lerp(minX, maxX, column / (columns - 1));
-      const z = THREE.MathUtils.lerp(minZ, maxZ, row / (rows - 1));
-      const y = Number(heights[index]);
-      if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z)) continue;
-      if (column < columns - 1) {
-        const next = index + 1;
-        vertices.push(x, y, z, THREE.MathUtils.lerp(minX, maxX, (column + 1) / (columns - 1)), Number(heights[next]), z);
-      }
-      if (row < rows - 1) {
-        const next = index + columns;
-        vertices.push(x, y, z, x, Number(heights[next]), THREE.MathUtils.lerp(minZ, maxZ, (row + 1) / (rows - 1)));
-      }
-    }
-  }
-  if (!vertices.length) return null;
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
-  return new THREE.LineSegments(geometry, material);
-}
-function updateCollisionVisual(entity) {
-  clearCollisionVisual(entity);
-  if (!entity?.object || !entity.collision?.enabled) return;
-  normalizeCollision(entity);
-  const collisionScale = entity.collision.scale;
-  const group = new THREE.Group();
-  group.name = `collision-${entity.id}`;
-  const material = new THREE.LineBasicMaterial({ color: 0x42ff72, depthTest: false, transparent: true, opacity: 0.95 });
-  if (entity.collision.shape === 'model') {
-    const surface = createCollisionSurface(entity.object, 32, collisionScale);
-    const surfaceVisual = createCollisionSurfaceVisual(surface, material);
-    if (surfaceVisual) group.add(surfaceVisual);
-  } else {
-    const scale = getCombinedCollisionScale(entity);
-    const descriptors = getColliderDescriptors(entity.collision.shape, scale);
-    if (entity.collision.shape === 'box' || entity.collision.shape === 'convex') {
-      const halfExtents = descriptors[0].halfExtents;
-      const box = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(
-        halfExtents[0] * 2, halfExtents[1] * 2, halfExtents[2] * 2,
-      )), material);
-      group.add(box);
-    } else if (entity.collision.shape === 'capsule') {
-      const radius = descriptors[0].radius;
-      const cylinderHeight = descriptors[0].height;
-      const capsule = new THREE.LineSegments(new THREE.EdgesGeometry(
-        new THREE.CapsuleGeometry(radius, cylinderHeight, 8, 16),
-      ), material);
-      group.add(capsule);
-    }
-  }
-  const offset = entity.collision.offset ?? [0, 0, 0];
-  group.position.set(
-    entity.position[0] + (Number(offset[0]) || 0),
-    entity.position[1] + (Number(offset[1]) || 0),
-    entity.position[2] + (Number(offset[2]) || 0),
-  );
-  group.renderOrder = 20;
-  collisionGroup.add(group);
-}
 function renderEnemyAreaVisuals() {
   while (enemyAreaVisuals.children.length) { const child = enemyAreaVisuals.children.pop(); disposeObject(child); }
   enemyAreas.forEach((area) => {
@@ -407,7 +331,6 @@ function addEntity(entity, object = null, animations = []) {
   });
   applyEntityAnimation(entity);
   entityGroup.add(entity.object);
-  updateCollisionVisual(entity);
   entities.push(entity); selectEntity(entity.id); renderEntities(); updateSummary();
 }
 function syncPlayerFromPreview(entity) {
@@ -444,7 +367,6 @@ async function applyStoredTextures(entity) {
 }
 function removePlayerPreview() {
   if (!playerPreview) return;
-  clearCollisionVisual(playerPreview);
   if (playerPreview.object) {
     entityGroup.remove(playerPreview.object);
     disposeObject(playerPreview.object);
@@ -518,7 +440,6 @@ function createPointLight() {
 }
 function removeEntity(id) {
   const entity = entities.find((item) => item.id === id); if (!entity) return;
-  clearCollisionVisual(entity);
   if (entity.object) { entityGroup.remove(entity.object); disposeObject(entity.object); }
   entities = entities.filter((item) => item.id !== id); if (selectedEntityId === id) selectEntity(null); renderEntities(); updateSummary();
 }
@@ -759,7 +680,7 @@ function renderAssets() {
 function removeAsset(assetId) {
   const asset = assets.find((item) => item.id === assetId); if (!asset) return;
   pushHistory();
-  entities.filter((entity) => entity.assetId === assetId).forEach((entity) => { clearCollisionVisual(entity); if (entity.object) { entityGroup.remove(entity.object); disposeObject(entity.object); } });
+  entities.filter((entity) => entity.assetId === assetId).forEach((entity) => { if (entity.object) { entityGroup.remove(entity.object); disposeObject(entity.object); } });
   entities = entities.filter((entity) => entity.assetId !== assetId);
   if (selectedEntityId && !selectedEntity()) { selectedEntityId = null; gizmos.detach(); }
   assets = assets.filter((item) => item.id !== assetId);
@@ -856,7 +777,7 @@ function updateVector(input) {
     return;
   }
 
-  normalizeEntityTransform(entity); entity[vector][index] = vector === 'rotation' ? THREE.MathUtils.degToRad(safeValue) : safeValue; applyEntityTransform(entity); updateCollisionVisual(entity); gizmos.update(entity.object); if (entity.isPlayerPreview) syncPlayerFromPreview(entity); updateInspector(); updateSummary();
+  normalizeEntityTransform(entity); entity[vector][index] = vector === 'rotation' ? THREE.MathUtils.degToRad(safeValue) : safeValue; applyEntityTransform(entity); gizmos.update(entity.object); if (entity.isPlayerPreview) syncPlayerFromPreview(entity); updateInspector(); updateSummary();
 }
 function setMode(next) { mode = next; document.querySelectorAll('.mode-button').forEach((button) => button.classList.toggle('mode-button-active', button.dataset.mode === mode)); orbit.enabled = true; gizmos.setMode(mode); canvas.style.cursor = 'default'; }
 function exportConfig() {
@@ -974,10 +895,10 @@ const editorEventContext = {
   createEntity, createPrimitive, createPointLight, createEnemyArea, createEnemyType,
   duplicateSelectedEntity, removeEntity, updateEnemyAreaInspector, selectedEnemyArea, selectedEnemyType,
   selectedEntity, pushHistory,
-  updateCollisionVisual, renderSceneTree, updateAnimationInspector, setAnimationPlaying,
+  renderSceneTree, updateAnimationInspector, setAnimationPlaying,
   stopAnimation, applyEntityAnimation, syncPlayerFromPreview, renderMeshList,
   normalizeCollision, normalizeEntityMaterials, applyEntityMaterials,
-  download, exportConfig, loadSavedWorld, listEditorEntities, newId, clearCollisionVisual,
+  download, exportConfig, loadSavedWorld, listEditorEntities, newId,
   selectEntity, selectEnemyArea, materialIndexForObject, resize, lights: [],
   entityNameInput: document.querySelector('#entity-name'),
   collisionEnabledInput: document.querySelector('#collision-enabled'),

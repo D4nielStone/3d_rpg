@@ -7,6 +7,7 @@ import {
   NameTag,
   NetworkTransform,
   OutlineRenderer,
+  Rigidbody,
   ShadowRenderer,
   Transform,
   RayCaster,
@@ -170,6 +171,11 @@ export function addRemoteEnemy(world, enemyAssets, enemy) {
     scale: [scale, scale, scale],
   }));
   world.addComponent(entity, new RayCaster());
+  world.addComponent(entity, new Rigidbody({
+    halfExtents: [Math.max(0.2, scale * 0.35), Math.max(0.25, scale * 0.5), Math.max(0.2, scale * 0.55)],
+    speed: 0,
+    networkDriven: true,
+  }));
   world.addComponent(entity, new EnemyIdentity({
     enemyId: enemy.id,
     type: enemy.type,

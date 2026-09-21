@@ -62,6 +62,7 @@ export function createEditorScene({
   worldGroup.add(entityGroup);
 
   const collisionGroup = new THREE.Group();
+  collisionGroup.visible = false;
   worldGroup.add(collisionGroup);
 
   const raycaster = new THREE.Raycaster();

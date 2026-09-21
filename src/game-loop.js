@@ -21,6 +21,7 @@ export function startGameLoop({
 
     // A ordem importa: movimento local, rede, interpolacao, marcador e renderizacao.
     physicsSystem.update(world, deltaSeconds);
+    renderSystem.updatePhysicsDebug?.(physicsSystem.physicsWorld);
     animationSystem.update(world, deltaSeconds);
     multiplayerSystem.update(world, time);
     networkInterpolationSystem.update(world, deltaSeconds);

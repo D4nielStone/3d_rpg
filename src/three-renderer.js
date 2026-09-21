@@ -77,6 +77,9 @@ export class ThreeRenderSystem {
     this.entityObjects = new Map();
     this.slashEffects = [];
     this.slashGeometry = null;
+    this.physicsDebugGroup = new THREE.Group();
+    this.physicsDebugGroup.visible = false;
+    this.scene.add(this.physicsDebugGroup);
 
     const ambient = lighting.ambientColor ?? [1, 1, 1];
     const ambientLight = new THREE.AmbientLight(colorFrom(ambient), Number(lighting.ambientIntensity ?? 0.04));
@@ -111,6 +114,89 @@ export class ThreeRenderSystem {
       -Math.cos(source.yaw) * Math.cos(source.pitch),
     );
     this.camera.lookAt(this.camera.position.clone().add(direction));
+  }
+
+  updatePhysicsDebug(physicsWorld) {
+    if (!this.physicsDebugGroup.visible || typeof physicsWorld?.getDebugColliders !== 'function') return;
+    while (this.physicsDebugGroup.children.length) {
+      const child = this.physicsDebugGroup.children.pop();
+      child.geometry?.dispose();
+      if (Array.isArray(child.material)) child.material.forEach((material) => material.dispose());
+      else child.material?.dispose();
+    }
+    for (const collider of physicsWorld.getDebugColliders()) {
+      const bounds = collider.bounds;
+      if (!bounds) continue;
+      const center = new THREE.Vector3(
+        (bounds.minX + bounds.maxX) * 0.5,
+        (bounds.minY + bounds.maxY) * 0.5,
+        (bounds.minZ + bounds.maxZ) * 0.5,
+      );
+      const size = new THREE.Vector3(
+        Math.max(0.01, bounds.maxX - bounds.minX),
+        Math.max(0.01, bounds.maxY - bounds.minY),
+        Math.max(0.01, bounds.maxZ - bounds.minZ),
+      );
+      const color = collider.type === 'player' ? 0x33ddff : collider.type === 'model' ? 0xff5522 : 0x66ff66;
+      let colliderObject;
+      if (collider.type === 'player' && collider.shape === 'capsule') {
+        const capsuleHeight = Math.max(collider.radius * 2, collider.height);
+        colliderObject = new THREE.LineSegments(
+          new THREE.EdgesGeometry(new THREE.CapsuleGeometry(collider.radius, capsuleHeight - collider.radius * 2, 8, 4)),
+          new THREE.LineBasicMaterial({ color, depthTest: false }),
+        );
+      } else if (collider.type !== 'model') {
+        colliderObject = new THREE.LineSegments(
+          new THREE.EdgesGeometry(new THREE.BoxGeometry(size.x, size.y, size.z)),
+          new THREE.LineBasicMaterial({ color, depthTest: false }),
+        );
+      }
+      if (colliderObject) {
+        colliderObject.position.copy(center);
+        colliderObject.renderOrder = 20;
+        this.physicsDebugGroup.add(colliderObject);
+      }
+
+      if (collider.type !== 'model' || !collider.mesh?.vertices?.length) continue;
+      const geometry = new THREE.BufferGeometry();
+      const vertices = [];
+      const indices = collider.mesh.indices ?? [];
+      for (let index = 0; index + 2 < indices.length; index += 3) {
+        for (const vertexIndex of [
+          indices[index], indices[index + 1],
+          indices[index + 1], indices[index + 2],
+          indices[index + 2], indices[index],
+        ]) {
+          const source = vertexIndex * 3;
+          vertices.push(
+            collider.mesh.vertices[source],
+            collider.mesh.vertices[source + 1],
+            collider.mesh.vertices[source + 2],
+          );
+        }
+      }
+      geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+      const meshLines = new THREE.LineSegments(
+        geometry,
+        new THREE.LineBasicMaterial({ color: 0xff5522, depthTest: false }),
+      );
+      meshLines.position.set(...collider.position);
+      meshLines.rotation.set(...collider.rotation);
+      meshLines.renderOrder = 21;
+      this.physicsDebugGroup.add(meshLines);
+    }
+  }
+
+  setPhysicsDebugVisible(visible) {
+    this.physicsDebugGroup.visible = Boolean(visible);
+    if (!visible) {
+      while (this.physicsDebugGroup.children.length) {
+        const child = this.physicsDebugGroup.children.pop();
+        child.geometry?.dispose();
+        if (Array.isArray(child.material)) child.material.forEach((material) => material.dispose());
+        else child.material?.dispose();
+      }
+    }
   }
 
   updateDirectionalShadow(light, direction) {

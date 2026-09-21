@@ -227,6 +227,43 @@ function getCollisionShape(entity) {
   return 'box';
 }
 
+function sampleMeshHeight(mesh, x, z) {
+  const vertices = mesh?.vertices;
+  const indices = mesh?.indices;
+  if (!Array.isArray(vertices) || !Array.isArray(indices) || vertices.length < 9 || indices.length < 3) {
+    return null;
+  }
+
+  let highest = -Infinity;
+  for (let index = 0; index + 2 < indices.length; index += 3) {
+    const first = Number(indices[index]) * 3;
+    const second = Number(indices[index + 1]) * 3;
+    const third = Number(indices[index + 2]) * 3;
+    const ax = Number(vertices[first]);
+    const ay = Number(vertices[first + 1]);
+    const az = Number(vertices[first + 2]);
+    const bx = Number(vertices[second]);
+    const by = Number(vertices[second + 1]);
+    const bz = Number(vertices[second + 2]);
+    const cx = Number(vertices[third]);
+    const cy = Number(vertices[third + 1]);
+    const cz = Number(vertices[third + 2]);
+    if (![ax, ay, az, bx, by, bz, cx, cy, cz].every(Number.isFinite)) continue;
+
+    const denominator = (bz - cz) * (ax - cx) + (cx - bx) * (az - cz);
+    if (Math.abs(denominator) < 1e-8) continue;
+    const firstWeight = ((bz - cz) * (x - cx) + (cx - bx) * (z - cz)) / denominator;
+    const secondWeight = ((cz - az) * (x - cx) + (ax - cx) * (z - cz)) / denominator;
+    const thirdWeight = 1 - firstWeight - secondWeight;
+    if (firstWeight < -1e-6 || secondWeight < -1e-6 || thirdWeight < -1e-6) continue;
+
+    const height = firstWeight * ay + secondWeight * by + thirdWeight * cy;
+    if (height > highest) highest = height;
+  }
+
+  return Number.isFinite(highest) ? highest : null;
+}
+
 export class PhysicsWorld {
   constructor(mapConfig = null) {
     this.world = new World({
@@ -495,6 +532,13 @@ export class PhysicsWorld {
     body.wakeUp();
   }
 
+  syncPlayerHorizontalPosition(id, position) {
+    const body = this.bodies.get(id);
+    if (!body || !Array.isArray(position)) return;
+    body.position.x = toFiniteNumber(position[0], body.position.x);
+    body.position.z = toFiniteNumber(position[2], body.position.z);
+  }
+
   updatePlayerVelocity(
     id,
     angle,
@@ -558,6 +602,11 @@ export class PhysicsWorld {
 
   getPlayerHalfExtents() {
     const [x, y, z] = this.playerScale ?? [0.7, 1.4, 0.7];
+    if (this.playerConfig?.collision?.shape === 'capsule') {
+      const radius = Math.max(0.2, Math.min(Math.abs(Number(x) || 0.7), Math.abs(Number(z) || 0.7)) * 0.5);
+      const height = Math.max(radius * 2, Math.abs(Number(y) || 1.4));
+      return { x: radius, y: height * 0.5, z: radius };
+    }
     return {
       x: Math.abs(Number(x) || 0.35) * 0.5,
       y: Math.abs(Number(y) || 0.7) * 0.5,
@@ -583,6 +632,34 @@ export class PhysicsWorld {
       staticBody.position.y,
       staticBody.position.z,
     ];
+
+    const meshVertices = entity?.collision?.surface?.mesh?.vertices;
+    if (Array.isArray(meshVertices) && meshVertices.length >= 9 && meshVertices.length % 3 === 0) {
+      const minimum = [Infinity, Infinity, Infinity];
+      const maximum = [-Infinity, -Infinity, -Infinity];
+      for (let index = 0; index < meshVertices.length; index += 3) {
+        for (let axis = 0; axis < 3; axis += 1) {
+          const value = Number(meshVertices[index + axis]);
+          if (!Number.isFinite(value)) continue;
+          minimum[axis] = Math.min(minimum[axis], value);
+          maximum[axis] = Math.max(maximum[axis], value);
+        }
+      }
+      if (minimum.every(Number.isFinite) && maximum.every(Number.isFinite)) {
+        const meshCenter = [0, 1, 2].map((axis) => (minimum[axis] + maximum[axis]) * 0.5);
+        const meshHalfExtents = [0, 1, 2].map((axis) => Math.max(0.01, (maximum[axis] - minimum[axis]) * 0.5));
+        return {
+          minX: center[0] + meshCenter[0] - meshHalfExtents[0],
+          maxX: center[0] + meshCenter[0] + meshHalfExtents[0],
+          minY: center[1] + meshCenter[1] - meshHalfExtents[1],
+          maxY: center[1] + meshCenter[1] + meshHalfExtents[1],
+          minZ: center[2] + meshCenter[2] - meshHalfExtents[2],
+          maxZ: center[2] + meshCenter[2] + meshHalfExtents[2],
+          center,
+          halfExtents: meshHalfExtents,
+        };
+      }
+    }
 
     const scale = getCombinedScale(entity ?? { scale: [1, 1, 1] });
     const halfExtents = (staticBody.shapes[0]?.shape?.halfExtents ?? [
@@ -612,6 +689,8 @@ export class PhysicsWorld {
     const entityPosition = getVector3(entity.position, [0, 0, 0]);
     const localX = x - entityPosition[0];
     const localZ = z - entityPosition[2];
+    const meshHeight = sampleMeshHeight(surface.mesh, localX, localZ);
+    if (Number.isFinite(meshHeight)) return entityPosition[1] + meshHeight;
     const columns = Math.floor(Number(surface.columns));
     const rows = Math.floor(Number(surface.rows));
     const heights = Array.isArray(surface.heights) ? surface.heights : [];
@@ -712,6 +791,10 @@ export class PhysicsWorld {
           body.position.y = nextY;
           body.velocity.y = Math.max(0, body.velocity.y);
         }
+      }
+
+      if (entity?.collision?.shape === 'model') {
+        continue;
       }
 
       const overlapX = Math.min(playerMax.x - bounds.minX, bounds.maxX - playerMin.x);
@@ -932,6 +1015,48 @@ export class PhysicsWorld {
         body.sleepState ===
         Body.SLEEPING,
     };
+  }
+
+  getDebugColliders() {
+    const colliders = [];
+    for (const [body, info] of this.staticBodies.entries()) {
+      const entity = info?.entity ?? {};
+      colliders.push({
+        type: entity.collision?.shape === 'model' ? 'model' : 'box',
+        name: info?.name ?? entity.id ?? 'collider',
+        bounds: this.getStaticBoxBounds(body),
+        position: [body.position.x, body.position.y, body.position.z],
+        rotation: [...(entity.rotation ?? [0, 0, 0])],
+        mesh: entity.collision?.surface?.mesh ?? null,
+      });
+    }
+
+    for (const [id, body] of this.bodies.entries()) {
+      const half = this.getPlayerHalfExtents();
+      const offset = this.getPlayerCollisionOffset();
+      const center = [
+        body.position.x + offset[0],
+        body.position.y + offset[1],
+        body.position.z + offset[2],
+      ];
+      colliders.push({
+        type: 'player',
+        name: String(id),
+        shape: this.playerConfig?.collision?.shape === 'capsule' ? 'capsule' : 'box',
+        radius: half.x,
+        height: half.y * 2,
+        bounds: {
+          minX: center[0] - half.x,
+          maxX: center[0] + half.x,
+          minY: center[1] - half.y,
+          maxY: center[1] + half.y,
+          minZ: center[2] - half.z,
+          maxZ: center[2] + half.z,
+        },
+      });
+    }
+
+    return colliders;
   }
 
   teleportPlayer(

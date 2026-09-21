@@ -299,10 +299,18 @@ async function start(identity = {}) {
   status.textContent = 'Carregando cena...';
   const mapConfig = await loadPublishedMapConfig();
   const game = await createGame(canvas, mapConfig);
+  let physicsDebugVisible = false;
+  window.addEventListener('keydown', (event) => {
+    if (!identity.isAdmin || event.key !== 'F6' || event.repeat) return;
+    physicsDebugVisible = !physicsDebugVisible;
+    game.renderSystem.setPhysicsDebugVisible(physicsDebugVisible);
+  });
   updateLoading('Carregando cenário e personagem...');
   const { entity: playerEntity, usedFallback } = await loadLocalPlayer(game, mapConfig?.player, mapConfig?.assets);
   game.world.addComponent(playerEntity, new Rigidbody({
-    speed: Number(mapConfig?.player?.speed) || 3,
+    speed: Number.isFinite(Number(mapConfig?.player?.speed))
+      ? Math.max(0, Number(mapConfig.player.speed))
+      : 3,
   }));
   window.__gameDebug = { game, playerEntity };
   game.world.addComponent(playerEntity, new SwordRenderer());

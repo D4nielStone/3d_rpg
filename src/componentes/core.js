@@ -13,12 +13,14 @@ export class Rigidbody {
     gravity = 9.81,
     mass = 1,
     speed = 3,
+    networkDriven = false,
   } = {}) {
     this.halfExtents = [...halfExtents].map((value) => Math.max(0.01, Math.abs(Number(value)) || 0.01));
     this.offset = [...offset].map((value) => Number(value) || 0);
     this.gravity = Math.max(0, Number(gravity) || 0);
     this.mass = Math.max(0.001, Number(mass) || 0.001);
     this.speed = Math.max(0, Number(speed) || 0);
+    this.networkDriven = networkDriven === true;
     this.movementAngle = 0;
     this.movementMagnitude = 0;
     this.velocity = [0, 0, 0];

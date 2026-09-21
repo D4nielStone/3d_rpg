@@ -140,6 +140,9 @@ export class PhysicsSystem {
       }
 
       const movement = this.pendingMovements.get(entity);
+      if (body.networkDriven) {
+        this.physicsWorld.syncPlayerHorizontalPosition?.(body.physicsId, transform.position);
+      }
       if (movement?.magnitude > 0) {
         transform.rotation[1] = movement.angle;
       }
@@ -182,6 +185,7 @@ export class RayCastingSystem {
       const transform = world.getComponent(entity, Transform);
       const rayCaster = world.getComponent(entity, RayCaster);
       const identity = world.getComponent(entity, NetworkIdentity);
+      if (world.getComponent(entity, Rigidbody)) continue;
       const hit = this.physicsWorld.raycastGround(
         transform.position[0] + rayCaster.origin[0],
         transform.position[2] + rayCaster.origin[2],
@@ -228,6 +232,7 @@ export class NetworkInterpolationSystem {
 
       const amount = 1 - Math.exp(-networkTransform.interpolation * deltaSeconds);
       for (let index = 0; index < 3; index += 1) {
+        if (world.getComponent(entity, Rigidbody) && index === 1) continue;
         transform.position[index] +=
           (networkTransform.targetPosition[index] - transform.position[index]) * amount;
       }
