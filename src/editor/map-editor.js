@@ -415,6 +415,12 @@ function syncPlayerFromPreview(entity) {
   player.position = [...entity.position];
   player.rotation = [...entity.rotation];
   player.scale = [...entity.scale];
+  normalizeCollision(entity);
+  player.collision = {
+    ...entity.collision,
+    offset: [...entity.collision.offset],
+    scale: [...entity.collision.scale],
+  };
   player.materials = entity.materials.map((material) => ({ ...material, diffuseColor: [...material.diffuseColor], texture: material.texture ?? null }));
   updatePlayerInspector();
 }
@@ -894,10 +900,19 @@ function readPlayerInspector() {
     player.position = [...previewEntity.position];
     player.rotation = [...previewEntity.rotation];
     player.scale = [...previewEntity.scale];
-    player.collision = { ...previewEntity.collision };
+    normalizeCollision(previewEntity);
+    player.collision = {
+      ...previewEntity.collision,
+      offset: [...previewEntity.collision.offset],
+      scale: [...previewEntity.collision.scale],
+    };
     previewEntity.assetId = player.assetId;
     previewEntity.animation = { ...player.animation };
-    previewEntity.collision = { ...player.collision };
+    previewEntity.collision = {
+      ...player.collision,
+      offset: [...player.collision.offset],
+      scale: [...player.collision.scale],
+    };
   }
   updateSummary();
 }

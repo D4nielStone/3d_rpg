@@ -31,10 +31,37 @@ export class Enemy {
     this.targetPeerId = null;
     this.wanderTarget = null;
     this.wanderPause = 0;
+    this.physicsBody = null;
 
     this.position = [...position];
     this.rotationY = 0;
     this.scale = this.sizeMultiplier;
+  }
+
+  bindPhysics(body) {
+    this.physicsBody = body ?? null;
+
+    if (!this.physicsBody) {
+      return null;
+    }
+
+    if (this.physicsBody.position) {
+      this.physicsBody.position.x = this.position[0];
+      this.physicsBody.position.y = this.position[1];
+      this.physicsBody.position.z = this.position[2];
+    }
+
+    if (this.physicsBody.velocity) {
+      this.physicsBody.velocity.x = 0;
+      this.physicsBody.velocity.y = 0;
+      this.physicsBody.velocity.z = 0;
+    }
+
+    if (typeof this.physicsBody.wakeUp === 'function') {
+      this.physicsBody.wakeUp();
+    }
+
+    return this.physicsBody;
   }
 
   updateChase(players, deltaSeconds, area = null) {
@@ -101,7 +128,11 @@ export class Enemy {
       targetDistance
     );
 
-    this.moveTo(this.position[0] + directionX * step, this.position[2] + directionZ * step);
+    this.moveTo(
+      this.position[0] + directionX * step,
+      this.position[2] + directionZ * step,
+      deltaSeconds,
+    );
   }
 
   updateWander(deltaSeconds, area) {
@@ -140,12 +171,41 @@ export class Enemy {
 
     this.rotationY = Math.atan2(deltaX, deltaZ);
     const step = Math.min(this.moveSpeed * deltaSeconds, distance);
-    this.moveTo(this.position[0] + (deltaX / distance * step), this.position[2] + (deltaZ / distance * step));
+    this.moveTo(
+      this.position[0] + (deltaX / distance * step),
+      this.position[2] + (deltaZ / distance * step),
+      deltaSeconds,
+    );
   }
 
-  moveTo(x, z) {
+  moveTo(x, z, deltaSeconds = 0.016) {
+    const previousX = this.position[0];
+    const previousZ = this.position[2];
+    const safeDelta = Math.max(0.016, Number(deltaSeconds) || 0.016);
+
     this.position[0] = x;
     this.position[2] = z;
+
+    if (!this.physicsBody) {
+      return true;
+    }
+
+    if (this.physicsBody.position) {
+      this.physicsBody.position.x = this.position[0];
+      this.physicsBody.position.y = this.position[1];
+      this.physicsBody.position.z = this.position[2];
+    }
+
+    if (this.physicsBody.velocity) {
+      this.physicsBody.velocity.x = (x - previousX) / safeDelta;
+      this.physicsBody.velocity.z = (z - previousZ) / safeDelta;
+      this.physicsBody.velocity.y = 0;
+    }
+
+    if (typeof this.physicsBody.wakeUp === 'function') {
+      this.physicsBody.wakeUp();
+    }
+
     return true;
   }
 

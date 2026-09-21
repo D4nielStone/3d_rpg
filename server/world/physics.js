@@ -8,6 +8,7 @@ import {
 import { getColliderDescriptors, getCombinedCollisionScale } from '../../shared/collision-shape.js';
 import { normalizePlayerScale } from '../../shared/player-size.js';
 
+const VOID_LIMIT = 10;
 const FIXED_TIME_STEP = 1 / 60;
 const MAX_SUB_STEPS = 3;
 const PLAYER_GRAVITY = 10;
@@ -243,6 +244,7 @@ export class PhysicsWorld {
     this.lastDeltaSeconds = FIXED_TIME_STEP;
 
     const player = mapConfig?.player ?? {};
+    this.playerOrigin = getVector3(player.position, [0, 0, 0]);
     const playerScale = normalizePlayerScale(player.scale);
     this.playerScale = getCombinedCollisionScale({
       scale: playerScale,
@@ -564,6 +566,10 @@ export class PhysicsWorld {
     };
   }
 
+  getPlayerCollisionOffset() {
+    return getVector3(this.playerConfig?.collision?.offset, [0, 0, 0]);
+  }
+
   getStaticBoxBounds(staticBody) {
     if (!staticBody) {
       return null;
@@ -664,15 +670,16 @@ export class PhysicsWorld {
     }
 
     const half = this.getPlayerHalfExtents();
+    const offset = this.getPlayerCollisionOffset();
     const playerMin = {
-      x: body.position.x - half.x,
-      y: body.position.y - half.y,
-      z: body.position.z - half.z,
+      x: body.position.x + offset[0] - half.x,
+      y: body.position.y + offset[1] - half.y,
+      z: body.position.z + offset[2] - half.z,
     };
     const playerMax = {
-      x: body.position.x + half.x,
-      y: body.position.y + half.y,
-      z: body.position.z + half.z,
+      x: body.position.x + offset[0] + half.x,
+      y: body.position.y + offset[1] + half.y,
+      z: body.position.z + offset[2] + half.z,
     };
 
     let closestCollision = null;
@@ -685,12 +692,16 @@ export class PhysicsWorld {
         continue;
       }
 
-      const surfaceHeight = entity?.collision?.surface ? this.sampleSurfaceHeight(entity, body.position.x, body.position.z) : null;
+      const collisionX = body.position.x + offset[0];
+      const collisionZ = body.position.z + offset[2];
+      const surfaceHeight = entity?.collision?.surface
+        ? this.sampleSurfaceHeight(entity, collisionX, collisionZ)
+        : null;
       if (Number.isFinite(surfaceHeight)) {
-        const groundY = surfaceHeight + half.y;
-        const wasAboveGround = Number(previousPosition?.y ?? body.position.y) >= groundY - 0.2;
-        const isWithinBoundsX = body.position.x >= bounds.minX - half.x && body.position.x <= bounds.maxX + half.x;
-        const isWithinBoundsZ = body.position.z >= bounds.minZ - half.z && body.position.z <= bounds.maxZ + half.z;
+        const groundY = surfaceHeight + half.y - offset[1];
+        const wasAboveGround = Number(previousPosition?.y ?? body.position.y) + offset[1] >= surfaceHeight - 0.2;
+        const isWithinBoundsX = collisionX >= bounds.minX - half.x && collisionX <= bounds.maxX + half.x;
+        const isWithinBoundsZ = collisionZ >= bounds.minZ - half.z && collisionZ <= bounds.maxZ + half.z;
         if (isWithinBoundsX && isWithinBoundsZ && body.velocity.y <= 0 && wasAboveGround) {
           const nextY = Math.max(body.position.y, groundY);
           const penetration = Math.abs(nextY - body.position.y);
@@ -723,24 +734,28 @@ export class PhysicsWorld {
       ].sort((a, b) => a[1] - b[1])[0];
 
       if (axis[0] === 'y') {
-        const previousAbove = (previousPosition?.y ?? body.position.y) >= bounds.maxY;
+        const previousAbove = (previousPosition?.y ?? body.position.y) + offset[1] >= bounds.maxY;
         if (body.velocity.y <= 0 && previousAbove) {
-          body.position.y = bounds.maxY + half.y + 0.01;
+          body.position.y = bounds.maxY + half.y - offset[1];
           body.velocity.y = Math.max(0, body.velocity.y);
         } else {
-          body.position.y = bounds.minY - half.y - 0.01;
+          body.position.y = bounds.minY - half.y - offset[1];
           body.velocity.y = Math.min(0, body.velocity.y);
         }
 
         closestCollision = { ...info, playerBody: body, normal: { x: 0, y: axis[0] === 'y' ? 1 : 0, z: 0 }, type: 'box' };
       } else if (axis[0] === 'x') {
         const previousLeft = (previousPosition?.x ?? body.position.x) <= bounds.minX;
-        body.position.x = previousLeft ? bounds.minX - half.x - 0.01 : bounds.maxX + half.x + 0.01;
+        body.position.x = previousLeft
+          ? bounds.minX - half.x - offset[0]
+          : bounds.maxX + half.x - offset[0];
         body.velocity.x = 0;
         closestCollision = { ...info, playerBody: body, normal: { x: previousLeft ? -1 : 1, y: 0, z: 0 }, type: 'wall' };
       } else {
         const previousBack = (previousPosition?.z ?? body.position.z) <= bounds.minZ;
-        body.position.z = previousBack ? bounds.minZ - half.z - 0.01 : bounds.maxZ + half.z + 0.01;
+        body.position.z = previousBack
+          ? bounds.minZ - half.z - offset[2]
+          : bounds.maxZ + half.z - offset[2];
         body.velocity.z = 0;
         closestCollision = { ...info, playerBody: body, normal: { x: 0, y: 0, z: previousBack ? -1 : 1 }, type: 'wall' };
       }
@@ -770,6 +785,17 @@ export class PhysicsWorld {
     for (const body of this.bodies.values()) {
       if (!body || body.type === Body.STATIC) {
         continue;
+      }
+
+      if (body.position.y < -VOID_LIMIT) {
+        body.position.set(...this.playerOrigin);
+        body.velocity.set(0, 0, 0);
+        body.rapierBody?.setTranslation({
+          x: body.position.x,
+          y: body.position.y,
+          z: body.position.z,
+        }, true);
+        body.rapierBody?.setLinvel({ x: 0, y: 0, z: 0 }, true);
       }
 
       const previousPosition = {

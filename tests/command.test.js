@@ -4,6 +4,33 @@ import assert from 'node:assert/strict';
 import { createCommandManager } from '../server/multiplayer/commands.js';
 import { Player } from '../server/player.js';
 
+test('restringe o comando /tp ao administrador', async () => {
+  const messages = [];
+  const player = new Player({ peerId: 'peer-1', nickname: 'Hero' });
+  const socket = { readyState: 1, send: (message) => messages.push(JSON.parse(message)) };
+  const state = {
+    players: new Map([['peer-1', player]]),
+    activeGuestSessions: new Map([['user-1', { peerId: 'peer-1', socket }]]),
+    physics: { teleportPlayer: () => { throw new Error('não deveria mover a física'); } },
+  };
+  const commandManager = createCommandManager({
+    state,
+    playerStore: { save: async () => {} },
+    broadcastSnapshot: () => {},
+  });
+
+  const executed = await commandManager.execute('/tp 10 2 -4', {
+    socket,
+    peerId: 'peer-1',
+    playerId: 'user-1',
+    isAdmin: false,
+    sendSystem: (text) => messages.push({ type: 'system', text }),
+  });
+
+  assert.equal(executed, true);
+  assert.deepEqual(messages[0], { type: 'system', text: 'Comando restrito ao administrador.' });
+});
+
 test('teleporta o jogador e atualiza o cliente alvo', async () => {
   const messages = [];
   const player = new Player({ peerId: 'peer-1', nickname: 'Hero' });
@@ -24,7 +51,7 @@ test('teleporta o jogador e atualiza o cliente alvo', async () => {
     socket,
     peerId: 'peer-1',
     playerId: 'user-1',
-    isAdmin: false,
+    isAdmin: true,
     sendSystem: () => {},
   });
 
@@ -61,7 +88,7 @@ test('teleporta um alvo pelo apelido e atualiza a área', async () => {
     socket: { readyState: 1, send: () => {} },
     peerId: 'peer-1',
     playerId: 'user-1',
-    isAdmin: false,
+    isAdmin: true,
     sendSystem: () => {},
   });
 
@@ -90,10 +117,11 @@ test('recusa teleporte para uma posição de água sem alterar o jogador', async
     socket,
     peerId: 'peer-1',
     playerId: 'user-1',
-    isAdmin: false,
+    isAdmin: true,
     sendSystem: () => {},
   });
 
   assert.deepEqual(player.position, [1, 2, 3]);
   assert.equal(messages[0].text, 'Não é possível teletransportar para a água.');
 });
+

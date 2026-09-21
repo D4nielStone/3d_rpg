@@ -41,6 +41,7 @@ export function createCommandManager({ state, playerStore, broadcastSnapshot }) 
       },
     })
     .register('tp', {
+      scope: 'admin',
       description: 'Teletransporta um jogador: /tp [@jogador] x y z',
       execute: async ({ socket, peerId, playerId, command }) => {
         let targetName = '@p';
@@ -65,7 +66,7 @@ export function createCommandManager({ state, playerStore, broadcastSnapshot }) 
         if (![x, y, z].every(Number.isFinite)) {
           return sendSystemMessage(
             socket,
-            'As coordenadas devem ser números válidos.'
+            'As coordenadas devem ser números válidas.'
           );
         }
 
@@ -96,6 +97,7 @@ export function createCommandManager({ state, playerStore, broadcastSnapshot }) 
             level: destinationArea.areaLevel,
           }
           : { id: 'open-world', name: 'Mundo aberto', level: 0 };
+
         target.player.setTransform(position, target.player.rotation);
         state.physics.teleportPlayer(target.playerId, position);
 

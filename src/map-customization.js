@@ -4,7 +4,32 @@ import { createWater } from './water.js';
 import { readSavedMapConfig } from './map-config.js';
 
 export const DEFAULT_MAP_CONFIG = Object.freeze({
-  enemyAreas: [],
+  enemyTypes: [{
+    id: 'rat',
+    name: 'Rato',
+    model: '',
+    modelFormat: 'glb',
+    level: 1,
+    maxHp: 3,
+    speed: 1.2,
+    defense: 1,
+    accuracy: 1,
+    damage: 1,
+    experience: 2,
+    scale: 0.35,
+    gold: { min: 3, max: 5 },
+    itemDrops: [],
+  }],
+  enemyAreas: [{
+    id: 'starting-rat-area',
+    center: [0, 0, 0],
+    width: 20,
+    depth: 20,
+    maxEnemies: 5,
+    enemyType: 'rat',
+    areaLevel: 1,
+    spawnIntervalMs: 3000,
+  }],
   water: {
     enabled: false,
     size: 50,

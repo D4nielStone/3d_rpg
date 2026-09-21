@@ -41,6 +41,20 @@ test('a camada de física avança o jogador usando o angulo recebido', () => {
   assert.ok(Math.abs(next[2]) < 0.001);
 });
 
+test('a física respeita a posição atual do jogador e não reverte para o estado anterior', () => {
+  const physics = new PhysicsWorld();
+  const previous = [2, 0.7, 0];
+
+  const body = physics.getPlayerBody('stale-player', previous);
+  body.position.set(12, 0.7, 0);
+  body.velocity.set(0, 0, 0);
+
+  const next = physics.movePlayer('stale-player', previous, Math.PI / 2, 3, 0.05);
+
+  assert.ok(next[0] > previous[0]);
+  assert.ok(next[0] < 12);
+});
+
 test('utilitario cria velocidade horizontal proporcional a magnitude', () => {
   const velocity = getMovementVelocity(Math.PI / 2, 4, 0.5);
 

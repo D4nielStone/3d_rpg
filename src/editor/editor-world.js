@@ -83,7 +83,11 @@ export function createWorldController(getters, setters = {}) {
         })),
         status: { ...(player?.status ?? {}), maxHp },
         inventory: [...(player?.inventory ?? [])],
-        collision: { ...(player?.collision ?? {}) },
+        collision: {
+          ...(player?.collision ?? {}),
+          offset: [...(player?.collision?.offset ?? [0, 0, 0])],
+          scale: [...(player?.collision?.scale ?? [1, 1, 1])],
+        },
         animation: { ...(player?.animation ?? {}) },
       },
       assets: (assets ?? []).map(({ id, name, url, source, format, dependencies }) => ({ id, name, url, source, format, dependencies })),
@@ -127,7 +131,12 @@ export function createWorldController(getters, setters = {}) {
       scale: normalizeVector(config?.player?.scale, [1, 1, 1]),
       status: { ...((get('player') ?? {}).status ?? {}), ...(config?.player?.status ?? {}) },
       inventory: Array.isArray(config?.player?.inventory) ? config.player.inventory : [...((get('player') ?? {}).inventory ?? [])],
-      collision: { ...((get('player') ?? {}).collision ?? {}), ...(config?.player?.collision ?? {}) },
+      collision: {
+        ...((get('player') ?? {}).collision ?? {}),
+        ...(config?.player?.collision ?? {}),
+        offset: normalizeVector(config?.player?.collision?.offset ?? ((get('player') ?? {}).collision?.offset), [0, 0, 0]),
+        scale: normalizeVector(config?.player?.collision?.scale ?? ((get('player') ?? {}).collision?.scale), [1, 1, 1]),
+      },
       animation: { ...((get('player') ?? {}).animation ?? {}), ...(config?.player?.animation ?? {}) },
     };
     nextPlayer.status.maxHp = Math.max(1, Number(config?.player?.maxHp ?? nextPlayer.status.maxHp) || 20);
