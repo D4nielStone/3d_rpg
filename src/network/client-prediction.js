@@ -2,13 +2,14 @@ import { FIXED_DT } from '../../shared/network-messages.js';
 import { InputBuffer } from './input-buffer.js';
 
 export class ClientPrediction {
-  constructor({ simulate, getState, setState, send = () => {}, correctionThreshold = 0.35, now = () => Date.now() } = {}) {
+  constructor({ simulate, getState, setState, send = () => {}, correctionThreshold = 0.35, now = () => Date.now(), correctionDuration = 120 } = {}) {
     this.simulate = simulate;
     this.getState = getState;
     this.setState = setState;
     this.send = send;
     this.now = now;
     this.correctionThreshold = correctionThreshold;
+    this.correctionDuration = correctionDuration;
     this.inputBuffer = new InputBuffer();
     this.nextSequence = 0;
     this.localTick = 0;
@@ -35,8 +36,8 @@ export class ClientPrediction {
     const before = this.getState();
     this.inputBuffer.acknowledge(snapshot.lastProcessedInput);
     const error = Math.hypot(before.position.x - snapshot.position.x, before.position.y - snapshot.position.y, before.position.z - snapshot.position.z);
-    if (error > this.correctionThreshold) {
-      this.setState(snapshot);
+    if (error > this.correctionThreshold && this.now() - this.lastCorrectionAt >= 10_000) {
+      this.setState(snapshot, { smooth: true, duration: this.correctionDuration });
       this.lastCorrectionAt = this.now();
       for (const input of this.inputBuffer.values()) this.simulate(input, FIXED_DT);
     }

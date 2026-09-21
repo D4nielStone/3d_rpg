@@ -95,6 +95,7 @@ export class MultiplayerSystem {
     this.lastAttackRequestAt = 0;
     this.lastFrameTime = null;
     this.localVerticalVelocity = 0;
+    this.localCorrection = null;
     this.prediction = new ClientPrediction({
       simulate: (input) => {
         const angle = Math.atan2(input.moveX, input.moveZ);
@@ -102,7 +103,7 @@ export class MultiplayerSystem {
         this.physicsSystem?.setMovement(this.localEntity, angle, magnitude);
       },
       getState: () => this.getLocalPhysicsState(),
-      setState: (snapshot) => this.setLocalPhysicsState(snapshot),
+      setState: (snapshot, options) => this.setLocalPhysicsState(snapshot, options),
       send: (input) => this.socket?.send(JSON.stringify({
         type: 'player_input',
         input,
@@ -152,12 +153,24 @@ export class MultiplayerSystem {
     };
   }
 
-  setLocalPhysicsState(snapshot) {
+  setLocalPhysicsState(snapshot, { smooth = false, duration = 120 } = {}) {
     const transform = this.localEntity
       ? this.world.getComponent(this.localEntity, Transform)
       : null;
     if (!transform || !snapshot?.position) return;
     const position = [snapshot.position.x, snapshot.position.y, snapshot.position.z];
+    if (smooth) {
+      this.localCorrection = {
+        targetPosition: position,
+        targetRotation: snapshot.rotation ? [0, snapshot.rotation.y ?? 0, 0] : null,
+        linearVelocity: snapshot.linearVelocity ?? null,
+        grounded: snapshot.grounded,
+        startedAt: performance.now(),
+        duration: Math.max(1, Number(duration) || 120),
+      };
+      return;
+    }
+    this.localCorrection = null;
     transform.position = position;
     const body = this.world.getComponent(this.localEntity, Rigidbody);
     if (body) {
@@ -169,6 +182,34 @@ export class MultiplayerSystem {
       );
     }
     if (snapshot.rotation) transform.rotation = [0, snapshot.rotation.y ?? 0, 0];
+  }
+
+  applyLocalCorrection(time) {
+    const correction = this.localCorrection;
+    if (!correction || !this.localEntity) return;
+    const transform = this.world.getComponent(this.localEntity, Transform);
+    if (!transform) return;
+    const progress = Math.min(1, Math.max(0, (time - correction.startedAt) / correction.duration));
+    const blend = progress * progress * (3 - 2 * progress);
+    transform.position = transform.position.map((value, index) => (
+      value + (correction.targetPosition[index] - value) * blend
+    ));
+    const body = this.world.getComponent(this.localEntity, Rigidbody);
+    if (body) this.physicsSystem?.syncPlayerState(this.localEntity, transform.position);
+    if (correction.targetRotation) {
+      transform.rotation = transform.rotation.map((value, index) => (
+        value + (correction.targetRotation[index] - value) * blend
+      ));
+    }
+    if (progress >= 1) {
+      this.localCorrection = null;
+      if (body) this.physicsSystem?.syncPlayerState(
+        this.localEntity,
+        transform.position,
+        correction.linearVelocity,
+        correction.grounded,
+      );
+    }
   }
 
   connect({ retry = true } = {}) {
@@ -512,6 +553,7 @@ export class MultiplayerSystem {
     const deltaSeconds = this.lastFrameTime === null ? 1 / 60 : Math.min((time - this.lastFrameTime) * 0.001, 0.1);
     this.lastFrameTime = time;
     this.applySnapshot(world);
+    this.applyLocalCorrection(time);
     this.updateAttackTarget(world, time, deltaSeconds);
     if (!this.socket || this.socket.readyState !== WebSocket.OPEN || !this.localEntity) return;
     if (this.localPlayerDead || this.respawnPending) return;
