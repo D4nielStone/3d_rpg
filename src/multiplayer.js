@@ -127,6 +127,9 @@ export class MultiplayerSystem {
     const transform = this.localEntity
       ? this.world.getComponent(this.localEntity, Transform)
       : null;
+    const body = this.localEntity
+      ? this.world.getComponent(this.localEntity, Rigidbody)
+      : null;
     return {
       position: {
         x: transform?.position?.[0] ?? 0,
@@ -138,6 +141,12 @@ export class MultiplayerSystem {
         y: transform?.rotation?.[1] ?? 0,
         z: 0,
       },
+      linearVelocity: {
+        x: body?.velocity?.[0] ?? 0,
+        y: body?.velocity?.[1] ?? 0,
+        z: body?.velocity?.[2] ?? 0,
+      },
+      grounded: body?.grounded === true,
     };
   }
 

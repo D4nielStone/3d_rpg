@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { normalizePlayerInput } from '../shared/network-messages.js';
 import { InputBuffer } from '../server/multiplayer/input-buffer.js';
 import { MovementValidator } from '../server/multiplayer/movement-validator.js';
+import { ServerPhysicsAuthority } from '../server/multiplayer/server-physics-authority.js';
 import { ClientPrediction } from '../src/network/client-prediction.js';
 import { RemotePlayerInterpolation } from '../src/network/remote-player-interpolation.js';
 
@@ -69,4 +70,33 @@ test('validador rejeita velocidade e teleporte excessivos', () => {
 
 test('validador rejeita pulo no ar', () => {
   assert.equal(new MovementValidator().validateJump({ jump: true }, false), false);
+});
+
+test('autoridade server-side replica estado do client sem executar física', () => {
+  let physicsSteps = 0;
+  const authority = new ServerPhysicsAuthority({
+    physics: { step: () => { physicsSteps += 1; } },
+  });
+  const player = {
+    peerId: 'client-player',
+    position: [0, 0, 0],
+    rotation: [0, 0, 0],
+    setTransform(position, rotation) {
+      this.position = [...position];
+      this.rotation = [...rotation];
+    },
+  };
+
+  authority.addPlayer(player);
+  assert.equal(authority.receiveState(player, {
+    position: [12, 4, -3],
+    rotation: [0, 1.5, 0],
+    linearVelocity: [2, 0, -1],
+    grounded: false,
+  }), true);
+  authority.tick();
+
+  assert.equal(physicsSteps, 0);
+  assert.deepEqual(authority.snapshots()[0].position, { x: 12, y: 4, z: -3 });
+  assert.equal(authority.snapshots()[0].rotation.y, 1.5);
 });
