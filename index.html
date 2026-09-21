@@ -55,35 +55,6 @@
         <main>
             <canvas id="canvas" width="800" height="500"></canvas>
             <button id="chat-toggle" type="button" aria-expanded="false" aria-controls="chat" aria-label="Abrir chat">CHAT</button>
-            <div id="action-bar" aria-label="Ações rápidas">
-                <button class="action-slot action-slot-selected" type="button" data-combat-mode="melee" aria-label="Selecionar ataque corpo a corpo">
-                    <svg class="sword-preview" viewBox="0 0 100 100" aria-hidden="true" focusable="false">
-                        <defs>
-                            <linearGradient id="swordBlade" x1="0%" x2="100%" y1="0%" y2="100%">
-                                <stop offset="0%" stop-color="#f3f8ff" />
-                                <stop offset="35%" stop-color="#dfeafc" />
-                                <stop offset="75%" stop-color="#a8b7d4" />
-                                <stop offset="100%" stop-color="#edf5ff" />
-                            </linearGradient>
-                            <linearGradient id="swordGuard" x1="0%" x2="100%" y1="0%" y2="0%">
-                                <stop offset="0%" stop-color="#f7d36d" />
-                                <stop offset="50%" stop-color="#d89b2b" />
-                                <stop offset="100%" stop-color="#f4d778" />
-                            </linearGradient>
-                        </defs>
-                        <g transform="rotate(45 50 50)">
-                            <rect x="38" y="10" width="24" height="46" rx="3" fill="url(#swordBlade)" />
-                            <rect x="44" y="54" width="12" height="8" rx="2" fill="#9bb6d4" />
-                            <rect x="20" y="46" width="60" height="11" rx="4" fill="url(#swordGuard)" />
-                            <rect x="28" y="53" width="44" height="5" rx="2" fill="#f9e9ad" opacity="0.75" />
-                            <rect x="42" y="57" width="16" height="20" rx="4" fill="#603916" />
-                            <rect x="35" y="76" width="30" height="8" rx="3" fill="#d29a2b" />
-                            <circle cx="50" cy="86" r="7" fill="#f7d36d" />
-                            <rect x="45" y="8" width="10" height="9" rx="2" fill="#eaf6ff" opacity="0.7" />
-                        </g>
-                    </svg>
-                </button>
-            </div>
             <button id="menu-button" type="button" aria-expanded="false" aria-controls="attributes-menu" aria-label="Abrir status">⚙</button>
             <button id="ranking-button" type="button" aria-expanded="false" aria-controls="ranking-menu" aria-label="Abrir ranking">•••</button>
             <aside id="attributes-menu" class="attributes-menu-hidden" aria-labelledby="attributes-title">
