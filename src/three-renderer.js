@@ -113,6 +113,28 @@ export class ThreeRenderSystem {
     this.camera.lookAt(this.camera.position.clone().add(direction));
   }
 
+  updateDirectionalShadow(light, direction) {
+    const source = this.sourceCamera;
+    const focus = source.orbit?.target?.position ?? [
+      this.camera.position.x + direction.x * 24,
+      this.camera.position.y + direction.y * 24,
+      this.camera.position.z + direction.z * 24,
+    ];
+    const shadowDistance = Math.max(24, Math.min(96, source.orbit?.distance ?? 48));
+    const halfHeight = Math.tan(this.camera.fov * Math.PI / 360) * shadowDistance;
+    const halfWidth = halfHeight * this.camera.aspect;
+    const shadowSize = Math.max(halfWidth, halfHeight) * 1.35;
+
+    light.position.set(...focus).addScaledVector(direction, -45);
+    light.target.position.set(...focus);
+    light.target.updateMatrixWorld();
+    light.shadow.camera.left = -shadowSize;
+    light.shadow.camera.right = shadowSize;
+    light.shadow.camera.top = shadowSize;
+    light.shadow.camera.bottom = -shadowSize;
+    light.shadow.camera.updateProjectionMatrix();
+  }
+
   createObject(renderer, texture, isWater, isEnemyArea) {
     const group = new THREE.Group();
     const castShadow = renderer.castShadow !== false;
@@ -306,15 +328,15 @@ export class ThreeRenderSystem {
       if (!light) {
         light = new THREE.DirectionalLight(colorFrom(lightComponent.color, [1, 0.95, 0.85]), Number(lightComponent.intensity ?? 0.8));
         light.castShadow = lightComponent.castShadow !== false;
-        light.shadow.mapSize.set(2048, 2048);
+        light.shadow.mapSize.set(2024, 2024);
         light.shadow.camera.left = -80;
         light.shadow.camera.right = 80;
         light.shadow.camera.top = 80;
         light.shadow.camera.bottom = -80;
         light.shadow.camera.near = 1;
         light.shadow.camera.far = 180;
-        light.shadow.bias = -0.0005;
-        light.shadow.normalBias = 0.02;
+        light.shadow.bias = -0.0002;
+        light.shadow.normalBias = 0.03;
         light.shadow.camera.updateProjectionMatrix();
         this.scene.add(light.target);
         this.scene.add(light);
@@ -326,9 +348,7 @@ export class ThreeRenderSystem {
       const direction = new THREE.Vector3(...(lightComponent.direction ?? [-0.45, 0.85, 0.35]));
       if (direction.lengthSq() === 0) direction.set(-0.45, 0.85, 0.35);
       direction.normalize();
-      light.position.copy(direction).multiplyScalar(-45).add(new THREE.Vector3(...transform.position));
-      light.target.position.set(...transform.position);
-      light.target.updateMatrixWorld();
+      this.updateDirectionalShadow(light, direction);
     }
     for (const [entity, light] of [...this.directionalLightObjects.entries()]) {
       if (!livingDirectionalLights.has(entity)) {

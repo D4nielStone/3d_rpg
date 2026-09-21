@@ -16,6 +16,16 @@ function normalizeAngle(angle) {
   return Math.atan2(Math.sin(angle), Math.cos(angle));
 }
 
+export function applyLocalTransformOverride(transform, networkTransform, position, rotation) {
+  if (!transform) return;
+  if (Array.isArray(position)) transform.position = [...position];
+  if (Array.isArray(rotation)) transform.rotation = [...rotation];
+  if (networkTransform) {
+    networkTransform.targetPosition = null;
+    networkTransform.targetRotation = null;
+  }
+}
+
 export class MultiplayerSystem {
   constructor({
     url,
@@ -220,9 +230,11 @@ export class MultiplayerSystem {
       const transform = this.localEntity
         ? this.world.getComponent(this.localEntity, Transform)
         : null;
-      if (transform && Array.isArray(message.position) && Array.isArray(message.rotation)) {
-        transform.position = [...message.position];
-        transform.rotation = [...message.rotation];
+      const networkTransform = this.localEntity
+        ? this.world.getComponent(this.localEntity, NetworkTransform)
+        : null;
+      if (Array.isArray(message.position) && Array.isArray(message.rotation)) {
+        applyLocalTransformOverride(transform, networkTransform, message.position, message.rotation);
       }
       this.attackTargetEntity = null;
       this.localStateRestored = false;
@@ -237,8 +249,10 @@ export class MultiplayerSystem {
       const transform = this.localEntity
         ? this.world.getComponent(this.localEntity, Transform)
         : null;
-      if (transform && Array.isArray(message.position)) transform.position = [...message.position];
-      if (transform && Array.isArray(message.rotation)) transform.rotation = [...message.rotation];
+      const networkTransform = this.localEntity
+        ? this.world.getComponent(this.localEntity, NetworkTransform)
+        : null;
+      applyLocalTransformOverride(transform, networkTransform, message.position, message.rotation);
       this.localStateRestored = true;
       return;
     }
@@ -247,8 +261,10 @@ export class MultiplayerSystem {
       const transform = this.localEntity
         ? this.world.getComponent(this.localEntity, Transform)
         : null;
-      if (transform && Array.isArray(message.position)) transform.position = [...message.position];
-      if (transform && Array.isArray(message.rotation)) transform.rotation = [...message.rotation];
+      const networkTransform = this.localEntity
+        ? this.world.getComponent(this.localEntity, NetworkTransform)
+        : null;
+      applyLocalTransformOverride(transform, networkTransform, message.position, message.rotation);
       this.onChat({
         type: 'system',
         text: 'Acesso bloqueado: alcance o nível 3 para entrar em uma área superior.',
@@ -261,8 +277,10 @@ export class MultiplayerSystem {
       const transform = this.localEntity
         ? this.world.getComponent(this.localEntity, Transform)
         : null;
-      if (transform && Array.isArray(message.position)) transform.position = [...message.position];
-      if (transform && Array.isArray(message.rotation)) transform.rotation = [...message.rotation];
+      const networkTransform = this.localEntity
+        ? this.world.getComponent(this.localEntity, NetworkTransform)
+        : null;
+      applyLocalTransformOverride(transform, networkTransform, message.position, message.rotation);
       return;
     }
 
@@ -270,8 +288,10 @@ export class MultiplayerSystem {
       const transform = this.localEntity
         ? this.world.getComponent(this.localEntity, Transform)
         : null;
-      if (transform && Array.isArray(message.position)) transform.position = [...message.position];
-      if (transform && Array.isArray(message.rotation)) transform.rotation = [...message.rotation];
+      const networkTransform = this.localEntity
+        ? this.world.getComponent(this.localEntity, NetworkTransform)
+        : null;
+      applyLocalTransformOverride(transform, networkTransform, message.position, message.rotation);
       this.onChat({
         type: 'system',
         text: `Colisão com: ${message.collider?.name ?? message.collider?.id ?? 'objeto sem nome'}.`,
@@ -284,8 +304,10 @@ export class MultiplayerSystem {
       const transform = this.localEntity
         ? this.world.getComponent(this.localEntity, Transform)
         : null;
-      if (transform && Array.isArray(message.position)) transform.position = [...message.position];
-      if (transform && Array.isArray(message.rotation)) transform.rotation = [...message.rotation];
+      const networkTransform = this.localEntity
+        ? this.world.getComponent(this.localEntity, NetworkTransform)
+        : null;
+      applyLocalTransformOverride(transform, networkTransform, message.position, message.rotation);
       this.onChat({
         type: 'system',
         text: `Correção de colisão: ${message.collider?.name ?? message.collider?.id ?? 'objeto sem nome'}.`,
@@ -345,12 +367,7 @@ export class MultiplayerSystem {
       ? this.world.getComponent(this.localEntity, NetworkTransform)
       : null;
     if (transform && Array.isArray(player.position) && Array.isArray(player.rotation)) {
-      transform.position = [...player.position];
-      transform.rotation = [...player.rotation];
-      if (networkTransform) {
-        networkTransform.targetPosition = null;
-        networkTransform.targetRotation = null;
-      }
+      applyLocalTransformOverride(transform, networkTransform, player.position, player.rotation);
     }
     this.localStateRestored = true;
     this.localPlayerDead = Boolean(player.dead);

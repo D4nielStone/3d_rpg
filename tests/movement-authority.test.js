@@ -5,6 +5,7 @@ import { InputState } from '../src/input.js';
 import { applyMovementVelocity, getMovementVelocity, stepPhysicsWorld } from '../server/world/movement.js';
 import { PhysicsWorld } from '../server/world/physics.js';
 import { getMovementRotation, getPlayerSpeed } from '../server/multiplayer/connection.js';
+import { applyLocalTransformOverride } from '../src/multiplayer.js';
 
 function createInputTarget() {
   const listeners = new Map();
@@ -53,6 +54,18 @@ test('a física respeita a posição atual do jogador e não reverte para o esta
 
   assert.ok(next[0] > previous[0]);
   assert.ok(next[0] < 12);
+});
+
+test('bloqueios locais limpam a interpolação em vez de reverter para um alvo stale', () => {
+  const transform = { position: [9, 0, 9], rotation: [0, 0, 0] };
+  const networkTransform = { targetPosition: [1, 0, 1], targetRotation: [0, Math.PI, 0] };
+
+  applyLocalTransformOverride(transform, networkTransform, [2, 0, 2], [0, 0.5, 0]);
+
+  assert.deepEqual(transform.position, [2, 0, 2]);
+  assert.deepEqual(transform.rotation, [0, 0.5, 0]);
+  assert.equal(networkTransform.targetPosition, null);
+  assert.equal(networkTransform.targetRotation, null);
 });
 
 test('utilitario cria velocidade horizontal proporcional a magnitude', () => {
