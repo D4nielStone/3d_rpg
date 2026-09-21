@@ -1,0 +1,1 @@
+export const MELEE_ATTACK_RANGE = 2;

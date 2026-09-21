@@ -32,7 +32,9 @@ export function createBroadcaster(
           isAdmin: session?.isAdmin === true,
         };
       }),
-      enemies: state.enemyAreas.flatMap((area) => area.toSnapshots()),
+      enemies: state.enemyAreas.flatMap((area) => area.toSnapshots({
+        serverTick: state.physicsAuthority.serverTick,
+      })),
     }));
   }
 

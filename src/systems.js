@@ -145,15 +145,13 @@ export class PhysicsSystem {
       const body = world.getComponent(entity, Rigidbody);
 
       if (!body) continue;
+      if (body.networkDriven) continue;
 
       if (!body.physicsId) {
         body.physicsId = entity;
       }
 
       const movement = this.pendingMovements.get(entity);
-      if (body.networkDriven) {
-        this.physicsWorld.syncPlayerHorizontalPosition?.(body.physicsId, transform.position);
-      }
       if (movement?.magnitude > 0) {
         const rotationAmount = Math.min(1, step * 12);
         transform.rotation[1] += shortestAngleDelta(
@@ -179,7 +177,7 @@ export class PhysicsSystem {
       const transform = world.getComponent(entity, Transform);
       const body = world.getComponent(entity, Rigidbody);
 
-      if (!body?.physicsId) continue;
+      if (!body?.physicsId || body.networkDriven) continue;
 
       const position = this.physicsWorld.getPlayerPosition(body.physicsId);
 

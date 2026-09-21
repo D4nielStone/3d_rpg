@@ -3,7 +3,7 @@ export const GAME_PROGRESSION = {
     hp: { base: 20, growth: 1.2 },
     mana: { base: 20, growth: 1.2 },
   },
-  xp: { base: 3, levelFactor: 0.01 },
+  xp: { base: 3, levelFactor: 0.1 },
   strengthXp: { factor: 5 },
 };
 

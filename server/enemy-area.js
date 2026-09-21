@@ -1,5 +1,6 @@
 import { Enemy } from './enemy.js';
 import { doesAttackHit } from './combat.js';
+import { MELEE_ATTACK_RANGE } from '../shared/combat-range.js';
 
 export class EnemyArea {
   constructor({
@@ -93,7 +94,7 @@ export class EnemyArea {
       ? Number(weapon.range ?? 5)
       : currentMode === 'ranged'
         ? Number(weapon.range ?? 5)
-        : 1;
+        : MELEE_ATTACK_RANGE;
     const manaCost = currentMode === 'magic'
       ? Math.max(1, Number(weapon.manaCost ?? weapon.damage ?? 1))
       : 0;
@@ -156,10 +157,11 @@ export class EnemyArea {
     };
   }
 
-  toSnapshots() {
+  toSnapshots({ serverTick } = {}) {
     return [...this.enemies.values()].map((enemy) => ({
       ...enemy.toSnapshot(),
       areaId: this.id,
+      serverTick,
     }));
   }
 }

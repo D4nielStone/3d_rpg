@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { createEnemyTypeMap } from './world/enemy-types.js';
 import { doesAttackHit } from './combat.js';
+import { MELEE_ATTACK_RANGE } from '../shared/combat-range.js';
 
 export class Enemy {
   constructor({ id = randomUUID(), type = 'rat', level, position = [0, 0, 0], definitions = null } = {}) {
@@ -23,7 +24,7 @@ export class Enemy {
     this.sizeMultiplier = definition.scale;
 
     this.detectionRadius = 6;
-    this.attackRange = 1;
+    this.attackRange = MELEE_ATTACK_RANGE;
     this.attackDamage = definition.damage;
     this.attackCooldown = 0;
     this.moveSpeed = definition.speed;
@@ -34,6 +35,7 @@ export class Enemy {
     this.physicsBody = null;
 
     this.position = [...position];
+    this.linearVelocity = [0, 0, 0];
     this.rotationY = 0;
     this.scale = this.sizeMultiplier;
   }
@@ -185,6 +187,9 @@ export class Enemy {
 
     this.position[0] = x;
     this.position[2] = z;
+    this.linearVelocity[0] = (x - previousX) / safeDelta;
+    this.linearVelocity[1] = 0;
+    this.linearVelocity[2] = (z - previousZ) / safeDelta;
 
     if (!this.physicsBody) {
       return true;
@@ -248,6 +253,11 @@ export class Enemy {
       accuracy: this.accuracy,
       alerted: this.alerted,
       position: [...this.position],
+      linearVelocity: {
+        x: this.linearVelocity[0],
+        y: this.linearVelocity[1],
+        z: this.linearVelocity[2],
+      },
       rotationY: this.rotationY,
       scale: this.scale,
     };

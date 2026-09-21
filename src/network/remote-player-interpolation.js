@@ -8,6 +8,12 @@ export class RemotePlayerInterpolation {
     this.buffer = new SnapshotBuffer();
   }
   add(snapshot) { return this.buffer.add(snapshot); }
+  sampleAt(now = performance.now()) {
+    const latest = this.buffer.snapshots[this.buffer.snapshots.length - 1];
+    if (!latest) return null;
+    const elapsedTicks = Math.max(0, now - (latest.receivedAt ?? now)) / this.tickMs;
+    return this.sample(latest.serverTick + elapsedTicks);
+  }
   sample(serverTime) {
     const targetTick = serverTime - this.renderDelay / this.tickMs;
     const { previous, next } = this.buffer.around(targetTick);

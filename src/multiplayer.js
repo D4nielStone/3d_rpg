@@ -10,10 +10,11 @@ import {
 } from './components.js';
 import { ClientPrediction } from './network/client-prediction.js';
 import { RemotePlayerInterpolation } from './network/remote-player-interpolation.js';
+import { MELEE_ATTACK_RANGE } from '../shared/combat-range.js';
 
 const MESSAGE_LIMIT = 32;
-const COMBAT_DISTANCE = 2;
 const RANGED_ATTACK_DISTANCE = 5;
+const COMBAT_DISTANCE_TOLERANCE = 0.12;
 
 function normalizeAngle(angle) {
   return Math.atan2(Math.sin(angle), Math.cos(angle));
@@ -84,6 +85,7 @@ export class MultiplayerSystem {
     this.lastMovementCommand = null;
     this.pendingState = null;
     this.welcomeReceived = false;
+    this.pendingServerTick = null;
     this.localStateRestored = false;
     this.localPlayerDead = false;
     this.deathScreenShown = false;
@@ -93,7 +95,6 @@ export class MultiplayerSystem {
     this.lastAttackRequestAt = 0;
     this.lastFrameTime = null;
     this.localVerticalVelocity = 0;
-    this.clickDestination = null;
     this.prediction = new ClientPrediction({
       simulate: (input) => {
         const angle = Math.atan2(input.moveX, input.moveZ);
@@ -108,6 +109,7 @@ export class MultiplayerSystem {
       })),
     });
     this.remoteInterpolation = new Map();
+    this.enemyInterpolation = new Map();
   }
 
   setLocalEntity(entity) {
@@ -384,6 +386,7 @@ export class MultiplayerSystem {
     if (message.type === 'snapshot' && Array.isArray(message.players)) {
       // O snapshot apenas agenda dados; a criacao/remoção ECS ocorre em update().
       this.pendingState = message.players.slice(0, MESSAGE_LIMIT);
+      this.pendingServerTick = Number.isFinite(message.serverTick) ? message.serverTick : null;
       this.onOnlinePlayers(this.pendingState);
       this.pendingEnemies = Array.isArray(message.enemies) ? message.enemies : [];
       return;
@@ -486,7 +489,6 @@ export class MultiplayerSystem {
     const previousOutline = previous ? this.world.getComponent(previous, OutlineRenderer) : null;
     if (previousOutline) previousOutline.selected = false;
     this.attackTargetEntity = entity;
-    if (entity) this.clickDestination = null;
     const targetOutline = entity ? this.world.getComponent(entity, OutlineRenderer) : null;
     if (targetOutline) targetOutline.selected = true;
     this.onAttackTargetChanged(entity);
@@ -518,37 +520,25 @@ export class MultiplayerSystem {
     }
     if (time - this.lastSentAt < 50) return;
 
-    const click = this.input?.consumeClick?.();
-    if (click && !this.attackTargetEntity && this.camera && this.canvas) {
-      this.clickDestination = this.camera.screenToGround(click[0], click[1], this.canvas);
-    }
     const keyboardMovement = this.input?.getMovementCommand?.() ?? { angle: 0, magnitude: 0 };
     let movement = keyboardMovement;
     let movementIsWorldSpace = false;
     if (movement.magnitude <= 0 && this.attackTargetEntity) {
       const targetTransform = this.world.getComponent(this.attackTargetEntity, Transform);
       const playerTransform = this.world.getComponent(this.localEntity, Transform);
-      const attackDistance = this.combatMode === 'melee' ? COMBAT_DISTANCE : RANGED_ATTACK_DISTANCE;
-      const stopDistance = Math.max(0, attackDistance - 0.15);
+      const attackDistance = this.combatMode === 'melee' ? MELEE_ATTACK_RANGE : RANGED_ATTACK_DISTANCE;
+      const stopDistance = attackDistance;
       if (targetTransform && playerTransform) {
         const deltaX = targetTransform.position[0] - playerTransform.position[0];
         const deltaZ = targetTransform.position[2] - playerTransform.position[2];
         const distance = Math.hypot(deltaX, deltaZ);
-        if (distance > stopDistance) {
+        if (distance > stopDistance + COMBAT_DISTANCE_TOLERANCE) {
           movement = { angle: Math.atan2(deltaX, deltaZ), magnitude: 1 };
           movementIsWorldSpace = true;
+        } else if (distance < stopDistance - COMBAT_DISTANCE_TOLERANCE) {
+          movement = { angle: Math.atan2(-deltaX, -deltaZ), magnitude: 1 };
+          movementIsWorldSpace = true;
         }
-      }
-    } else if (movement.magnitude <= 0 && this.clickDestination) {
-      const transform = this.world.getComponent(this.localEntity, Transform);
-      const deltaX = this.clickDestination[0] - transform.position[0];
-      const deltaZ = this.clickDestination[2] - transform.position[2];
-      const distance = Math.hypot(deltaX, deltaZ);
-      if (distance <= 0.2) {
-        this.clickDestination = null;
-      } else {
-        movement = { angle: Math.atan2(deltaX, deltaZ), magnitude: 1 };
-        movementIsWorldSpace = true;
       }
     }
     const worldAngle = movementIsWorldSpace || !this.camera
@@ -582,7 +572,7 @@ export class MultiplayerSystem {
     const deltaX = targetTransform.position[0] - playerTransform.position[0];
     const deltaZ = targetTransform.position[2] - playerTransform.position[2];
     const distance = Math.hypot(deltaX, deltaZ);
-    const attackDistance = this.combatMode === 'melee' ? COMBAT_DISTANCE : RANGED_ATTACK_DISTANCE;
+    const attackDistance = this.combatMode === 'melee' ? MELEE_ATTACK_RANGE : RANGED_ATTACK_DISTANCE;
     if (distance > 0.001) {
       const targetAngle = Math.atan2(deltaX, deltaZ);
       const rotationAmount = Math.min(1, deltaSeconds * 12);
@@ -632,7 +622,7 @@ export class MultiplayerSystem {
         this.remoteInterpolation.set(player.peerId, interpolation);
       }
       interpolation.add({ ...player, receivedAt: performance.now() });
-      const sampled = interpolation.sample(player.serverTick);
+      const sampled = interpolation.sampleAt(performance.now());
       const networkTransform = world.getComponent(entity, NetworkTransform);
       if (networkTransform && sampled) {
         networkTransform.targetPosition = [sampled.position.x, sampled.position.y, sampled.position.z];
@@ -658,8 +648,26 @@ export class MultiplayerSystem {
         transform.scale = [enemyScale, enemyScale, enemyScale];
       }
       if (networkTransform) {
-        networkTransform.targetPosition = enemy.position;
-        networkTransform.targetRotation = [0, enemy.rotationY ?? 0, 0];
+        let interpolation = this.enemyInterpolation.get(enemy.id);
+        if (!interpolation) {
+          interpolation = new RemotePlayerInterpolation();
+          this.enemyInterpolation.set(enemy.id, interpolation);
+        }
+        interpolation.add({
+          ...enemy,
+          serverTick: enemy.serverTick ?? this.pendingServerTick,
+          receivedAt: performance.now(),
+          position: {
+            x: enemy.position[0],
+            y: enemy.position[1],
+            z: enemy.position[2],
+          },
+        });
+        const sampled = interpolation.sampleAt(performance.now());
+        if (sampled) {
+          networkTransform.targetPosition = [sampled.position.x, sampled.position.y, sampled.position.z];
+          networkTransform.targetRotation = [0, sampled.rotationY ?? 0, 0];
+        }
       } else if (transform) {
         transform.position = [...enemy.position];
         transform.rotation[1] = enemy.rotationY ?? 0;
@@ -685,8 +693,10 @@ export class MultiplayerSystem {
     for (const [enemyId, entity] of this.enemyEntities) {
       if (!activeEnemies.has(enemyId)) {
         this.removeEnemyEntity(enemyId, world);
+        this.enemyInterpolation.delete(enemyId);
       }
     }
+    this.pendingServerTick = null;
     this.pendingState = null;
   }
 }

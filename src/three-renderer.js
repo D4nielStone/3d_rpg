@@ -301,7 +301,7 @@ export class ThreeRenderSystem {
     const baseRadius = component.getRadius?.(transform) ?? component.radius;
     const radius = baseRadius * (1 + Math.sin(time * 0.006) * 0.08);
     const thickness = component.thickness * Math.max(1, Math.max(Math.abs(transform.scale[0] ?? 1), Math.abs(transform.scale[2] ?? 1)));
-    const tubeRadius = Math.max(0.02, thickness * 0.5);
+    const tubeRadius = Math.max(0.02, thickness);
     const shape = new THREE.TorusGeometry(Math.max(0.01, radius - tubeRadius), tubeRadius, 8, component.segments);
     const material = new THREE.MeshBasicMaterial({
       color: colorFrom(color),
