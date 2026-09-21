@@ -1,5 +1,7 @@
 # WebGL RPG
 
+<img width="1298" height="653" alt="image" src="https://github.com/user-attachments/assets/5cf4b03b-adc8-4bc9-aaa5-5b1aa642b307" />
+
 Jogo 3D de navegador com renderização em WebGL, ECS, física e multiplayer autoritativo. O projeto foi desenvolvido com auxílio de inteligência artificial como parte do processo de implementação e refinamento.
 
 ## Visão geral
