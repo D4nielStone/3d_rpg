@@ -12,7 +12,7 @@ import { ClientPrediction } from './network/client-prediction.js';
 import { RemotePlayerInterpolation } from './network/remote-player-interpolation.js';
 
 const MESSAGE_LIMIT = 32;
-const COMBAT_DISTANCE = 1;
+const COMBAT_DISTANCE = 2;
 const RANGED_ATTACK_DISTANCE = 5;
 
 function normalizeAngle(angle) {
@@ -486,6 +486,7 @@ export class MultiplayerSystem {
     const previousOutline = previous ? this.world.getComponent(previous, OutlineRenderer) : null;
     if (previousOutline) previousOutline.selected = false;
     this.attackTargetEntity = entity;
+    if (entity) this.clickDestination = null;
     const targetOutline = entity ? this.world.getComponent(entity, OutlineRenderer) : null;
     if (targetOutline) targetOutline.selected = true;
     this.onAttackTargetChanged(entity);
@@ -518,7 +519,7 @@ export class MultiplayerSystem {
     if (time - this.lastSentAt < 50) return;
 
     const click = this.input?.consumeClick?.();
-    if (click && this.camera && this.canvas) {
+    if (click && !this.attackTargetEntity && this.camera && this.canvas) {
       this.clickDestination = this.camera.screenToGround(click[0], click[1], this.canvas);
     }
     const keyboardMovement = this.input?.getMovementCommand?.() ?? { angle: 0, magnitude: 0 };

@@ -32,6 +32,14 @@
           <input id="model-file" type="file" multiple accept=".glb,.gltf,.obj,.mtl,.png,.jpg,.jpeg,.webp,model/gltf-binary,model/gltf+json,text/plain,image/png,image/jpeg,image/webp,application/octet-stream" hidden />
           <div class="asset-url-row"><input id="model-url" type="url" placeholder="/models/objeto.glb ou objeto.obj" /><button id="add-url-button" type="button" title="Adicionar modelo por URL">+</button></div>
           <p class="panel-note">GLB, GLTF e OBJ. Para OBJ, selecione também o MTL e as texturas.</p>
+          <div class="asset-library-tools">
+            <label class="asset-search"><span class="sr-only">Buscar assets</span><input id="asset-search" type="search" placeholder="Buscar por nome ou URL" /></label>
+            <div class="asset-filter-row">
+              <label><span class="sr-only">Filtrar formato</span><select id="asset-format-filter"><option value="all">Todos os formatos</option><option value="glb">GLB</option><option value="gltf">GLTF</option><option value="obj">OBJ</option></select></label>
+              <label><span class="sr-only">Ordenar assets</span><select id="asset-sort"><option value="name">Nome A-Z</option><option value="recent">Mais recentes</option><option value="usage">Mais usados</option><option value="format">Formato</option></select></label>
+            </div>
+          </div>
+          <div class="asset-list-summary"><span id="asset-list-summary">0 assets</span><button id="clear-asset-search" class="text-button" type="button" hidden>Limpar filtros</button></div>
           <div id="asset-list" class="asset-list" aria-label="Biblioteca de assets"></div>
         </div>
         <div class="panel-section">

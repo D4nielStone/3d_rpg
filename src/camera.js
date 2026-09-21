@@ -41,24 +41,22 @@ export class Camera {
     return perspective(this.fieldOfView, this.aspect, this.near, this.far);
   }
 
-    screenToGround(clientX, clientY, canvas, groundY = 0) {
-      if (this.renderCamera) {
-        const bounds = canvas.getBoundingClientRect();
-        const normalizedX = ((clientX - bounds.left) / bounds.width) * 2 - 1;
-        const normalizedY = 1 - ((clientY - bounds.top) / bounds.height) * 2;
-        const raycaster = new THREE.Raycaster();
-        raycaster.setFromCamera(new THREE.Vector2(normalizedX, normalizedY), this.renderCamera);
-        const distance = (groundY - raycaster.ray.origin.y) / raycaster.ray.direction.y;
-        if (Number.isFinite(distance) && distance > 0) {
-          const intersection = raycaster.ray.origin.clone().addScaledVector(raycaster.ray.direction, distance);
-          intersection.y = groundY;
-          return intersection.toArray();
-        }
-        return null;
-      }
+  screenToWorld(clientX, clientY, canvas, groundY = 0) {
+    const bounds = canvas.getBoundingClientRect();
+    if (bounds.width <= 0 || bounds.height <= 0) return null;
+
+    if (this.renderCamera) {
+      const normalizedX = ((clientX - bounds.left) / bounds.width) * 2 - 1;
+      const normalizedY = 1 - ((clientY - bounds.top) / bounds.height) * 2;
+      this.renderCamera.updateMatrixWorld();
+      const raycaster = new THREE.Raycaster();
+      raycaster.setFromCamera(new THREE.Vector2(normalizedX, normalizedY), this.renderCamera);
+      const ground = new THREE.Plane(new THREE.Vector3(0, 1, 0), -groundY);
+      const intersection = raycaster.ray.intersectPlane(ground, new THREE.Vector3());
+      return intersection?.toArray() ?? null;
+    }
 
     this.updatePosition();
-    const bounds = canvas.getBoundingClientRect();
     const normalizedX = ((clientX - bounds.left) / bounds.width) * 2 - 1;
     const normalizedY = 1 - ((clientY - bounds.top) / bounds.height) * 2;
     const halfHeight = Math.tan(this.fieldOfView / 2);
@@ -104,6 +102,10 @@ export class Camera {
       this.position[2] + direction[2] * distance,
     ];
     return hit;
+  }
+
+  screenToGround(clientX, clientY, canvas, groundY = 0) {
+    return this.screenToWorld(clientX, clientY, canvas, groundY);
   }
 
   worldToScreen(position, canvas) {

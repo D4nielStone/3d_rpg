@@ -23,7 +23,6 @@ export function startGameLoop({
     physicsSystem.update(world, deltaSeconds);
     renderSystem.updatePhysicsDebug?.(physicsSystem.physicsWorld);
     animationSystem.update(world, deltaSeconds);
-    multiplayerSystem.update(world, time);
     networkInterpolationSystem.update(world, deltaSeconds);
     rayCastingSystem?.update(world);
     soundListenerSystem.update(world);
@@ -32,6 +31,7 @@ export function startGameLoop({
     soundPlayerSystem.update(world, listenerComponent?.context ?? null);
     renderSystem.syncCamera();
     enemyHoverSystem.update(world);
+    multiplayerSystem.update(world, time);
     nameTagSystem.update(world);
     renderSystem.render(world, time);
     requestAnimationFrame(frame);
