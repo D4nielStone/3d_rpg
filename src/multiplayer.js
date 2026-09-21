@@ -103,8 +103,8 @@ export class MultiplayerSystem {
       getState: () => this.getLocalPhysicsState(),
       setState: (snapshot) => this.setLocalPhysicsState(snapshot),
       send: (input) => this.socket?.send(JSON.stringify({
-        type: 'player_state',
-        state: { ...this.getLocalPhysicsState(), sequence: input.sequence },
+        type: 'player_input',
+        input,
       })),
     });
     this.remoteInterpolation = new Map();
@@ -158,7 +158,14 @@ export class MultiplayerSystem {
     const position = [snapshot.position.x, snapshot.position.y, snapshot.position.z];
     transform.position = position;
     const body = this.world.getComponent(this.localEntity, Rigidbody);
-    if (body) this.physicsSystem?.syncPlayerPosition(this.localEntity, position);
+    if (body) {
+      this.physicsSystem?.syncPlayerState(
+        this.localEntity,
+        position,
+        snapshot.linearVelocity,
+        snapshot.grounded,
+      );
+    }
     if (snapshot.rotation) transform.rotation = [0, snapshot.rotation.y ?? 0, 0];
   }
 
@@ -576,6 +583,7 @@ export class MultiplayerSystem {
 
     for (const player of this.pendingState) {
       if (player.peerId === this.localPeerId) {
+        this.prediction.reconcile(player);
         this.localPlayerDead = Boolean(player.dead);
         this.combatMode = player.combatMode ?? 'melee';
         const localNameTag = world.getComponent(this.localEntity, NameTag);
@@ -604,7 +612,7 @@ export class MultiplayerSystem {
         this.remoteInterpolation.set(player.peerId, interpolation);
       }
       interpolation.add({ ...player, receivedAt: performance.now() });
-      const sampled = interpolation.sample(performance.now());
+      const sampled = interpolation.sample(player.serverTick);
       const networkTransform = world.getComponent(entity, NetworkTransform);
       if (networkTransform && sampled) {
         networkTransform.targetPosition = [sampled.position.x, sampled.position.y, sampled.position.z];

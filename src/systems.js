@@ -121,10 +121,18 @@ export class PhysicsSystem {
   }
 
   syncPlayerPosition(entity, position) {
+    this.syncPlayerState(entity, position);
+  }
+
+  syncPlayerState(entity, position, velocity = null, grounded = null) {
     if (!entity || !Array.isArray(position)) return;
     const body = this.physicsWorld.getPlayerBody?.(entity, position);
     if (!body?.position?.set) return;
     body.position.set(position[0], position[1], position[2]);
+    if (Array.isArray(velocity) && body.velocity?.set) {
+      body.velocity.set(velocity[0] ?? 0, velocity[1] ?? 0, velocity[2] ?? 0);
+    }
+    if (typeof grounded === 'boolean') body.grounded = grounded;
   }
 
   update(world, deltaSeconds) {

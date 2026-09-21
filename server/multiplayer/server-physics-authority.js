@@ -1,12 +1,6 @@
 import { FIXED_DT, MAX_INPUTS_PER_SECOND, normalizePlayerInput } from '../../shared/network-messages.js';
 import { InputBuffer } from './input-buffer.js';
 
-function readVector(value) {
-  if (Array.isArray(value) && value.length === 3 && value.every(Number.isFinite)) return [...value];
-  if (value && [value.x, value.y, value.z].every(Number.isFinite)) return [value.x, value.y, value.z];
-  return null;
-}
-
 export class ServerPhysicsAuthority {
   constructor({ physics, getSpeed = () => 3 } = {}) {
     this.physics = physics;
@@ -21,6 +15,7 @@ export class ServerPhysicsAuthority {
       inputBuffer: new InputBuffer(),
       lastReceivedInput: -1,
       lastProcessedInput: -1,
+      currentInput: null,
       inputWindowStartedAt: Date.now(),
       inputCount: 0,
     });
@@ -42,18 +37,45 @@ export class ServerPhysicsAuthority {
     return true;
   }
   receiveState(player, rawState) {
-    const state = this.players.get(player.peerId);
-    const position = readVector(rawState?.position);
-    const rotation = readVector(rawState?.rotation);
-    if (!state || !position || !rotation) return false;
-
-    player.setTransform(position, rotation);
-    player.linearVelocity = readVector(rawState.linearVelocity) ?? [0, 0, 0];
-    player.grounded = rawState.grounded === true;
-    return true;
+    return false;
   }
   tick() {
-    this.serverTick += 1;
+    this.serverTick += 0.5;
+    for (const state of this.players.values()) {
+      const { player } = state;
+      let input = state.inputBuffer.takeNext();
+      while (state.inputBuffer.size > 0) input = state.inputBuffer.takeNext();
+      if (input) {
+        state.currentInput = input;
+        state.lastProcessedInput = input.sequence;
+      }
+      input = state.currentInput;
+      const movement = input
+        ? { angle: Math.atan2(input.moveX, input.moveZ), magnitude: Math.min(1, Math.hypot(input.moveX, input.moveZ)) }
+        : { angle: player.rotation[1] ?? 0, magnitude: 0 };
+      const speed = this.getSpeed(player) * movement.magnitude;
+
+      this.physics.movePlayer(
+        player.peerId,
+        player.position,
+        movement.angle,
+        speed,
+        FIXED_DT,
+        false,
+      );
+      if (input) {
+        player.rotation[1] = movement.angle;
+      }
+    }
+
+    this.physics.step(FIXED_DT);
+    for (const state of this.players.values()) {
+      const { player } = state;
+      const position = this.physics.getPlayerPosition(player.peerId);
+      const velocity = this.physics.getPlayerVelocity(player.peerId);
+      if (position) player.position = position;
+      if (velocity) player.linearVelocity = velocity;
+    }
   }
   snapshots() {
     return [...this.players.values()].map(({ player, lastProcessedInput }) => ({

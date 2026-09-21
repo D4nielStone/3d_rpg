@@ -12,6 +12,7 @@ export class ClientPrediction {
     this.nextSequence = 0;
     this.localTick = 0;
     this.lastConfirmedInput = -1;
+    this.lastServerTick = -1;
     this.reconciliations = 0;
     this.largeCorrections = 0;
     this.averageError = 0;
@@ -27,6 +28,8 @@ export class ClientPrediction {
 
   reconcile(snapshot) {
     if (!snapshot || snapshot.lastProcessedInput < this.lastConfirmedInput) return false;
+    if (Number.isFinite(snapshot.serverTick) && snapshot.serverTick <= this.lastServerTick) return false;
+    if (Number.isFinite(snapshot.serverTick)) this.lastServerTick = snapshot.serverTick;
     const before = this.getState();
     this.inputBuffer.acknowledge(snapshot.lastProcessedInput);
     const error = Math.hypot(before.position.x - snapshot.position.x, before.position.y - snapshot.position.y, before.position.z - snapshot.position.z);

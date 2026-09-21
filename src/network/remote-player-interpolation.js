@@ -9,7 +9,7 @@ export class RemotePlayerInterpolation {
   }
   add(snapshot) { return this.buffer.add(snapshot); }
   sample(serverTime) {
-    const targetTick = (serverTime - this.renderDelay) / this.tickMs;
+    const targetTick = serverTime - this.renderDelay / this.tickMs;
     const { previous, next } = this.buffer.around(targetTick);
     if (previous && next && previous !== next) {
       const alpha = Math.max(0, Math.min(1, (targetTick - previous.serverTick) / (next.serverTick - previous.serverTick)));

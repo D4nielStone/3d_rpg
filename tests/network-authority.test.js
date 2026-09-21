@@ -59,7 +59,13 @@ test('interpolação ignora snapshot duplicado e interpola snapshots ordenados',
   assert.equal(interpolation.add(first), true);
   assert.equal(interpolation.add(first), false);
   interpolation.add(second);
-  assert.equal(interpolation.sample(25).position.x, 1);
+  assert.equal(interpolation.sample(1.5).position.x, 1);
+});
+
+test('buffer de snapshots rejeita pacotes atrasados', () => {
+  const interpolation = new RemotePlayerInterpolation({ renderDelay: 0 });
+  assert.equal(interpolation.add({ serverTick: 2, position: { x: 2, y: 0, z: 0 }, rotation: {} }), true);
+  assert.equal(interpolation.add({ serverTick: 1, position: { x: 1, y: 0, z: 0 }, rotation: {} }), false);
 });
 
 test('validador rejeita velocidade e teleporte excessivos', () => {
@@ -72,10 +78,17 @@ test('validador rejeita pulo no ar', () => {
   assert.equal(new MovementValidator().validateJump({ jump: true }, false), false);
 });
 
-test('autoridade server-side replica estado do client sem executar física', () => {
+test('autoridade server-side simula input e ignora estado físico do cliente', () => {
   let physicsSteps = 0;
+  let simulatedPosition = [0, 0, 0];
   const authority = new ServerPhysicsAuthority({
-    physics: { step: () => { physicsSteps += 1; } },
+    physics: {
+      movePlayer: () => {},
+      step: () => { physicsSteps += 1; simulatedPosition = [1, 0, 0]; },
+      getPlayerPosition: () => simulatedPosition,
+      getPlayerVelocity: () => [2, 0, 0],
+    },
+    getSpeed: () => 3,
   });
   const player = {
     peerId: 'client-player',
@@ -93,10 +106,37 @@ test('autoridade server-side replica estado do client sem executar física', () 
     rotation: { x: 0, y: 1.5, z: 0 },
     linearVelocity: { x: 2, y: 0, z: -1 },
     grounded: false,
+  }), false);
+  assert.equal(authority.receiveInput(player, {
+    sequence: 4,
+    tick: 4,
+    moveX: 1,
+    moveZ: 0,
   }), true);
   authority.tick();
 
-  assert.equal(physicsSteps, 0);
-  assert.deepEqual(authority.snapshots()[0].position, { x: 12, y: 4, z: -3 });
-  assert.equal(authority.snapshots()[0].rotation.y, 1.5);
+  assert.equal(physicsSteps, 1);
+  assert.deepEqual(authority.snapshots()[0].position, { x: 1, y: 0, z: 0 });
+  assert.equal(authority.snapshots()[0].rotation.y, Math.PI / 2);
+  assert.equal(authority.snapshots()[0].lastProcessedInput, 4);
+});
+
+test('autoridade mantém o último input entre snapshots de entrada', () => {
+  const movements = [];
+  const authority = new ServerPhysicsAuthority({
+    physics: {
+      movePlayer: (_id, _position, _angle, speed) => movements.push(speed),
+      step: () => {},
+      getPlayerPosition: () => [0, 0, 0],
+      getPlayerVelocity: () => [0, 0, 0],
+    },
+  });
+  const player = { peerId: 'held-input-player', position: [0, 0, 0], rotation: [0, 0, 0] };
+
+  authority.addPlayer(player);
+  authority.receiveInput(player, { sequence: 0, tick: 0, moveX: 1, moveZ: 0 });
+  authority.tick();
+  authority.tick();
+
+  assert.deepEqual(movements, [3, 3]);
 });

@@ -1,7 +1,9 @@
 export class SnapshotBuffer {
   constructor({ maxSize = 32 } = {}) { this.maxSize = maxSize; this.snapshots = []; }
   add(snapshot) {
-    if (!snapshot || !Number.isFinite(snapshot.serverTick) || this.snapshots.some((item) => item.serverTick === snapshot.serverTick)) return false;
+    if (!snapshot || !Number.isFinite(snapshot.serverTick)
+      || this.snapshots.some((item) => item.serverTick === snapshot.serverTick)
+      || (this.snapshots.length > 0 && snapshot.serverTick < this.snapshots[this.snapshots.length - 1].serverTick)) return false;
     this.snapshots.push(snapshot);
     this.snapshots.sort((left, right) => left.serverTick - right.serverTick);
     this.snapshots = this.snapshots.slice(-this.maxSize);
