@@ -102,7 +102,10 @@ export class MultiplayerSystem {
       },
       getState: () => this.getLocalPhysicsState(),
       setState: (snapshot) => this.setLocalPhysicsState(snapshot),
-      send: (input) => this.socket?.send(JSON.stringify({ type: 'player_input', input })),
+      send: (input) => this.socket?.send(JSON.stringify({
+        type: 'player_state',
+        state: { ...this.getLocalPhysicsState(), sequence: input.sequence },
+      })),
     });
     this.remoteInterpolation = new Map();
   }
@@ -129,6 +132,11 @@ export class MultiplayerSystem {
         x: transform?.position?.[0] ?? 0,
         y: transform?.position?.[1] ?? 0,
         z: transform?.position?.[2] ?? 0,
+      },
+      rotation: {
+        x: 0,
+        y: transform?.rotation?.[1] ?? 0,
+        z: 0,
       },
     };
   }
@@ -559,9 +567,6 @@ export class MultiplayerSystem {
 
     for (const player of this.pendingState) {
       if (player.peerId === this.localPeerId) {
-        if (Number.isFinite(player.serverTick) && Number.isFinite(player.lastProcessedInput)) {
-          this.prediction.reconcile(player);
-        }
         this.localPlayerDead = Boolean(player.dead);
         this.combatMode = player.combatMode ?? 'melee';
         const localNameTag = world.getComponent(this.localEntity, NameTag);

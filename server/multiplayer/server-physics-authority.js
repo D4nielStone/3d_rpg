@@ -35,23 +35,22 @@ export class ServerPhysicsAuthority {
     state.lastReceivedInput = input.sequence;
     return true;
   }
+  receiveState(player, rawState) {
+    const state = this.players.get(player.peerId);
+    const position = rawState?.position;
+    const rotation = rawState?.rotation;
+    if (!state || !Array.isArray(position) || position.length !== 3 || !position.every(Number.isFinite)) return false;
+    if (!Array.isArray(rotation) || rotation.length !== 3 || !rotation.every(Number.isFinite)) return false;
+
+    player.setTransform(position, rotation);
+    player.linearVelocity = Array.isArray(rawState.linearVelocity) && rawState.linearVelocity.length === 3
+      ? rawState.linearVelocity.map((value) => Number.isFinite(value) ? value : 0)
+      : [0, 0, 0];
+    player.grounded = rawState.grounded === true;
+    return true;
+  }
   tick() {
     this.serverTick += 1;
-    for (const state of this.players.values()) {
-      const input = state.inputBuffer.takeNext();
-      if (input) {
-        const speed = this.getSpeed(state.player) * (input.sprint ? 1.5 : 1);
-        const angle = Math.atan2(input.moveX, input.moveZ);
-        const magnitude = Math.min(1, Math.hypot(input.moveX, input.moveZ));
-        this.physics.movePlayer(state.player.peerId, state.player.position, angle, speed * magnitude, FIXED_DT, false);
-        state.lastProcessedInput = input.sequence;
-      } else this.physics.stopPlayer(state.player.peerId);
-      this.physics.step(FIXED_DT);
-      const body = this.physics.getPlayerBody(state.player.peerId, state.player.position);
-      state.player.position = [body.position.x, body.position.y, body.position.z];
-      state.player.linearVelocity = [body.velocity.x, body.velocity.y, body.velocity.z];
-      state.player.grounded = body.position.y <= 0.71;
-    }
   }
   snapshots() {
     return [...this.players.values()].map(({ player, lastProcessedInput }) => ({

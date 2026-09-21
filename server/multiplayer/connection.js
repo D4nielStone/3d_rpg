@@ -264,6 +264,10 @@ export function registerConnectionHandler({
         }
 
         if (player.dead) return;
+        if (message.type === 'player_state') {
+          state.physicsAuthority.receiveState(player, message.state ?? message);
+          return;
+        }
         if (message.type === 'player_input') {
           state.physicsAuthority.receiveInput(player, message.input ?? message);
           return;

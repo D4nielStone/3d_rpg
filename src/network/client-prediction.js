@@ -20,8 +20,8 @@ export class ClientPrediction {
   update(input) {
     const nextInput = { ...input, sequence: this.nextSequence++, tick: this.localTick++ };
     this.inputBuffer.add(nextInput);
-    this.send(nextInput);
     this.simulate(nextInput, FIXED_DT);
+    this.send(nextInput);
     return nextInput;
   }
 
