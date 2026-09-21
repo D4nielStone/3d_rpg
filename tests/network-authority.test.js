@@ -89,9 +89,9 @@ test('autoridade server-side replica estado do client sem executar física', () 
 
   authority.addPlayer(player);
   assert.equal(authority.receiveState(player, {
-    position: [12, 4, -3],
-    rotation: [0, 1.5, 0],
-    linearVelocity: [2, 0, -1],
+    position: { x: 12, y: 4, z: -3 },
+    rotation: { x: 0, y: 1.5, z: 0 },
+    linearVelocity: { x: 2, y: 0, z: -1 },
     grounded: false,
   }), true);
   authority.tick();
