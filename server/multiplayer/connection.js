@@ -73,7 +73,10 @@ export function registerConnectionHandler({
       cleanedUp = true;
       const activeSession = state.activeGuestSessions.get(playerId);
       if (activeSession?.peerId === peerId) state.activeGuestSessions.delete(playerId);
-      if (player) state.players.delete(peerId);
+      if (player) {
+        state.players.delete(peerId);
+        state.physicsAuthority.removePlayer(peerId);
+      }
       if (!announced) return;
       if (player) await savePlayer(playerId, player).catch((error) => {
         logger.error('Falha ao salvar jogador na desconexão', { peerId, error: error.message });
@@ -105,6 +108,7 @@ export function registerConnectionHandler({
       return;
     }
     state.players.set(peerId, player);
+    state.physicsAuthority.addPlayer(player);
     announced = true;
     // Identidade curta aparece no chat; o UUID completo fica apenas nos logs.
     logger.info(`${userLabel} entrou no servidor`, { peerId });
@@ -261,30 +265,15 @@ export function registerConnectionHandler({
         }
 
         if (player.dead) return;
+        if (message.type === 'player_input') {
+          state.physicsAuthority.receiveInput(player, message.input ?? message);
+          return;
+        }
         if (!isMovementCommand(message)) {
           logger.warn('Mensagem inválida ignorada', { peerId, type: message.type });
           return;
         }
-        if (!Array.isArray(message.position) || message.position.length !== 3
-          || !message.position.every(Number.isFinite)) return;
-        const position = message.position.map(Number);
-        const rotation = Array.isArray(message.rotation) && message.rotation.length === 3
-          && message.rotation.every(Number.isFinite)
-          ? message.rotation.map(Number)
-          : player.rotation;
-        const destinationArea = state.findPlayerArea(position);
-        player.area = destinationArea
-          ? {
-            id: destinationArea.id,
-            name: destinationArea.id === 'second-rat-area' ? 'Área dos Ratos 2' : 'Área dos Ratos',
-            level: destinationArea.areaLevel,
-          }
-          : { id: 'open-world', name: 'Mundo aberto', level: 0 };
-
-
-        player.setTransform(position, rotation);
-        queuePlayerSave(playerId, player);
-        broadcastSnapshot();
+        logger.warn('Comando de movimento legado rejeitado; use player_input', { peerId });
       } catch (error) {
         logger.warn('Falha ao processar mensagem do jogador', { peerId, error: error.message });
       }

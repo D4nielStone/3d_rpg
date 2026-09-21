@@ -61,7 +61,8 @@ export class PlayerStatus {
     this.hpBar.style.width = `${Math.min(100, currentHp / currentMaxHp * 100)}%`;
     this.manaBar.style.width = `${Math.min(100, currentMana / currentMaxMana * 100)}%`;
     this.xpBar.style.width = `${Math.min(100, currentXp / currentMaxXp * 100)}%`;
-    this.nicknameValue.textContent = nickname;
+    this.nicknameValue[0].textContent = nickname;
+    this.nicknameValue[1].textContent = nickname;
     this.adminBadge.hidden = !isAdmin;
     this.levelValue.textContent = String(Math.max(1, Number(level)));
     this.xpValue.textContent = `${currentXp}/${currentMaxXp}`;

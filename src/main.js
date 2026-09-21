@@ -93,7 +93,7 @@ const ui = createUiController({
 // Cria o painel de status do jogador, que mostra HP, mana, XP, nível e ouro
 const playerStatus = new PlayerStatus({
   root: document.querySelector('#player-status'),
-  nicknameValue: document.querySelector('#player-nickname-value'),
+  nicknameValue: [document.querySelector('#player-nickname-value'), document.querySelector('#player-nickname-value-main')],
   adminBadge: document.querySelector('#player-admin-badge'),
   hpValue: document.querySelector('#player-hp-value'),
   hpBar: document.querySelector('#player-hp-bar'),

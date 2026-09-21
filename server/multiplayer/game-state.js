@@ -1,5 +1,6 @@
 import { createEnemyAreas } from '../world/enemy-areas.js';
 import { PhysicsWorld } from '../world/physics.js';
+import { ServerPhysicsAuthority } from './server-physics-authority.js';
 
 export class GameState {
   constructor() {
@@ -10,6 +11,7 @@ export class GameState {
     this.publishedMapConfig = null;
     this.enemyAreas = createEnemyAreas();
     this.physics = new PhysicsWorld();
+    this.physicsAuthority = new ServerPhysicsAuthority({ physics: this.physics });
     this.databaseReady = false;
   }
 
@@ -17,6 +19,7 @@ export class GameState {
     this.publishedMapConfig = config;
     this.enemyAreas = createEnemyAreas(config);
     this.physics = new PhysicsWorld(config);
+    this.physicsAuthority = new ServerPhysicsAuthority({ physics: this.physics });
   }
 
   findPlayerArea(position) {

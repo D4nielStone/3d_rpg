@@ -7,6 +7,8 @@ import {
   OutlineRenderer,
   Transform,
 } from './components.js';
+import { ClientPrediction } from './network/client-prediction.js';
+import { RemotePlayerInterpolation } from './network/remote-player-interpolation.js';
 
 const MESSAGE_LIMIT = 32;
 const COMBAT_DISTANCE = 1;
@@ -91,6 +93,17 @@ export class MultiplayerSystem {
     this.lastFrameTime = null;
     this.localVerticalVelocity = 0;
     this.clickDestination = null;
+    this.prediction = new ClientPrediction({
+      simulate: (input) => {
+        const angle = Math.atan2(input.moveX, input.moveZ);
+        const magnitude = Math.min(1, Math.hypot(input.moveX, input.moveZ));
+        this.physicsSystem?.setMovement(this.localEntity, angle, magnitude);
+      },
+      getState: () => this.getLocalPhysicsState(),
+      setState: (snapshot) => this.setLocalPhysicsState(snapshot),
+      send: (input) => this.socket?.send(JSON.stringify({ type: 'player_input', input })),
+    });
+    this.remoteInterpolation = new Map();
   }
 
   setLocalEntity(entity) {
@@ -104,6 +117,28 @@ export class MultiplayerSystem {
         isLocal: true,
       }));
     }
+  }
+
+  getLocalPhysicsState() {
+    const transform = this.localEntity
+      ? this.world.getComponent(this.localEntity, Transform)
+      : null;
+    return {
+      position: {
+        x: transform?.position?.[0] ?? 0,
+        y: transform?.position?.[1] ?? 0,
+        z: transform?.position?.[2] ?? 0,
+      },
+    };
+  }
+
+  setLocalPhysicsState(snapshot) {
+    const transform = this.localEntity
+      ? this.world.getComponent(this.localEntity, Transform)
+      : null;
+    if (!transform || !snapshot?.position) return;
+    transform.position = [snapshot.position.x, snapshot.position.y, snapshot.position.z];
+    if (snapshot.rotation) transform.rotation = [0, snapshot.rotation.y ?? 0, 0];
   }
 
   connect({ retry = true } = {}) {
@@ -480,14 +515,13 @@ export class MultiplayerSystem {
       angle: movement.magnitude > 0 ? worldAngle : 0,
       magnitude: movement.magnitude,
     };
-    this.physicsSystem?.setMovement(this.localEntity, command.angle, command.magnitude);
-    const localTransform = this.world.getComponent(this.localEntity, Transform);
-    this.socket.send(JSON.stringify({
-      type: 'movement',
-      ...command,
-      position: localTransform?.position,
-      rotation: localTransform?.rotation,
-    }));
+    const input = {
+      moveX: Math.max(-1, Math.min(1, Math.sin(command.angle) * command.magnitude)),
+      moveZ: Math.max(-1, Math.min(1, Math.cos(command.angle) * command.magnitude)),
+      jump: this.input?.consumePressed(' ') ?? false,
+      sprint: this.input?.keys?.has('shift') ?? false,
+    };
+    this.prediction.update(input);
     this.lastMovementCommand = command;
     this.lastSentAt = time;
   }
@@ -521,6 +555,9 @@ export class MultiplayerSystem {
 
     for (const player of this.pendingState) {
       if (player.peerId === this.localPeerId) {
+        if (Number.isFinite(player.serverTick) && Number.isFinite(player.lastProcessedInput)) {
+          this.prediction.reconcile(player);
+        }
         this.localPlayerDead = Boolean(player.dead);
         this.combatMode = player.combatMode ?? 'melee';
         const localNameTag = world.getComponent(this.localEntity, NameTag);
@@ -543,10 +580,17 @@ export class MultiplayerSystem {
       const nameTag = world.getComponent(entity, NameTag);
       nameTag?.update(player.nickname, player.level);
 
+      let interpolation = this.remoteInterpolation.get(player.peerId);
+      if (!interpolation) {
+        interpolation = new RemotePlayerInterpolation();
+        this.remoteInterpolation.set(player.peerId, interpolation);
+      }
+      interpolation.add({ ...player, receivedAt: performance.now() });
+      const sampled = interpolation.sample(performance.now());
       const networkTransform = world.getComponent(entity, NetworkTransform);
-      if (networkTransform) {
-        networkTransform.targetPosition = player.position;
-        networkTransform.targetRotation = player.rotation;
+      if (networkTransform && sampled) {
+        networkTransform.targetPosition = [sampled.position.x, sampled.position.y, sampled.position.z];
+        networkTransform.targetRotation = [0, player.rotation?.y ?? 0, 0];
       }
     }
 
@@ -589,6 +633,7 @@ export class MultiplayerSystem {
       if (!activePeers.has(peerId)) {
         world.removeEntity(entity);
         this.remoteEntities.delete(peerId);
+        this.remoteInterpolation.delete(peerId);
       }
     }
     for (const [enemyId, entity] of this.enemyEntities) {

@@ -18,13 +18,17 @@ export function createBroadcaster(
   }
 
   function sendSnapshot() {
+    const authoritative = state.physicsAuthority.snapshots();
     sendToClients(JSON.stringify({
       type: 'snapshot',
+      serverTick: state.physicsAuthority.serverTick,
       players: [...state.players.values()].map((player) => {
         const session = [...state.activeGuestSessions.values()]
           .find((active) => active.peerId === player.peerId);
+        const physicsSnapshot = authoritative.find((snapshot) => snapshot.playerId === player.peerId);
         return {
           ...player.toSnapshot(),
+          ...physicsSnapshot,
           isAdmin: session?.isAdmin === true,
         };
       }),

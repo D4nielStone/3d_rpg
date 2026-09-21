@@ -19,6 +19,7 @@ import { createCommandManager } from './commands.js';
 import { registerConnectionHandler } from './connection.js';
 import { createPlayerPersistence } from './persistence.js';
 import { isValidMapConfig } from '../world/enemy-areas.js';
+import { FixedTickLoop } from './fixed-tick-loop.js';
 
 export function startMultiplayerServer() {
   const state = new GameState();
@@ -91,11 +92,17 @@ export function startMultiplayerServer() {
       }
 
       let previousUpdateAt = initialSpawnAt;
+      const fixedTickLoop = new FixedTickLoop({
+        onTick: () => state.physicsAuthority.tick(),
+      });
       setInterval(async () => {
         const now = Date.now();
         const deltaSeconds = Math.min((now - previousUpdateAt) / 1000, 0.25);
         previousUpdateAt = now;
         let changed = false;
+
+        fixedTickLoop.advance(now);
+        changed = true;
 
         for (const area of state.enemyAreas) {
           const result = area.update(
