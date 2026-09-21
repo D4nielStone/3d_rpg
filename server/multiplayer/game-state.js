@@ -2,6 +2,11 @@ import { createEnemyAreas } from '../world/enemy-areas.js';
 import { PhysicsWorld } from '../world/physics.js';
 import { ServerPhysicsAuthority } from './server-physics-authority.js';
 
+function getConfiguredPlayerSpeed(mapConfig) {
+  const speed = Number(mapConfig?.player?.speed);
+  return Number.isFinite(speed) ? Math.max(0, speed) : 3;
+}
+
 export class GameState {
   constructor() {
     this.players = new Map(); // peerId -> Player
@@ -11,7 +16,10 @@ export class GameState {
     this.publishedMapConfig = null;
     this.enemyAreas = createEnemyAreas();
     this.physics = new PhysicsWorld();
-    this.physicsAuthority = new ServerPhysicsAuthority({ physics: this.physics });
+    this.physicsAuthority = new ServerPhysicsAuthority({
+      physics: this.physics,
+      getSpeed: () => getConfiguredPlayerSpeed(this.publishedMapConfig),
+    });
     this.databaseReady = false;
   }
 
@@ -19,7 +27,10 @@ export class GameState {
     this.publishedMapConfig = config;
     this.enemyAreas = createEnemyAreas(config);
     this.physics = new PhysicsWorld(config);
-    this.physicsAuthority = new ServerPhysicsAuthority({ physics: this.physics });
+    this.physicsAuthority = new ServerPhysicsAuthority({
+      physics: this.physics,
+      getSpeed: () => getConfiguredPlayerSpeed(config),
+    });
   }
 
   findPlayerArea(position) {

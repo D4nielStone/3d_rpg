@@ -16,7 +16,8 @@ export class RemotePlayerInterpolation {
       return this.interpolate(previous, next, alpha);
     }
     if (!previous) return null;
-    const elapsed = Math.min(this.maxExtrapolationMs, Math.max(0, serverTime - previous.receivedAt));
+    const elapsedTicks = Math.max(0, serverTime - previous.serverTick);
+    const elapsed = Math.min(this.maxExtrapolationMs, elapsedTicks * this.tickMs);
     const scale = elapsed / 1000;
     return { ...previous, position: { x: previous.position.x + (previous.linearVelocity?.x ?? 0) * scale, y: previous.position.y + (previous.linearVelocity?.y ?? 0) * scale, z: previous.position.z + (previous.linearVelocity?.z ?? 0) * scale } };
   }

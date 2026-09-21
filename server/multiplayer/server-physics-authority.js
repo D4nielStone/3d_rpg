@@ -40,16 +40,15 @@ export class ServerPhysicsAuthority {
     return false;
   }
   tick() {
-    this.serverTick += 0.5;
+    this.serverTick += 1;
     for (const state of this.players.values()) {
       const { player } = state;
-      let input = state.inputBuffer.takeNext();
-      while (state.inputBuffer.size > 0) input = state.inputBuffer.takeNext();
-      if (input) {
-        state.currentInput = input;
-        state.lastProcessedInput = input.sequence;
+      const latestInput = state.inputBuffer.takeLatest();
+      if (latestInput) {
+        state.currentInput = latestInput;
+        state.lastProcessedInput = latestInput.sequence;
       }
-      input = state.currentInput;
+      const input = state.currentInput;
       const movement = input
         ? { angle: Math.atan2(input.moveX, input.moveZ), magnitude: Math.min(1, Math.hypot(input.moveX, input.moveZ)) }
         : { angle: player.rotation[1] ?? 0, magnitude: 0 };

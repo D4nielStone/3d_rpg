@@ -136,11 +136,7 @@ export class PhysicsSystem {
   }
 
   update(world, deltaSeconds) {
-    const step = Math.min(
-      Math.max(Number(deltaSeconds) || 0, 0),
-      0.1,
-    );
-
+    const step = Math.min(Math.max(Number(deltaSeconds) || 0, 0), 0.1);
     if (!step) return;
 
     // 1. Envia intenção/movimento para a camada de física.

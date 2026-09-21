@@ -616,7 +616,7 @@ export class MultiplayerSystem {
       const networkTransform = world.getComponent(entity, NetworkTransform);
       if (networkTransform && sampled) {
         networkTransform.targetPosition = [sampled.position.x, sampled.position.y, sampled.position.z];
-        networkTransform.targetRotation = [0, player.rotation?.y ?? 0, 0];
+        networkTransform.targetRotation = [0, sampled.rotation?.y ?? 0, 0];
       }
     }
 

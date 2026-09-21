@@ -12,5 +12,13 @@ export class InputBuffer {
   }
 
   takeNext() { return this.inputs.shift() ?? null; }
+  takeLatest() {
+    if (this.inputs.length === 0) return null;
+    const latest = this.inputs.reduce((selected, input) => (
+      input.sequence > selected.sequence ? input : selected
+    ));
+    this.inputs.length = 0;
+    return latest;
+  }
   get size() { return this.inputs.length; }
 }

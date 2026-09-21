@@ -52,6 +52,42 @@ test('prediction confirma pequenas diferenças sem reposicionar o jogador', () =
   assert.equal(stateUpdates, 0);
 });
 
+test('prediction limita correcoes de posicao do servidor a cada dez segundos', () => {
+  const state = { position: { x: 1, y: 0, z: 0 } };
+  let currentTime = 0;
+  let stateUpdates = 0;
+  const prediction = new ClientPrediction({
+    now: () => currentTime,
+    simulate: () => {},
+    getState: () => state,
+    setState: (snapshot) => {
+      state.position = { ...snapshot.position };
+      stateUpdates += 1;
+    },
+  });
+
+  prediction.reconcile({
+    serverTick: 1,
+    lastProcessedInput: -1,
+    position: { x: 0, y: 0, z: 0 },
+  });
+  currentTime = 9_999;
+  prediction.reconcile({
+    serverTick: 2,
+    lastProcessedInput: -1,
+    position: { x: 2, y: 0, z: 0 },
+  });
+  assert.equal(stateUpdates, 1);
+
+  currentTime = 10_000;
+  prediction.reconcile({
+    serverTick: 3,
+    lastProcessedInput: -1,
+    position: { x: 3, y: 0, z: 0 },
+  });
+  assert.equal(stateUpdates, 2);
+});
+
 test('interpolação ignora snapshot duplicado e interpola snapshots ordenados', () => {
   const interpolation = new RemotePlayerInterpolation({ renderDelay: 0 });
   const first = { serverTick: 1, position: { x: 0, y: 0, z: 0 }, rotation: {}, receivedAt: 0 };
@@ -60,6 +96,18 @@ test('interpolação ignora snapshot duplicado e interpola snapshots ordenados',
   assert.equal(interpolation.add(first), false);
   interpolation.add(second);
   assert.equal(interpolation.sample(1.5).position.x, 1);
+});
+
+test('extrapolação remota converte ticks do servidor em segundos', () => {
+  const interpolation = new RemotePlayerInterpolation({ renderDelay: 0 });
+  interpolation.add({
+    serverTick: 1,
+    position: { x: 0, y: 0, z: 0 },
+    linearVelocity: { x: 6, y: 0, z: 0 },
+    rotation: {},
+  });
+
+  assert.ok(Math.abs(interpolation.sample(2).position.x - 0.1) < 0.0001);
 });
 
 test('buffer de snapshots rejeita pacotes atrasados', () => {
@@ -140,3 +188,24 @@ test('autoridade mantém o último input entre snapshots de entrada', () => {
 
   assert.deepEqual(movements, [3, 3]);
 });
+
+test('autoridade usa a velocidade configurada para simular o jogador', () => {
+  const movements = [];
+  const authority = new ServerPhysicsAuthority({
+    physics: {
+      movePlayer: (_id, _position, _angle, speed) => movements.push(speed),
+      step: () => {},
+      getPlayerPosition: () => [0, 0, 0],
+      getPlayerVelocity: () => [0, 0, 0],
+    },
+    getSpeed: (player) => player.speed,
+  });
+  const player = { peerId: 'configured-speed-player', speed: 7, position: [0, 0, 0], rotation: [0, 0, 0] };
+
+  authority.addPlayer(player);
+  authority.receiveInput(player, { sequence: 0, tick: 0, moveX: 1, moveZ: 0 });
+  authority.tick();
+
+  assert.deepEqual(movements, [7]);
+});
+
