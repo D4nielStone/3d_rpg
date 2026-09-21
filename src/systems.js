@@ -120,6 +120,13 @@ export class PhysicsSystem {
     });
   }
 
+  syncPlayerPosition(entity, position) {
+    if (!entity || !Array.isArray(position)) return;
+    const body = this.physicsWorld.getPlayerBody?.(entity, position);
+    if (!body?.position?.set) return;
+    body.position.set(position[0], position[1], position[2]);
+  }
+
   update(world, deltaSeconds) {
     const step = Math.min(
       Math.max(Number(deltaSeconds) || 0, 0),

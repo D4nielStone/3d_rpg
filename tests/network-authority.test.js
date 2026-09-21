@@ -36,6 +36,21 @@ test('prediction reaplica inputs pendentes na reconciliação', () => {
   assert.deepEqual(simulated, [0, 1, 1]);
 });
 
+test('prediction confirma pequenas diferenças sem reposicionar o jogador', () => {
+  const state = { position: { x: 1, y: 0, z: 0 } };
+  let stateUpdates = 0;
+  const prediction = new ClientPrediction({
+    simulate: () => {},
+    getState: () => state,
+    setState: () => { stateUpdates += 1; },
+  });
+
+  prediction.update({ moveX: 1, moveZ: 0 });
+  prediction.reconcile({ lastProcessedInput: 0, position: { x: 0.9, y: 0, z: 0 } });
+
+  assert.equal(stateUpdates, 0);
+});
+
 test('interpolação ignora snapshot duplicado e interpola snapshots ordenados', () => {
   const interpolation = new RemotePlayerInterpolation({ renderDelay: 0 });
   const first = { serverTick: 1, position: { x: 0, y: 0, z: 0 }, rotation: {}, receivedAt: 0 };

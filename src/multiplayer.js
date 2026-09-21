@@ -5,6 +5,7 @@ import {
   NetworkIdentity,
   NetworkTransform,
   OutlineRenderer,
+  Rigidbody,
   Transform,
 } from './components.js';
 import { ClientPrediction } from './network/client-prediction.js';
@@ -137,7 +138,10 @@ export class MultiplayerSystem {
       ? this.world.getComponent(this.localEntity, Transform)
       : null;
     if (!transform || !snapshot?.position) return;
-    transform.position = [snapshot.position.x, snapshot.position.y, snapshot.position.z];
+    const position = [snapshot.position.x, snapshot.position.y, snapshot.position.z];
+    transform.position = position;
+    const body = this.world.getComponent(this.localEntity, Rigidbody);
+    if (body) this.physicsSystem?.syncPlayerPosition(this.localEntity, position);
     if (snapshot.rotation) transform.rotation = [0, snapshot.rotation.y ?? 0, 0];
   }
 
