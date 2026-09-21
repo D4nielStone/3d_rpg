@@ -67,6 +67,73 @@
   background: #f0c54a;
 }
 
+#mobile-joystick,
+#mobile-orientation { display: none; }
+
+@media (pointer: coarse) and (max-width: 900px) {
+  #mobile-joystick {
+    position: fixed;
+    z-index: 8;
+    left: max(1rem, env(safe-area-inset-left));
+    bottom: max(1rem, env(safe-area-inset-bottom));
+    display: grid;
+    width: clamp(7rem, 24vw, 9rem);
+    height: clamp(7rem, 24vw, 9rem);
+    place-items: center;
+    border: 2px solid rgb(255 255 255 / 24%);
+    border-radius: 50%;
+    background: rgb(9 10 12 / 32%);
+    box-shadow: inset 0 0 0 1px rgb(0 0 0 / 35%), 0 0.75rem 2rem rgb(0 0 0 / 22%);
+    touch-action: none;
+    user-select: none;
+  }
+
+  .joystick-ring {
+    position: absolute;
+    inset: 14%;
+    border: 1px solid rgb(255 255 255 / 22%);
+    border-radius: 50%;
+  }
+
+  #mobile-joystick-knob {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 42%;
+    height: 42%;
+    border: 2px solid #f0c54a;
+    border-radius: 50%;
+    background: #536a3c;
+    box-shadow: 0 0.3rem 0.8rem rgb(0 0 0 / 36%);
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+  }
+}
+
+@media (pointer: coarse) and (orientation: portrait) and (max-width: 900px) {
+  #mobile-joystick { display: none; }
+
+  #mobile-orientation {
+    position: fixed;
+    z-index: 9;
+    inset: 0;
+    display: grid;
+    place-content: center;
+    gap: 0.8rem;
+    padding: 2rem;
+    color: #e9e4d0;
+    text-align: center;
+    background: rgb(9 10 12 / 94%);
+    font: 700 clamp(1.05rem, 5vw, 1.5rem)/1.2 'Pixelify Sans', sans-serif;
+  }
+
+  .orientation-icon {
+    color: #f0c54a;
+    font-size: clamp(3rem, 18vw, 5rem);
+    line-height: 1;
+  }
+}
+
 @media (max-width: 640px) {
   #player-status,
   #player-status .status-health,

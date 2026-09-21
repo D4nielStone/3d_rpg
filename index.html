@@ -54,6 +54,14 @@
         </section>
         <main>
             <canvas id="canvas" width="800" height="500"></canvas>
+            <aside id="mobile-orientation" aria-live="polite">
+                <span class="orientation-icon" aria-hidden="true">↻</span>
+                <strong>Vire o celular para jogar</strong>
+            </aside>
+            <div id="mobile-joystick" aria-label="Joystick de movimento">
+                <span class="joystick-ring" aria-hidden="true"></span>
+                <span id="mobile-joystick-knob" aria-hidden="true"></span>
+            </div>
             <button id="chat-toggle" type="button" aria-expanded="false" aria-controls="chat" aria-label="Abrir chat">CHAT</button>
             <button id="menu-button" type="button" aria-expanded="false" aria-controls="attributes-menu" aria-label="Abrir status">⚙</button>
             <button id="ranking-button" type="button" aria-expanded="false" aria-controls="ranking-menu" aria-label="Abrir ranking">•••</button>

@@ -72,6 +72,7 @@ export async function createGame(canvas, mapConfig = null) {
     far: Number(normalizedMapConfig?.scene?.fog?.far ?? 850),
   };
   const input = new InputState(window, canvas);
+  input.attachJoystick(document.querySelector('#mobile-joystick'));
   const renderSystem = new ThreeRenderSystem(
     canvas,
     camera,
