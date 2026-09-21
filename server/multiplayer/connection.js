@@ -6,7 +6,6 @@ import {
   sendSystemMessage,
 } from './utils.js';
 import { isValidMapConfig } from '../world/enemy-areas.js';
-import { promotePlayerToAreaTwo } from './player-actions.js';
 import { maxWebSocketConnections } from './config.js';
 
 export function registerConnectionHandler({
@@ -194,7 +193,7 @@ export function registerConnectionHandler({
               player.money += attackResult.rewards.gold;
               const experience = attackResult.rewards.experience;
               const leveledUp = player.addExperience(experience);
-              const promoted = leveledUp && promotePlayerToAreaTwo(player, state);
+              const promoted = false;
               await playerStore.save(playerId, player);
               sendSystemMessage(
                 socket,

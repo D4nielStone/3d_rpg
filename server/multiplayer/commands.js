@@ -1,7 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { CommandManager } from '../command-manager.js';
 import { sendSystemMessage, resolvePlayerTarget } from './utils.js';
-import { promotePlayerToAreaTwo } from './player-actions.js';
 import { isWaterPosition } from '../world/enemy-areas.js';
 
 export function createCommandManager({ state, playerStore, broadcastSnapshot }) {
@@ -31,7 +30,7 @@ export function createCommandManager({ state, playerStore, broadcastSnapshot }) 
         const target = resolvePlayerTarget(targetName, peerId, playerId, state);
         if (!target?.player) return sendSystemMessage(socket, `Jogador nao encontrado: ${targetName}`);
         const leveledUp = target.player.addExperience(amount);
-        const promoted = leveledUp && promotePlayerToAreaTwo(target.player, state);
+        const promoted = false;
         let message = `+${amount} XP para ${target.player.nickname}${leveledUp ? '. Level aumentado.' : '.'}`;
         if (promoted) message += ' Teletransportado para a Área dos Ratos 2.';
         if (leveledUp) sendSystemMessage(state.activeGuestSessions.get(target.playerId)?.socket, `Você subiu para o level ${target.player.level}! Vida e mana restauradas para 100%.`);
