@@ -1,4 +1,4 @@
-import { OutlineRenderer, Transform } from './components.js';
+import { EnemyIdentity, OutlineRenderer, Transform } from './components.js';
 
 // Sistema de detecção de mouse-hover no inimigo.
 export class EnemyHoverSystem {
@@ -37,7 +37,7 @@ export class EnemyHoverSystem {
       this.pendingClick = null;
     }
 
-    for (const entity of world.query(OutlineRenderer)) {
+    for (const entity of world.query(EnemyIdentity, OutlineRenderer)) {
       const outline = world.getComponent(entity, OutlineRenderer);
 
       const active = entity === closestEntity || outline.selected;
@@ -54,7 +54,7 @@ export class EnemyHoverSystem {
     let closestDistance = Infinity;
     if (!pointerPosition) return null;
 
-    for (const entity of world.query(Transform, OutlineRenderer)) {
+    for (const entity of world.query(EnemyIdentity, Transform, OutlineRenderer)) {
       const transform = world.getComponent(entity, Transform);
       const outline = world.getComponent(entity, OutlineRenderer);
       const distance = Math.hypot(

@@ -524,7 +524,21 @@ export class MultiplayerSystem {
     const keyboardMovement = this.input?.getMovementCommand?.() ?? { angle: 0, magnitude: 0 };
     let movement = keyboardMovement;
     let movementIsWorldSpace = false;
-    if (movement.magnitude <= 0 && this.clickDestination) {
+    if (movement.magnitude <= 0 && this.attackTargetEntity) {
+      const targetTransform = this.world.getComponent(this.attackTargetEntity, Transform);
+      const playerTransform = this.world.getComponent(this.localEntity, Transform);
+      const attackDistance = this.combatMode === 'melee' ? COMBAT_DISTANCE : RANGED_ATTACK_DISTANCE;
+      const stopDistance = Math.max(0, attackDistance - 0.15);
+      if (targetTransform && playerTransform) {
+        const deltaX = targetTransform.position[0] - playerTransform.position[0];
+        const deltaZ = targetTransform.position[2] - playerTransform.position[2];
+        const distance = Math.hypot(deltaX, deltaZ);
+        if (distance > stopDistance) {
+          movement = { angle: Math.atan2(deltaX, deltaZ), magnitude: 1 };
+          movementIsWorldSpace = true;
+        }
+      }
+    } else if (movement.magnitude <= 0 && this.clickDestination) {
       const transform = this.world.getComponent(this.localEntity, Transform);
       const deltaX = this.clickDestination[0] - transform.position[0];
       const deltaZ = this.clickDestination[2] - transform.position[2];

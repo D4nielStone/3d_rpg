@@ -203,5 +203,9 @@ export function addRemoteEnemy(world, enemyAssets, enemy) {
   }
   if (asset?.texture) world.addComponent(entity, asset.texture);
   world.addComponent(entity, new ShadowRenderer());
+  world.addComponent(entity, new OutlineRenderer({
+    radius: 0.85,
+    color: [1, 0.32, 0.04],
+  }));
   return entity;
 }
