@@ -28,14 +28,14 @@
         <button class="panel-close icon-button" type="button" data-close-panel="assets-panel" title="Fechar assets">×</button>
         <div class="panel-section">
           <div class="section-heading"><h2>Assets</h2><span id="asset-count">0</span></div>
-          <label class="upload-button" for="model-file">Importar modelo 3D</label>
-          <input id="model-file" type="file" multiple accept=".glb,.gltf,.obj,.mtl,.png,.jpg,.jpeg,.webp,model/gltf-binary,model/gltf+json,text/plain,image/png,image/jpeg,image/webp,application/octet-stream" hidden />
+          <label class="upload-button" for="model-file">Adicionar arquivos</label>
+          <input id="model-file" type="file" multiple accept=".glb,.gltf,.obj,.mtl,.png,.jpg,.jpeg,.webp,.glsl,.vert,.frag,.js,.ts,.json,.css,.html,.txt,model/gltf-binary,model/gltf+json,text/plain,image/png,image/jpeg,image/webp,application/octet-stream" hidden />
           <div class="asset-url-row"><input id="model-url" type="url" placeholder="/models/objeto.glb ou objeto.obj" /><button id="add-url-button" type="button" title="Adicionar modelo por URL">+</button></div>
           <p class="panel-note">GLB, GLTF e OBJ. Para OBJ, selecione também o MTL e as texturas.</p>
           <div class="asset-library-tools">
             <label class="asset-search"><span class="sr-only">Buscar assets</span><input id="asset-search" type="search" placeholder="Buscar por nome ou URL" /></label>
             <div class="asset-filter-row">
-              <label><span class="sr-only">Filtrar formato</span><select id="asset-format-filter"><option value="all">Todos os formatos</option><option value="glb">GLB</option><option value="gltf">GLTF</option><option value="obj">OBJ</option></select></label>
+              <label><span class="sr-only">Filtrar formato</span><select id="asset-format-filter"><option value="all">Todos os formatos</option><option value="glb">GLB</option><option value="gltf">GLTF</option><option value="obj">OBJ</option><option value="glsl">Shaders</option><option value="png">Imagens</option><option value="json">JSON</option><option value="txt">Texto</option></select></label>
               <label><span class="sr-only">Ordenar assets</span><select id="asset-sort"><option value="name">Nome A-Z</option><option value="recent">Mais recentes</option><option value="usage">Mais usados</option><option value="format">Formato</option></select></label>
             </div>
           </div>
@@ -84,6 +84,7 @@
           <button class="inspector-tab" type="button" role="tab" aria-selected="false" data-inspector-tab="entity-inspector">Inspector</button>
           <button class="inspector-tab" type="button" role="tab" aria-selected="false" data-inspector-tab="scene-settings">Config</button>
           <button class="inspector-tab" type="button" role="tab" aria-selected="false" data-inspector-tab="world-json">JSON</button>
+          <button class="inspector-tab" type="button" role="tab" aria-selected="false" data-inspector-tab="shaders">Shaders</button>
         </nav>
         <div class="panel-section inspector-tab-panel panel-section-active" data-inspector-panel="scene-tree">
           <div class="section-heading"><h2>Scene</h2><span id="scene-tree-count">0</span></div>
@@ -148,6 +149,8 @@
           <div id="empty-inspector" class="empty-inspector">Selecione uma entidade na cena ou na hierarquia.</div>
           <div id="entity-inspector" hidden>
             <label for="entity-name">Nome</label><input id="entity-name" type="text" />
+            <label for="entity-tags">Tags</label><input id="entity-tags" type="text" placeholder="decoracao, interativo" />
+            <label for="entity-shader-tag">Tag do shader</label><input id="entity-shader-tag" type="text" placeholder="water" />
             <div id="player-preview-inspector" hidden>
               <div class="transform-heading"><strong>Player</strong><span>componentes</span></div>
               <label for="player-asset">Asset do modelo</label><select id="player-asset"><option value="">Modelo padrão</option></select>
@@ -208,9 +211,23 @@
             <div class="component-panel" data-component-panel="mesh">
               <div class="transform-heading"><strong>Meshes</strong><span id="mesh-count">0</span></div>
               <div id="mesh-list" class="mesh-list" aria-label="Meshes do objeto"></div>
+              <div class="material-editor-heading"><strong>Material</strong><button id="create-material-button" class="text-button" type="button">+ Novo</button></div>
+              <label for="material-name">Nome</label><input id="material-name" type="text" placeholder="Material" />
+              <label for="material-shader">Shader</label>
+              <select id="material-shader">
+                <option value="Standard">Standard</option>
+                <option value="Water">Water / Animated</option>
+                <option value="Custom">Custom Shader</option>
+              </select>
+              <label for="material-surface">Surface</label>
+              <select id="material-surface"><option value="Opaque">Opaque</option><option value="Transparent">Transparent</option></select>
               <label class="check-row"><input id="entity-receive-light" type="checkbox" /> Receber luz</label>
               <label class="check-row"><input id="entity-cast-shadow" type="checkbox" /> Projetar sombra</label>
               <label for="entity-diffuse-color">Cor difusa</label><input id="entity-diffuse-color" type="color" value="#ffffff" />
+              <label for="material-metalness">Metallic <output id="material-metalness-value">0.00</output></label>
+              <input id="material-metalness" type="range" min="0" max="1" value="0" step="0.01" />
+              <label for="material-roughness">Roughness <output id="material-roughness-value">0.70</output></label>
+              <input id="material-roughness" type="range" min="0" max="1" value="0.7" step="0.01" />
               <label for="entity-texture-file">Textura</label><input id="entity-texture-file" type="file" accept="image/*" />
             </div>
             <div id="animation-controls" class="component-panel" data-component-panel="animation" hidden>
@@ -256,6 +273,30 @@
           <dl class="map-summary"><div><dt>Entidades</dt><dd id="entity-summary-count">0</dd></div></dl>
         </div>
         <div class="panel-section inspector-tab-panel export-preview" data-inspector-panel="world-json"><h2>World JSON</h2><pre id="json-preview">{}</pre></div>
+        <div class="panel-section inspector-tab-panel" data-inspector-panel="shaders">
+          <div class="section-heading"><h2>Editor de texto</h2><span id="shader-count">0</span></div>
+          <div class="shader-toolbar">
+            <label class="shader-file-picker" for="shader-file-select">Arquivo<select id="shader-file-select" aria-label="Selecionar arquivo de shader"></select></label>
+            <span id="shader-language" class="shader-language">texto</span>
+          </div>
+          <div class="shader-actions">
+            <button id="shader-save-button" class="primary-button" type="button">Salvar no mundo</button>
+            <button id="shader-apply-button" class="primary-button" type="button">Aplicar no viewport</button>
+            <button id="shader-download-button" class="secondary-button" type="button">Baixar arquivo</button>
+            <label class="file-button secondary-button" for="shader-import-file">Abrir arquivo</label>
+            <input id="shader-import-file" type="file" accept=".glsl,.vert,.frag,.js,.ts,.json,.css,.html,.txt" hidden />
+          </div>
+          <label for="shader-tag">Aplicar à tag</label>
+          <input id="shader-tag" type="text" placeholder="water" />
+          <label for="shader-properties">Propriedades (JSON)</label>
+          <textarea id="shader-properties" rows="3" placeholder='{"uColor":"#ffffff","uSpeed":1}'></textarea>
+          <button id="shader-bind-button" class="secondary-button full-button" type="button">Vincular shader à tag</button>
+          <div class="shader-editor" aria-label="Editor de arquivo de texto">
+            <pre id="shader-highlight" aria-hidden="true"></pre>
+            <textarea id="shader-source-editor" spellcheck="false" wrap="off" aria-label="Conteúdo do arquivo"></textarea>
+          </div>
+          <div class="shader-status"><span id="shader-cursor-position">Ln 1, Col 1</span><span id="shader-dirty-state">Salvo</span></div>
+        </div>
       </aside>
     </section>
   </main>

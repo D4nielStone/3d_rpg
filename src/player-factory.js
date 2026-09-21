@@ -85,6 +85,7 @@ export async function loadPlayer(world, textureManager, definition = {}, assetDe
     heightOffset: normalizePlayerScale(definition.scale)[1] * 0.5,
   }));
   world.addComponent(entity, asset.mesh ?? asset);
+  (asset.mesh ?? asset).tags = Array.isArray(definition.tags) ? [...definition.tags] : [];
   world.addComponent(entity, new AnimationPlayer({
     animations: asset.animations,
     mixer: asset.animationMixer,

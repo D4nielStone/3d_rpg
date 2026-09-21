@@ -35,6 +35,7 @@ export function createWorldController(getters, setters = {}) {
     const skyColor = get('skyColor');
     const fog = get('fog');
     const sounds = get('sounds');
+    const shaders = get('shaders');
     const assets = get('assets');
     const entities = get('entities');
     const enemyTypes = get('enemyTypes');
@@ -70,6 +71,7 @@ export function createWorldController(getters, setters = {}) {
         },
       },
       sounds: { ...(sounds ?? {}) },
+      shaders: (shaders ?? []).map(({ path, stage, source, tag, properties }) => ({ path, stage, source, tag, properties: { ...(properties ?? {}) } })),
       player: {
         ...(player ?? {}),
         maxHp,
@@ -90,7 +92,7 @@ export function createWorldController(getters, setters = {}) {
         },
         animation: { ...(player?.animation ?? {}) },
       },
-      assets: (assets ?? []).map(({ id, name, url, source, format, dependencies }) => ({ id, name, url, source, format, dependencies })),
+      assets: (assets ?? []).map(({ id, name, url, source, format, dependencies, kind, mime }) => ({ id, name, url, source, format, dependencies, kind, mime })),
       entities: (entities ?? [])
         .filter((entity) => !entity.isPlayerPreview)
         .map((entity) => entitySnapshot(entity)),
@@ -122,6 +124,11 @@ export function createWorldController(getters, setters = {}) {
 
     const nextSounds = normalizeSounds(config?.sounds);
     set('sounds', nextSounds);
+    const nextShaders = Array.isArray(config?.shaders) && config.shaders.length ? config.shaders.filter((shader) => shader?.path && typeof shader.source === 'string').map((shader) => ({ ...shader, properties: { ...(shader.properties ?? {}) } })) : null;
+    if (nextShaders) {
+      set('shaders', nextShaders);
+      getCallback('renderShaders')?.();
+    }
 
     const nextPlayer = {
       ...(get('player') ?? {}),
@@ -149,6 +156,9 @@ export function createWorldController(getters, setters = {}) {
     })));
     set('enemyTypes', (Array.isArray(config?.enemyTypes) ? config.enemyTypes : defaultEnemyTypes).map((type, index) => normalizeEnemyType({ ...type, gold: { ...type.gold }, itemDrops: [...(type.itemDrops ?? [])] }, index)));
     set('enemyAreas', (Array.isArray(config?.enemyAreas) ? config.enemyAreas : []).map((area) => normalizeEnemyArea({ ...area })));
+    getCallback('renderAssets')?.();
+    getCallback('renderEnemyTypes')?.();
+    getCallback('renderEnemyAreas')?.();
 
     const entityGroup = get('entityGroup');
     if (entityGroup) entityGroup.clear();
@@ -205,7 +215,7 @@ export function createWorldController(getters, setters = {}) {
     const savedConfig = readSavedMapConfig();
     const fallbackConfig = buildDefaultWorldConfig();
     const config = resolveWorldConfig(
-      remoteConfig && (remoteConfig.entities || remoteConfig.assets || remoteConfig.enemyAreas)
+      remoteConfig && (remoteConfig.entities || remoteConfig.assets || remoteConfig.enemyAreas || remoteConfig.shaders)
         ? remoteConfig
         : (savedConfig && (savedConfig.entities || savedConfig.assets || savedConfig.enemyAreas)
           ? savedConfig

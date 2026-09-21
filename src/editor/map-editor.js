@@ -50,13 +50,17 @@ import {
   normalizeEntityMaterials,
   normalizeEntityShadows,
   normalizeEntityAnimation,
+  normalizeEntityTags,
   applyEntityTransform,
   applyEntityMaterials,
+  applyEntityWaterShader,
   readObjectMaterials,
   materialIndexForObject,
   markSelectable,
   entitySnapshot,
 } from './editor-entity-utils.js';
+import { updateWaterMaterial, updateWaterMaterialUniforms, refreshWaterMaterial } from '../shaders/water-material.js';
+import { shaderFiles } from '../shaders/shader-files.js';
 
 const httpUrl = getMultiplayerHttpUrl();
 const accessTicket = new URLSearchParams(window.location.search).get('access');
@@ -79,6 +83,13 @@ const emptyInspector = document.querySelector('#empty-inspector');
 const selectedEntityLabel = document.querySelector('#selected-entity-label');
 const entityDiffuseColorInput = document.querySelector('#entity-diffuse-color');
 const entityTextureFileInput = document.querySelector('#entity-texture-file');
+const materialNameInput = document.querySelector('#material-name');
+const materialShaderInput = document.querySelector('#material-shader');
+const materialSurfaceInput = document.querySelector('#material-surface');
+const materialMetalnessInput = document.querySelector('#material-metalness');
+const materialMetalnessValue = document.querySelector('#material-metalness-value');
+const materialRoughnessInput = document.querySelector('#material-roughness');
+const materialRoughnessValue = document.querySelector('#material-roughness-value');
 const entityReceiveLightInput = document.querySelector('#entity-receive-light');
 const entityCastShadowInput = document.querySelector('#entity-cast-shadow');
 const collisionFrictionInput = document.querySelector('#collision-friction');
@@ -161,6 +172,7 @@ let mode = 'select';
 let entities = [];
 let assets = [];
 let sounds = { slash: '', pulse: '', arc: '', 'level-up': '' };
+let shaders = shaderFiles;
 let enemyAreas = [];
 let enemyTypes = [];
 let lighting = { ...defaultLighting, directional: { ...defaultLighting.directional }, point: { ...defaultLighting.point } };
@@ -186,11 +198,15 @@ const worldController = createWorldController({
   skyColor: () => skyColor,
   fog: () => fog,
   sounds: () => sounds,
+  shaders: () => shaders,
   player: () => player,
   assets: () => assets,
   entities: () => entities,
   enemyTypes: () => enemyTypes,
   enemyAreas: () => enemyAreas,
+  renderAssets: () => renderAssets(),
+  renderEnemyTypes: () => renderEnemyTypes(),
+  renderEnemyAreas: () => renderEnemyAreas(),
   entityGroup: () => entityGroup,
   httpUrl: () => httpUrl,
   updateSceneAtmosphere: () => updateSceneAtmosphere(),
@@ -207,6 +223,7 @@ const worldController = createWorldController({
   skyColor: (value) => { skyColor = value; },
   fog: (value) => { fog = value; },
   sounds: (value) => { sounds = value; },
+  shaders: (value) => { shaders = value; shaderFiles.splice(0, shaderFiles.length, ...value); },
   player: (value) => { player = value; },
   assets: (value) => { assets = value; },
   entities: (value) => { entities = value; },
@@ -379,6 +396,7 @@ function addEntity(entity, object = null, animations = []) {
   entity.name = uniqueEntityName(entity.name, entities, entity.id);
   normalizeEntityTransform(entity);
   normalizeEntityAnimation(entity);
+  normalizeEntityTags(entity);
   normalizeCollision(entity);
   normalizeEntityShadows(entity);
   if (entity.type === 'pointLight') normalizePointLight(entity);
@@ -391,6 +409,7 @@ function addEntity(entity, object = null, animations = []) {
   markSelectable(entity.object, entity.id);
   applyEntityTransform(entity);
   applyEntityMaterials(entity);
+  applyEntityWaterShader(entity);
   entity.object.traverse((child) => {
     if (!child.isMesh) return;
     child.castShadow = entity.castShadow;
@@ -531,6 +550,7 @@ function duplicateSelectedEntity() {
     position: [...source.position],
     rotation: [...source.rotation],
     scale: [...source.scale],
+    tags: [...(source.tags ?? [])],
     materials: source.materials.map((material) => ({ ...material, diffuseColor: [...material.diffuseColor] })),
     animation: { ...source.animation },
     collision: { ...source.collision },
@@ -615,7 +635,7 @@ function syncSelectedFromObject() {
 function createEntity(name = 'Entidade vazia', assetId = null) {
   return {
     id: newId('entity'), name: uniqueEntityName(name), assetId, position: [0, 0, 0],
-    rotation: [0, 0, 0], scale: [1, 1, 1], materials: [], object: null
+    rotation: [0, 0, 0], scale: [1, 1, 1], tags: [], materials: [], object: null
   };
 }
 function renderEntities() {
@@ -737,11 +757,17 @@ function makeAreaVectorFields() {
   container.replaceChildren(...['x', 'y', 'z'].map((axis, index) => { const label = document.createElement('label'); label.textContent = axis.toUpperCase(); const input = document.createElement('input'); input.type = 'number'; input.step = '0.1'; input.dataset.areaIndex = String(index); input.addEventListener('change', () => { const area = selectedEnemyArea(); if (!area) return; pushHistory(); const value = Number(input.value); area.center[index] = Number.isFinite(value) ? value : 0; normalizeEnemyArea(area); updateEnemyAreaInspector(); renderEnemyAreaVisuals(); updateSummary(); }); label.append(input); return label; }));
 }
 function assetFormat(name) { return name.split('?')[0].split('.').pop().toLowerCase(); }
+function assetIcon(format) { return ({ glb: '3D', gltf: '3D', obj: '3D', mtl: 'MT', png: 'IM', jpg: 'IM', jpeg: 'IM', webp: 'IM', glsl: 'SH', vert: 'SH', frag: 'SH', js: 'JS', mjs: 'JS', ts: 'TS', json: '{}', css: 'CSS', html: 'HT', txt: 'TXT', mp3: 'AU', ogg: 'AU', wav: 'AU' })[format] ?? 'FILE'; }
+function assetIsModel(asset) { return ['glb', 'gltf', 'obj'].includes(asset?.format); }
+function filteredAssets() { const query = document.querySelector('#asset-search')?.value.trim().toLowerCase() ?? ''; const format = document.querySelector('#asset-format-filter')?.value ?? 'all'; const sort = document.querySelector('#asset-sort')?.value ?? 'name'; const result = assets.filter((asset) => (!query || `${asset.name} ${asset.url}`.toLowerCase().includes(query)) && (format === 'all' || asset.format === format)); return result.sort((left, right) => sort === 'format' ? left.format.localeCompare(right.format) || left.name.localeCompare(right.name) : left.name.localeCompare(right.name)); }
 function readFileAsDataUrl(file) { return new Promise((resolve, reject) => { const reader = new FileReader(); reader.addEventListener('load', () => resolve(String(reader.result))); reader.addEventListener('error', () => reject(reader.error ?? new Error('Não foi possível ler o arquivo'))); reader.readAsDataURL(file); }); }
 function readFileAsText(file) { return file.text(); }
 function renderAssets() {
-  assetList.replaceChildren(...assets.map((asset) => { const item = document.createElement('div'); item.className = 'asset-item'; const addButton = document.createElement('button'); addButton.className = 'asset-add'; addButton.type = 'button'; addButton.innerHTML = `<span class="asset-icon">3D</span><span>${asset.name}</span>`; addButton.title = 'Adicionar à cena'; addButton.addEventListener('click', () => instantiateAsset(asset)); const removeButton = document.createElement('button'); removeButton.className = 'asset-remove icon-button'; removeButton.type = 'button'; removeButton.textContent = '×'; removeButton.title = `Remover ${asset.name}`; removeButton.addEventListener('click', () => removeAsset(asset.id)); item.append(addButton, removeButton); return item; }));
+  const visibleAssets = filteredAssets();
+  assetList.replaceChildren(...visibleAssets.map((asset) => { const item = document.createElement('div'); item.className = 'asset-item'; const addButton = document.createElement('button'); addButton.className = 'asset-add'; addButton.type = 'button'; addButton.disabled = !assetIsModel(asset); addButton.innerHTML = `<span class="asset-icon">${assetIcon(asset.format)}</span><span class="asset-details"><strong class="asset-name">${asset.name}</strong><small class="asset-meta"><span>${asset.format.toUpperCase()}</span><span>${assetIsModel(asset) ? 'Adicionar à cena' : 'Arquivo'}</span></small></span>`; addButton.title = assetIsModel(asset) ? 'Adicionar à cena' : 'Arquivo de suporte'; if (assetIsModel(asset)) addButton.addEventListener('click', () => instantiateAsset(asset)); const removeButton = document.createElement('button'); removeButton.className = 'asset-remove icon-button'; removeButton.type = 'button'; removeButton.textContent = '×'; removeButton.title = `Remover ${asset.name}`; removeButton.addEventListener('click', () => removeAsset(asset.id)); item.append(addButton, removeButton); return item; }));
   document.querySelector('#asset-count').textContent = String(assets.length);
+  document.querySelector('#asset-list-summary').textContent = `${visibleAssets.length} de ${assets.length} arquivos`;
+  document.querySelector('#clear-asset-search').hidden = visibleAssets.length === assets.length;
   renderSceneTree();
 }
 function removeAsset(assetId) {
@@ -779,6 +805,8 @@ function renderMeshList(entity) {
 function updateInspector() {
   const entity = selectedEntity(); const active = Boolean(entity); entityInspector.hidden = !active; emptyInspector.hidden = active; playerPreviewInspector.hidden = !entity?.isPlayerPreview; if (!entity) { updateAnimationInspector(); return; }
   document.querySelector('#entity-name').value = entity.name;
+  document.querySelector('#entity-tags').value = (entity.tags ?? []).join(', ');
+  document.querySelector('#entity-shader-tag').value = entity.shader?.tag ?? '';
 
   const isDirectionalLight = entity.type === 'directionalLight';
   const isPointLight = entity.type === 'pointLight';
@@ -815,7 +843,15 @@ function updateInspector() {
   entityCastShadowInput.checked = entity.castShadow;
   if (selectedMaterialIndex >= (entity.materials?.length ?? 0)) selectedMaterialIndex = 0;
   renderMeshList(entity);
-  entityDiffuseColorInput.value = colorToHex(entity.materials?.[selectedMaterialIndex]?.diffuseColor ?? [1, 1, 1]);
+  const material = entity.materials?.[selectedMaterialIndex];
+  entityDiffuseColorInput.value = colorToHex(material?.diffuseColor ?? [1, 1, 1]);
+  materialNameInput.value = material?.name ?? '';
+  materialShaderInput.value = material?.shader ?? 'Standard';
+  materialSurfaceInput.value = material?.surface ?? 'Opaque';
+  materialMetalnessInput.value = material?.metallic ?? 0;
+  materialMetalnessValue.textContent = Number(material?.metallic ?? 0).toFixed(2);
+  materialRoughnessInput.value = material?.roughness ?? 0.7;
+  materialRoughnessValue.textContent = Number(material?.roughness ?? 0.7).toFixed(2);
   normalizeCollision(entity);
   document.querySelector('#collision-enabled').checked = entity.collision.enabled;
   document.querySelector('#collision-shape').value = entity.collision.shape;
@@ -852,6 +888,153 @@ function exportConfig() {
 }
 function updateSummary() {
   worldController.updateSummary();
+}
+function shaderLanguage(path) {
+  const extension = path.split('?')[0].split('.').pop().toLowerCase();
+  return ({ glsl: 'GLSL', vert: 'GLSL', frag: 'GLSL', js: 'JavaScript', mjs: 'JavaScript', ts: 'TypeScript', json: 'JSON', css: 'CSS', html: 'HTML', txt: 'Texto' })[extension] ?? 'Texto';
+}
+function escapeMarkup(value) {
+  return value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
+}
+function highlightSource(source, language) {
+  if (language === 'Texto') return escapeMarkup(source);
+  const types = /^(?:void|bool|int|float|vec[234]|mat[234]|sampler2D|const)$/;
+  const keywords = /^(?:attribute|break|case|continue|default|do|else|for|if|return|switch|uniform|varying|while|function|class|const|let|var|import|export|new|true|false|null)$/;
+  const tokenPattern = /(\/\*[\s\S]*?\*\/|\/\/[^\r\n]*|#[a-zA-Z_]+|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|\b(?:void|bool|int|float|vec[234]|mat[234]|sampler2D|attribute|break|case|continue|default|do|else|for|if|return|switch|uniform|varying|while|function|class|const|let|var|import|export|new|true|false|null)\b|\b\d+(?:\.\d+)?(?:e[-+]?\d+)?\b)/g;
+  return source.replace(tokenPattern, (token) => {
+    const escaped = escapeMarkup(token);
+    if (token.startsWith('//') || token.startsWith('/*')) return `<span class="syntax-comment">${escaped}</span>`;
+    if (token.startsWith('#')) return `<span class="syntax-keyword">${escaped}</span>`;
+    if (token.startsWith('"') || token.startsWith("'")) return `<span class="syntax-string">${escaped}</span>`;
+    if (/^\d/.test(token)) return `<span class="syntax-number">${escaped}</span>`;
+    if (types.test(token)) return `<span class="syntax-type">${escaped}</span>`;
+    if (keywords.test(token)) return `<span class="syntax-keyword">${escaped}</span>`;
+    return escaped;
+  }).replace(/\n$/g, '\n');
+}
+function currentShaderFile() {
+  return shaderFiles[Number(document.querySelector('#shader-file-select')?.value) || 0] ?? null;
+}
+function loadShaderProperties() {
+  const shader = currentShaderFile();
+  if (!shader) return;
+  document.querySelector('#shader-tag').value = shader.tag ?? '';
+  document.querySelector('#shader-properties').value = JSON.stringify(shader.properties ?? {}, null, 2);
+}
+function updateShaderCursor() {
+  const editor = document.querySelector('#shader-source-editor');
+  const position = editor.selectionStart;
+  const before = editor.value.slice(0, position).split('\n');
+  document.querySelector('#shader-cursor-position').textContent = `Ln ${before.length}, Col ${before.at(-1).length + 1}`;
+}
+function refreshShaderHighlight() {
+  const editor = document.querySelector('#shader-source-editor');
+  const highlight = document.querySelector('#shader-highlight');
+  const language = shaderLanguage(currentShaderFile()?.path ?? 'text.txt');
+  highlight.innerHTML = `${highlightSource(editor.value, language)}\n`;
+  highlight.scrollTop = editor.scrollTop;
+  highlight.scrollLeft = editor.scrollLeft;
+  document.querySelector('#shader-language').textContent = language;
+  updateShaderCursor();
+}
+function loadShaderIntoEditor() {
+  const shader = currentShaderFile();
+  const editor = document.querySelector('#shader-source-editor');
+  if (!shader || !editor) return;
+  editor.value = shader.source;
+  document.querySelector('#shader-dirty-state').textContent = 'Salvo';
+  refreshShaderHighlight();
+  loadShaderProperties();
+}
+function renderShaders() {
+  const select = document.querySelector('#shader-file-select');
+  if (!select) return;
+  const selectedPath = currentShaderFile()?.path;
+  select.replaceChildren(...shaderFiles.map((shader, index) => new Option(shader.path, String(index))));
+  const selectedIndex = shaderFiles.findIndex((shader) => shader.path === selectedPath);
+  select.value = String(selectedIndex >= 0 ? selectedIndex : 0);
+  document.querySelector('#shader-count').textContent = String(shaderFiles.length);
+  loadShaderIntoEditor();
+}
+function downloadShaderFile() {
+  const shader = currentShaderFile();
+  if (!shader) return;
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(new Blob([shader.source], { type: 'text/plain' }));
+  link.download = shader.path.split('/').pop() || 'shader.txt';
+  link.click();
+  URL.revokeObjectURL(link.href);
+}
+function saveShaderFile() {
+  const shader = currentShaderFile();
+  if (!shader) return;
+  try {
+    saveMapConfig(exportConfig());
+    document.querySelector('#shader-dirty-state').textContent = 'Salvo no mundo';
+    setStatus(`Shader ${shader.path} salvo no mundo`);
+  } catch {
+    setStatus('Não foi possível salvar o shader no mundo');
+  }
+}
+function applyShaderToViewport() {
+  entities.forEach((entity) => entity.object?.traverse((child) => {
+    if (child.isMesh && child.material?.userData?.waterShader) refreshWaterMaterial(child.material);
+  }));
+  document.querySelector('#shader-dirty-state').textContent = 'Aplicado';
+}
+function bindShaderToTag() {
+  const shader = currentShaderFile();
+  const tag = document.querySelector('#shader-tag').value.trim();
+  if (!shader || !tag) return;
+  let properties = {};
+  try { properties = JSON.parse(document.querySelector('#shader-properties').value || '{}'); } catch { setStatus('Propriedades do shader precisam ser um JSON válido'); return; }
+  shader.tag = tag;
+  shader.properties = properties;
+  entities.filter((entity) => (entity.tags ?? []).some((entityTag) => entityTag.toLowerCase() === tag.toLowerCase())).forEach((entity) => { entity.shader = { tag, file: shader.path, properties: { ...properties } }; applyEntityWaterShader(entity); });
+  updateInspector();
+  updateSummary();
+  setStatus(`Shader ${shader.path} vinculado à tag ${tag}`);
+}
+function bindShaderEditor() {
+  const select = document.querySelector('#shader-file-select');
+  const editor = document.querySelector('#shader-source-editor');
+  const highlight = document.querySelector('#shader-highlight');
+  select.addEventListener('change', loadShaderIntoEditor);
+  editor.addEventListener('input', () => {
+    const shader = currentShaderFile();
+    if (!shader) return;
+    shader.source = editor.value;
+    document.querySelector('#shader-dirty-state').textContent = 'Editado';
+    refreshShaderHighlight();
+  });
+  editor.addEventListener('scroll', refreshShaderHighlight);
+  ['click', 'keyup', 'select'].forEach((eventName) => editor.addEventListener(eventName, updateShaderCursor));
+  editor.addEventListener('keydown', (event) => {
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
+      event.preventDefault();
+      downloadShaderFile();
+    }
+    if (event.key === 'Tab') {
+      event.preventDefault();
+      const start = editor.selectionStart;
+      editor.setRangeText('  ', start, editor.selectionEnd, 'end');
+      editor.dispatchEvent(new Event('input'));
+    }
+  });
+  document.querySelector('#shader-download-button').addEventListener('click', downloadShaderFile);
+  document.querySelector('#shader-save-button').addEventListener('click', saveShaderFile);
+  document.querySelector('#shader-apply-button').addEventListener('click', applyShaderToViewport);
+  document.querySelector('#shader-bind-button').addEventListener('click', bindShaderToTag);
+  document.querySelector('#shader-import-file').addEventListener('change', async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    shaderFiles.push({ path: `local/${file.name}`, stage: shaderLanguage(file.name), source: await file.text(), tag: '', properties: {} });
+    renderShaders();
+    select.value = String(shaderFiles.length - 1);
+    loadShaderIntoEditor();
+    event.target.value = '';
+  });
+  loadShaderIntoEditor();
 }
 function updatePlayerInspector() {
   const set = (id, value) => { const input = document.querySelector(`#${id}`); if (input) input.value = value; };
@@ -914,7 +1097,7 @@ manager.setURLModifier((resourceUrl) => {
 });
 const result = await new GLTFLoader(manager).loadAsync(url); return { object: result.scene, animations: result.animations }; }
 async function instantiateAsset(asset) { if (!asset || typeof asset !== 'object') return; try { setStatus(`Carregando ${asset.name}...`); const loaded = await loadModel(asset.url, asset.format, asset.dependencies); const object = loaded.object; object.traverse((child) => { if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; } }); const entity = asset._definition ? { ...asset._definition, object } : { ...createEntity(asset.name, asset.id), materials: readObjectMaterials(object), object }; addEntity(entity, object, loaded.animations); setMode('translate'); setStatus(`${asset.name} adicionado à cena`); } catch (error) { setStatus(`Falha ao carregar ${asset?.name ?? 'asset'}: ${error.message}`); } }
-async function registerAsset(url, name, source = url, format = assetFormat(name), dependencies = null) { const asset = { id: newId('asset'), name, url, source, format, dependencies }; assets.push(asset); renderAssets(); updatePlayerInspector(); updateSummary(); await instantiateAsset(asset); }
+async function registerAsset(url, name, source = url, format = assetFormat(name), dependencies = null, mime = '') { const asset = { id: newId('asset'), name, url, source, format, dependencies, mime, kind: assetIsModel({ format }) ? 'model' : 'file' }; assets.push(asset); renderAssets(); updatePlayerInspector(); updateSummary(); if (assetIsModel(asset)) await instantiateAsset(asset); }
 function download() { return worldController.download(); }
 let applyingMap = false;
 async function applyToGame() {
@@ -955,7 +1138,7 @@ async function loadSavedWorld() {
 const editorEventContext = {
   setMode, setStatus, setPanelOpen, setInspectorTab, setComponentTab,
   updateEnemyTypeField, updateEnemyAreaField, updateVector, updateSummary,
-  renderSounds, renderEnemyAreas, renderEnemyTypes, renderEntities, updateInspector,
+  renderSounds, renderAssets, renderEnemyAreas, renderEnemyTypes, renderEntities, updateInspector, renderShaders,
   updateSceneAtmosphere, updateSceneAmbientLight, updateLightingInspector,
   updatePlayerInspector, readPlayerInspector, refreshPlayerPreview, applyToGame, undo, redo,
   loadWorld, registerAsset, instantiateAsset, assetFormat, readFileAsDataUrl, addEntity,
@@ -964,7 +1147,7 @@ const editorEventContext = {
   selectedEntity, pushHistory,
   renderSceneTree, updateAnimationInspector, setAnimationPlaying,
   stopAnimation, applyEntityAnimation, syncPlayerFromPreview, renderMeshList,
-  normalizeCollision, normalizeEntityMaterials, applyEntityMaterials,
+  normalizeCollision, normalizeEntityTags, normalizeEntityMaterials, applyEntityMaterials, applyEntityWaterShader,
   updateCollisionVisual, clearCollisionVisual,
   download, exportConfig, loadSavedWorld, listEditorEntities, newId,
   selectEntity, selectEnemyArea, materialIndexForObject, resize, lights: [],
@@ -985,6 +1168,13 @@ const editorEventContext = {
   panelToggles,
   entityDiffuseColorInput: document.querySelector('#entity-diffuse-color'),
   entityTextureFileInput: document.querySelector('#entity-texture-file'),
+  materialNameInput,
+  materialShaderInput,
+  materialSurfaceInput,
+  materialMetalnessInput,
+  materialMetalnessValue,
+  materialRoughnessInput,
+  materialRoughnessValue,
   entityReceiveLightInput: document.querySelector('#entity-receive-light'),
   entityCastShadowInput: document.querySelector('#entity-cast-shadow'),
   entityLightColorInput: document.querySelector('#entity-light-color'),
@@ -1010,7 +1200,7 @@ Object.defineProperties(editorEventContext, {
 });
 bindEditorEvents(editorEventContext);
 
-makeVectorFields(); makeAreaVectorFields(); normalizeSkyColor(); normalizeFog(); updateSceneAtmosphere(); normalizeLighting(); updateLightingInspector(); renderEnemyAreas(); await loadSavedWorld(); resize(); setMode('select');
+makeVectorFields(); makeAreaVectorFields(); normalizeSkyColor(); normalizeFog(); updateSceneAtmosphere(); normalizeLighting(); updateLightingInspector(); renderShaders(); bindShaderEditor(); renderEnemyAreas(); await loadSavedWorld(); resize(); setMode('select');
 let lastFrameTime = performance.now();
 function animate() {
   requestAnimationFrame(animate);
@@ -1018,6 +1208,12 @@ function animate() {
   const delta = Math.min(0.1, (now - lastFrameTime) / 1000);
   lastFrameTime = now;
   entities.forEach((entity) => entity.animationMixer?.update(delta));
+  entities.forEach((entity) => entity.object?.traverse((child) => {
+    if (child.isMesh && child.material?.userData?.waterShader) {
+      updateWaterMaterial(child.material, now * 0.001);
+      updateWaterMaterialUniforms(child.material, { resolution: [canvas.clientWidth, canvas.clientHeight] });
+    }
+  }));
   editorScene.renderFrame(delta);
 }
 animate();

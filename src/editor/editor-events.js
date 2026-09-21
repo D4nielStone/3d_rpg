@@ -25,6 +25,7 @@ export function bindEditorEvents(context) {
     redo,
     loadWorld,
     registerAsset,
+    renderAssets,
     instantiateAsset,
     assetFormat,
     readFileAsDataUrl,
@@ -49,6 +50,13 @@ export function bindEditorEvents(context) {
     stopAnimation,
     entityDiffuseColorInput,
     entityTextureFileInput,
+    materialNameInput,
+    materialShaderInput,
+    materialSurfaceInput,
+    materialMetalnessInput,
+    materialMetalnessValue,
+    materialRoughnessInput,
+    materialRoughnessValue,
     entityReceiveLightInput,
     entityCastShadowInput,
     entityLightColorInput,
@@ -124,16 +132,22 @@ export function bindEditorEvents(context) {
   document.querySelector('#model-file').addEventListener('change', async (event) => {
     const files = [...event.target.files];
     const model = files.find((file) => /\.(glb|gltf|obj)$/i.test(file.name));
-    if (!model) return;
     try {
-      const dependencies = Object.fromEntries(await Promise.all(files.filter((file) => file !== model).map(async (file) => [file.name, await readFileAsDataUrl(file)])));
-      const url = await readFileAsDataUrl(model);
-      await registerAsset(url, model.name, `local:${model.name}`, assetFormat(model.name), dependencies);
+      if (model) {
+        const dependencies = Object.fromEntries(await Promise.all(files.filter((file) => file !== model).map(async (file) => [file.name, await readFileAsDataUrl(file)])));
+        const url = await readFileAsDataUrl(model);
+        await registerAsset(url, model.name, `local:${model.name}`, assetFormat(model.name), dependencies);
+      }
+      for (const file of files.filter((item) => item !== model)) {
+        await registerAsset(await readFileAsDataUrl(file), file.name, `local:${file.name}`, assetFormat(file.name), null, file.type);
+      }
     } catch (error) {
       setStatus(`Falha ao ler ${model.name}: ${error.message}`);
     }
     event.target.value = '';
   });
+  ['asset-search', 'asset-format-filter', 'asset-sort'].forEach((id) => document.querySelector(`#${id}`).addEventListener('input', renderAssets));
+  document.querySelector('#clear-asset-search').addEventListener('click', () => { document.querySelector('#asset-search').value = ''; document.querySelector('#asset-format-filter').value = 'all'; renderAssets(); });
 
   document.querySelector('#add-url-button').addEventListener('click', async () => {
     const input = document.querySelector('#model-url');
@@ -328,6 +342,26 @@ export function bindEditorEvents(context) {
     updateSummary();
   });
 
+  document.querySelector('#entity-tags').addEventListener('change', (event) => {
+    const entity = selectedEntity();
+    if (!entity) return;
+    pushHistory();
+    entity.tags = event.target.value.split(',');
+    context.normalizeEntityTags(entity);
+    context.applyEntityWaterShader(entity);
+    event.target.value = entity.tags.join(', ');
+    updateSummary();
+  });
+
+  document.querySelector('#entity-shader-tag').addEventListener('change', (event) => {
+    const entity = selectedEntity();
+    if (!entity) return;
+    pushHistory();
+    const tag = event.target.value.trim();
+    entity.shader = tag ? { ...(entity.shader ?? {}), tag } : null;
+    updateSummary();
+  });
+
   document.querySelector('#collision-enabled').addEventListener('change', (event) => {
     const entity = selectedEntity();
     if (!entity) return;
@@ -404,6 +438,39 @@ export function bindEditorEvents(context) {
     context.renderMeshList(entity);
     updateSummary();
   });
+
+  function updateSelectedMaterial(property, value) {
+    const entity = selectedEntity();
+    const material = entity?.materials?.[selectedMaterialIndex];
+    if (!entity || !material) return;
+    pushHistory();
+    material[property] = value;
+    context.normalizeEntityMaterials(entity);
+    context.applyEntityMaterials(entity);
+    context.applyEntityWaterShader(entity);
+    if (entity.isPlayerPreview) context.syncPlayerFromPreview(entity);
+    updateInspector();
+    updateSummary();
+  }
+
+  document.querySelector('#create-material-button').addEventListener('click', () => {
+    const entity = selectedEntity();
+    if (!entity) return;
+    pushHistory();
+    entity.materials = entity.materials ?? [];
+    entity.materials.push({ name: `Material ${entity.materials.length + 1}`, shader: 'Standard', surface: 'Opaque', diffuseColor: [1, 1, 1], metallic: 0, roughness: 0.7 });
+    context.selectedMaterialIndex = entity.materials.length - 1;
+    context.applyEntityMaterials(entity);
+    context.renderMeshList(entity);
+    updateInspector();
+    updateSummary();
+  });
+
+  materialNameInput.addEventListener('change', () => updateSelectedMaterial('name', materialNameInput.value.trim() || `Material ${selectedMaterialIndex + 1}`));
+  materialShaderInput.addEventListener('change', () => updateSelectedMaterial('shader', materialShaderInput.value));
+  materialSurfaceInput.addEventListener('change', () => updateSelectedMaterial('surface', materialSurfaceInput.value));
+  materialMetalnessInput.addEventListener('input', () => { materialMetalnessValue.textContent = Number(materialMetalnessInput.value).toFixed(2); updateSelectedMaterial('metallic', Number(materialMetalnessInput.value)); });
+  materialRoughnessInput.addEventListener('input', () => { materialRoughnessValue.textContent = Number(materialRoughnessInput.value).toFixed(2); updateSelectedMaterial('roughness', Number(materialRoughnessInput.value)); });
 
   function updateEntityShadowSettings() {
     const entity = selectedEntity();

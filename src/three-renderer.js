@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { MeshRenderer, OutlineRenderer, ShadowRenderer, SwordRenderer, Texture, Transform, Water, EnemyAreaRenderer, DirectionalLightRenderer } from './components.js';
+import { createWaterMaterial, isWaterEntity, updateWaterMaterial } from './shaders/water-material.js';
 
 function colorFrom(value, fallback = [1, 1, 1]) {
   const channels = Array.isArray(value) ? value : fallback;
@@ -38,7 +39,8 @@ function textureFrom(texture) {
   return texture.threeTexture;
 }
 
-function createMaterial(mesh, texture, transparent = false) {
+function createMaterial(mesh, texture, transparent = false, water = false, waterLevel = 0) {
+  if (water) return createWaterMaterial({ color: mesh.material?.diffuseColor, level: waterLevel, map: textureFrom(mesh.material?.texture ?? texture) });
   return new THREE.MeshLambertMaterial({
     color: colorFrom(mesh.material?.diffuseColor),
     map: textureFrom(mesh.material?.texture ?? texture),
@@ -62,6 +64,16 @@ export class ThreeRenderSystem {
       const message = 'Erro ao carregar contexto webgl.';
       throw new Error(message, { cause: error });
     }
+    this.waterDepthTarget = new THREE.WebGLRenderTarget(1, 1, {
+      minFilter: THREE.NearestFilter,
+      magFilter: THREE.NearestFilter,
+      format: THREE.RedFormat,
+      type: THREE.UnsignedByteType,
+      depthBuffer: true,
+    });
+    this.waterDepthTarget.depthTexture = new THREE.DepthTexture(1, 1, THREE.UnsignedIntType);
+    this.waterDepthTarget.depthTexture.minFilter = THREE.NearestFilter;
+    this.waterDepthTarget.depthTexture.magFilter = THREE.NearestFilter;
     canvas.addEventListener('webglcontextlost', (event) => {
       event.preventDefault();
       console.error('El contexto WebGL se perdio; recarga la pagina para intentar recuperarlo.');
@@ -99,6 +111,8 @@ export class ThreeRenderSystem {
     const height = Math.max(1, this.canvas.clientHeight);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     this.renderer.setSize(width, height, false);
+    const pixelRatio = this.renderer.getPixelRatio();
+    this.waterDepthTarget.setSize(Math.max(1, Math.floor(width * pixelRatio)), Math.max(1, Math.floor(height * pixelRatio)));
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
     this.sourceCamera.setAspect(this.camera.aspect);
@@ -221,19 +235,18 @@ export class ThreeRenderSystem {
     light.shadow.camera.updateProjectionMatrix();
   }
 
-  createObject(renderer, texture, isWater, isEnemyArea) {
+  createObject(renderer, texture, isWater, isEnemyArea, waterLevel = 0) {
     const group = new THREE.Group();
     const castShadow = renderer.castShadow !== false;
     const receiveShadow = renderer.receiveLight !== false;
     for (const mesh of renderer.meshes ?? []) {
       const geometry = geometryFromMesh(mesh);
-      const material = createMaterial(mesh, texture, isEnemyArea);
+      const material = createMaterial(mesh, texture, isEnemyArea, isWater, waterLevel);
       const meshWrapper = new THREE.Group();
       const object = new THREE.Mesh(geometry, material);
       object.castShadow = castShadow;
       object.receiveShadow = receiveShadow;
       object.renderOrder = 1;
-      if (isWater) object.material.color.setRGB(0.08, 0.45, 0.7);
       meshWrapper.userData.mainMesh = object;
       meshWrapper.add(object);
       group.add(meshWrapper);
@@ -247,9 +260,10 @@ export class ThreeRenderSystem {
     const renderer = world.getComponent(entity, MeshRenderer);
     const texture = world.getComponent(entity, Texture);
     const water = world.getComponent(entity, Water);
+    const taggedWater = isWaterEntity(renderer);
     let object = this.entityObjects.get(entity);
     if (!object) {
-      object = this.createObject(renderer, texture, Boolean(water), Boolean(world.getComponent(entity, EnemyAreaRenderer)));
+      object = this.createObject(renderer, texture, Boolean(water || taggedWater), Boolean(world.getComponent(entity, EnemyAreaRenderer)), transform.position[1]);
       this.root.add(object);
       this.entityObjects.set(entity, object);
     }
@@ -269,6 +283,9 @@ export class ThreeRenderSystem {
       }
       meshObject.geometry.computeBoundingSphere();
       mesh.dirty = false;
+    });
+    object.traverse((child) => {
+      if (child.isMesh && child.material?.userData?.waterShader) updateWaterMaterial(child.material, performance.now() * 0.001);
     });
     object.position.set(...transform.position);
     object.rotation.set(transform.rotation[0], transform.rotation[1], transform.rotation[2]);
@@ -479,6 +496,24 @@ export class ThreeRenderSystem {
         this.entityObjects.set(key, ring);
       }
     }
+    const waterObjects = [];
+    this.root.traverse((child) => {
+      if (!child.isMesh || !child.material?.userData?.waterShader) return;
+      waterObjects.push(child);
+      child.visible = false;
+    });
+    this.renderer.setRenderTarget(this.waterDepthTarget);
+    this.renderer.clear();
+    this.renderer.render(this.scene, this.camera);
+    this.renderer.setRenderTarget(null);
+    waterObjects.forEach((object) => {
+      object.visible = true;
+      const uniforms = object.material.uniforms;
+      uniforms.uDepthTexture.value = this.waterDepthTarget.depthTexture;
+      uniforms.uScreenResolution.value.set(this.waterDepthTarget.width, this.waterDepthTarget.height);
+      uniforms.uCameraNear.value = this.camera.near;
+      uniforms.uCameraFar.value = this.camera.far;
+    });
     this.renderer.render(this.scene, this.camera);
   }
 }

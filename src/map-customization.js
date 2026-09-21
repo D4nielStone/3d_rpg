@@ -148,6 +148,7 @@ async function createWorldEntities(world, config, textureManager) {
     if (definition.primitive) {
       const mesh = createPrimitiveMesh(definition.primitive);
       if (!mesh) continue;
+      mesh.tags = Array.isArray(definition.tags) ? [...definition.tags] : [];
       const entity = world.createEntity();
       world.addComponent(entity, new Transform({
         position: definition.position,
@@ -172,6 +173,7 @@ async function createWorldEntities(world, config, textureManager) {
     if (!asset?.url || asset.url.startsWith('blob:') || asset.url.startsWith('local:')) continue;
     try {
       const loaded = await loadAsset(asset.url, asset.format, textureManager, asset.dependencies);
+      loaded.mesh.tags = Array.isArray(definition.tags) ? [...definition.tags] : [];
       const entity = world.createEntity();
       world.addComponent(entity, new Transform({
         position: definition.position,

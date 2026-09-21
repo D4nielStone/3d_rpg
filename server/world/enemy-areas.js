@@ -17,7 +17,7 @@ export const DEFAULT_ENEMY_AREAS = Object.freeze([
 ]);
 
 export function createEnemyAreas(config = null) {
-  const definitions = Array.isArray(config?.enemyAreas) && config.enemyAreas.length > 0
+  const definitions = Array.isArray(config?.enemyAreas)
     ? config.enemyAreas
     : DEFAULT_ENEMY_AREAS;
   const enemyTypes = createEnemyTypeMap(config);

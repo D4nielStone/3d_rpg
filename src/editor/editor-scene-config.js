@@ -35,6 +35,7 @@ export function buildDefaultWorldConfig() {
       },
     },
     sounds: { ...defaultSounds },
+    shaders: [],
     player: {
       position: [0, 0, 0],
       rotation: [0, 0, 0],

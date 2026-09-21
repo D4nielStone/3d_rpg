@@ -80,9 +80,10 @@ export class Material {
 }
 
 export class MeshRenderer {
-  constructor({ meshes = null, vertices, colors, indices, normals = null, uvs = null, texture = null, material = null, receiveLight = true, castShadow = true }) {
+  constructor({ meshes = null, vertices, colors, indices, normals = null, uvs = null, texture = null, material = null, receiveLight = true, castShadow = true, tags = [] }) {
     this.receiveLight = receiveLight;
     this.castShadow = castShadow;
+    this.tags = Array.isArray(tags) ? [...tags] : [];
     this.meshes = meshes ?? [{
       vertices,
       colors,
